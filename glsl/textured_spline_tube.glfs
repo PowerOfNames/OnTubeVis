@@ -123,7 +123,7 @@ in flat mat4 SM_fs; // spline matrix
 #endif
 
 #if USE_CONSERVATIVE_DEPTH == 1
-layout (depth_greater) out float gl_FragDepth;
+// layout (depth_greater) out float gl_FragDepth;
 #endif
 
 layout (location = 0) out vec4 frag_albedo;
