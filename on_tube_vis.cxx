@@ -121,8 +121,9 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(32u);
 #else
 	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(128u);
-#endif
+#endif 1805
 
+	//TODO THESIS
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
 
 	// add framebuffer attachments needed for deferred rendering
@@ -304,7 +305,9 @@ void on_tube_vis::handle_args (std::vector<std::string> &args)
 
 void on_tube_vis::clear(cgv::render::context &ctx) {
 	// decrease reference count of the renderers by one
-	ref_textured_spline_tube_renderer(ctx, -1);
+	// TODO THESIS
+	//ref_textured_spline_tube_renderer(ctx, -1);
+	ref_glyph3D_spline_tube_renderer(ctx, -1);
 	ref_volume_renderer(ctx, -1);
 
 	bbox_rd.destruct(ctx);
@@ -388,7 +391,9 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				break;
 			case '1':
 				std::cout << "Benchmark setup: previous (proxy gemometry = full box; conservative depth = off; sorting = off; AO = off)" << std::endl;
-				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_BOX);
+				// TODO THESIS
+				//SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_BOX);
+				SET_MEMBER(render.style.bounding_geometry, glyph3D_spline_tube_render_style::BG_BOX);
 				SET_MEMBER(render.style.use_cubic_tangents, false);
 				SET_MEMBER(render.style.use_conservative_depth, false);
 				SET_MEMBER(debug.sort, false);
@@ -402,7 +407,9 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				break;
 			case '2':
 				std::cout << "Benchmark setup: ours plain (no sorting) (proxy gemometry = aligned box billboard; conservative depth = on; sorting = off; AO = off)" << std::endl;
-				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				// TODO THESIS
+				//SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.bounding_geometry, glyph3D_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, false);
@@ -416,7 +423,8 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				break;
 			case '3':
 				std::cout << "Benchmark setup: ours plain (sorting) (proxy gemometry = aligned box billboard; conservative depth = on; sorting = on; AO = off)" << std::endl;
-				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				//SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.bounding_geometry, glyph3D_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, true);
@@ -430,7 +438,9 @@ bool on_tube_vis::handle_event(cgv::gui::event &e) {
 				break;
 			case '4':
 				std::cout << "Benchmark setup: ours full (proxy gemometry = aligned box billboard; conservative depth = on; sorting = on; AO = on)" << std::endl;
-				SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				// TODO THESIS
+				//SET_MEMBER(render.style.bounding_geometry, textured_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
+				SET_MEMBER(render.style.bounding_geometry, glyph3D_spline_tube_render_style::BG_ALIGNED_BOX_BILLBOARD);
 				SET_MEMBER(render.style.use_cubic_tangents, true);
 				SET_MEMBER(render.style.use_conservative_depth, true);
 				SET_MEMBER(debug.sort, true);
@@ -1299,7 +1309,9 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	std::cerr << std::endl;
 
 	// increase reference count of the renderers by one
-	auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
+	// TODO THESIS
+	//auto &tstr = ref_textured_spline_tube_renderer(ctx, 1);
+	auto &tstr = ref_glyph3D_spline_tube_renderer(ctx, 1);
 	auto &vr = ref_volume_renderer(ctx, 1);
 	bool success = tstr.ref_prog().is_linked() && vr.ref_prog().is_linked();
 
@@ -2408,7 +2420,9 @@ void on_tube_vis::update_attribute_bindings(void) {
 			segment_indices[i] = i;
 
 		// Upload render attributes to legacy buffers
-		auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		// TODO THESIS
+		//auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		auto &tstr = ref_glyph3D_spline_tube_renderer(ctx);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
 		tstr.set_indices(ctx, segment_indices);
@@ -2537,7 +2551,9 @@ void on_tube_vis::create_density_volume(context& ctx, unsigned resolution) {
 
 	if(voxelize_gpu) {
 		// prepare index buffer pointer
-		auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		// TODO THESIS
+		//auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		auto &tstr = ref_glyph3D_spline_tube_renderer(ctx);
 		const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 		if(node_idx_buffer_ptr && render.render_sbo.is_created())
 			density_volume.compute_density_volume_gpu(ctx, render.data, render.style.radius_scale, *node_idx_buffer_ptr, render.render_sbo, density_tex);
@@ -2619,7 +2635,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		static_cast<float>(fbc.ref_frame_buffer().get_height())
 	);
 	// - spline stube renderer setup relevant to deferred shading pass
-	auto &tstr = ref_textured_spline_tube_renderer(ctx);
+	// TODO THESIS
+	//auto &tstr = ref_textured_spline_tube_renderer(ctx);
+	auto &tstr = ref_glyph3D_spline_tube_renderer(ctx);
 	tstr.set_render_style(render.style);
 	// - the depth texture to use
 	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
@@ -2640,7 +2658,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// render tubes
-		auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		// TODO THESIS
+		//auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		auto &tstr = ref_glyph3D_spline_tube_renderer(ctx);
 
 		// prepare index buffer pointer
 		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
@@ -2767,7 +2787,9 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.set_uniform(ctx, "length_scale", render.style.length_scale);
 		prog.set_uniform(ctx, "antialias_radius", render.style.antialias_radius);
 
-		const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
+		//TODO THESIS
+		//const surface_render_style& srs = *static_cast<const surface_render_style*>(&render.style);
+		const glyph3D_render_style& srs = *static_cast<const glyph3D_render_style*>(&render.style);
 
 		prog.set_uniform(ctx, "map_color_to_material", int(srs.map_color_to_material));
 		prog.set_uniform(ctx, "culling_mode", int(srs.culling_mode));
@@ -2791,7 +2813,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			density_tex.enable(ctx, 5);
 		color_map_mgr.ref_texture().enable(ctx, 6);
 
-		// bind range attribute sbos of active glyph layers
+		// bind range attribute ssbos of active glyph layers
 		bool active_sbos[4] = { false, false, false, false };
 		for(size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
 			if(glyph_layers_config.layer_configs[i].mapped_attributes.size() > 0) {
