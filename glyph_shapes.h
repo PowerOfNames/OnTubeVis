@@ -20,6 +20,10 @@ enum GlyphType {
 	GT_STAR,
 	GT_LINE_PLOT,
 	GT_TEMPORAL_HEAT_MAP,
+	//THESIS:
+	//3D
+	GT_3D_SPHERE,
+	GT_3D_ELLIPSOID_3x3_TENSOR
 };
 
 enum GlyphAttributeType {
@@ -70,6 +74,7 @@ public:
 	virtual glyph_shape* copy() const = 0;
 
 	virtual GlyphType type() const = 0;
+	
 	virtual std::string name() const = 0;
 	virtual const attribute_list& supported_attributes() const = 0;
 
@@ -97,7 +102,7 @@ public:
 
 	virtual GlyphType type() const {
 		return GT_COLOR;
-	}
+	}	
 
 	virtual std::string name() const {
 		return "color";
@@ -523,22 +528,89 @@ public:
 	}
 };
 
+//THESIS:
+class sphere_glyph : public glyph_shape {
+public:
+	virtual sphere_glyph* copy() const {
+		return new sphere_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_3D_SPHERE;
+	}
+
+	virtual std::string name() const {
+		return "sphere";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			//{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
+			{ "radius", GAT_SIZE },
+		};
+		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// size is two times the radius, a.k.a. the diameter of the circle
+		return 2.0f * param_values[1];
+	}
+};
+
+class ellipsoid3x3tensor_glyph : public glyph_shape {
+public:
+	virtual ellipsoid3x3tensor_glyph* copy() const {
+		return new ellipsoid3x3tensor_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_3D_ELLIPSOID_3x3_TENSOR;
+	}
+
+	virtual std::string name() const {
+		return "ellipsoid3x3tensor";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			//{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
+			{ "radius1", GAT_SIZE },
+			{ "radius2", GAT_SIZE },
+			{ "radius3", GAT_SIZE }
+			//TODO: add eigen vector values (or vec4, if possible) or use 3 orientations for reduced memory usage
+		};
+		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {
+		// size is two times the radius, a.k.a. the diameter of the circle
+		return 2.0f * param_values[1];
+	}
+};
+
 struct glyph_type_registry {
 	static GlyphType type(const std::string& name) {
-		const auto& n = names();
+		const auto& n2D = names2D();
+		const auto& n3D = names3D();
 		static const std::map<std::string, GlyphType> mapping = {
-			{ n[0], GT_COLOR },
-			{ n[1], GT_CIRCLE },
-			{ n[2], GT_RECTANGLE },
-			{ n[3], GT_WEDGE },
-			{ n[4], GT_ARC_FLAT },
-			{ n[5], GT_ARC_ROUNDED },
-			{ n[6], GT_TRIANGLE },
-			{ n[7], GT_DROP },
-			{ n[8], GT_SIGN_BLOB },
-			{ n[9], GT_STAR },
-			{ n[10], GT_LINE_PLOT },
-			{ n[11], GT_TEMPORAL_HEAT_MAP }
+			{ n2D[0], GT_COLOR },
+			{ n2D[1], GT_CIRCLE },
+			{ n2D[2], GT_RECTANGLE },
+			{ n2D[3], GT_WEDGE },
+			{ n2D[4], GT_ARC_FLAT },
+			{ n2D[5], GT_ARC_ROUNDED },
+			{ n2D[6], GT_TRIANGLE },
+			{ n2D[7], GT_DROP },
+			{ n2D[8], GT_SIGN_BLOB },
+			{ n2D[9], GT_STAR },
+			{ n2D[10], GT_LINE_PLOT },
+			{ n2D[11], GT_TEMPORAL_HEAT_MAP },
+			//THESIS:
+			//3D
+			{ n3D[0], GT_3D_SPHERE},
+			{ n3D[1], GT_3D_ELLIPSOID_3x3_TENSOR },
 		};
 
 		auto it = mapping.find(name);
@@ -560,14 +632,71 @@ struct glyph_type_registry {
 			"sign_blob",
 			"star",
 			"line_plot",
-			"temporal_heat_map"
+			"temporal_heat_map",
+			"sphere"
+			"ellipsoid_3x3_tensor"
 		};
 
 		return n;
 	}
 
 	static std::vector<std::string> display_names() {
-		static const std::vector<std::string> names = {
+		static const std::vector<std::string> n = {
+			"Surface Color",
+			"Circle",
+			"Rectangle",
+			"Wedge",
+			"Flat Arc",
+			"Rounded Arc",
+			"Isosceles Triangle",
+			"Drop",
+			"Sign Blob",
+			"Star",
+			"Line Plot",
+			"Temporal Heat Map",
+			"Sphere",
+			"Ellipsoid Tensor3x3"
+		};
+
+		return n;
+	}
+
+	static std::string display_name_enums() {
+		const auto& n = display_names();
+		std::string enums = "";
+
+		for (size_t i = 0; i < n.size(); ++i) {
+			enums += n[i];
+			if (i < n.size() - 1)
+				enums += ",";
+		}
+
+		return enums;
+	}
+
+
+	//THESIS: helper
+	static std::vector<std::string> names2D() {
+		static const std::vector<std::string> n = {
+			"color",
+			"circle",
+			"rectangle",
+			"wedge",
+			"arc_flat",
+			"arc_rounded",
+			"triangle_isosceles",
+			"drop",
+			"sign_blob",
+			"star",
+			"line_plot",
+			"temporal_heat_map"
+		};
+
+		return n;
+	}	
+
+	static std::vector<std::string> display_names2D() {
+		static const std::vector<std::string> n2D = {
 			"Surface Color",
 			"Circle",
 			"Rectangle",
@@ -582,19 +711,48 @@ struct glyph_type_registry {
 			"Temporal Heat Map"
 		};
 
-		return names;
+		return n2D;
 	}
 
-	static std::string display_name_enums() {
-		const auto& names = display_names();
+	static std::string display_name2D_enums() {
+		const auto& n2D = display_names2D();
 		std::string enums = "";
 
-		for(size_t i = 0; i < names.size(); ++i) {
-			enums += names[i];
-			if(i < names.size() - 1)
+		for(size_t i = 0; i < n2D.size(); ++i) {
+			enums += n2D[i];
+			if(i < n2D.size() - 1)
 				enums += ",";
 		}
 
+		return enums;
+	}
+
+	//THESIS:
+	static std::vector<std::string> names3D() {
+		static const std::vector<std::string> n = {
+			"sphere",
+			"ellipsoid3x3tensor"
+		};
+
+		return n;
+	}
+	static std::vector<std::string> display_names3D() {
+		static const std::vector<std::string> n3D = {
+			"Sphere",
+			"Ellipsoid Tensor3x3"
+		};
+
+		return n3D;
+	}
+	static std::string display_name3D_enums() {
+		const auto& n3D = display_names3D();
+		std::string enums = "";
+
+		for (size_t i = 0; i < n3D.size(); ++i) {
+			enums += n3D[i];
+			if (i < n3D.size() - 1)
+				enums += ",";
+		}
 		return enums;
 	}
 };
@@ -616,9 +774,16 @@ struct glyph_shape_factory {
 		case GT_STAR: shape_ptr = new star_glyph(); break;
 		case GT_LINE_PLOT: shape_ptr = new line_plot_glyph(); break;
 		case GT_TEMPORAL_HEAT_MAP: shape_ptr = new temporal_heat_map_glyph(); break;
+		//THESIS:
+		//3D
+		case GT_3D_SPHERE: shape_ptr = new sphere_glyph(); break;
+		case GT_3D_ELLIPSOID_3x3_TENSOR: shape_ptr = new ellipsoid3x3tensor_glyph(); break;
 		default: shape_ptr = new circle_glyph(); break;
 		}
 
 		return shape_ptr;
 	}
 };
+
+
+

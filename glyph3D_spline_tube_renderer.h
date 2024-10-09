@@ -53,6 +53,14 @@ namespace cgv { // @<
 				LP_RIBBON_RAYCASTED = 2,                    // use raycasted view-aligned ribbon
 				LP_RIBBON_GEOMETRY = 3                      // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
 			} line_primitive;
+
+			//THESIS:
+			enum GlyphDimension
+			{
+				GD_2D = 0,
+				GD_3D = 1
+			} glyph_dimension;
+
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
@@ -121,6 +129,16 @@ namespace cgv { // @<
 			inline bool is_ribbon(void) const {
 				return line_primitive > 1;
 			}
+
+			//THESIS:
+			/// check whether chosen glyph dimensionality is 2D
+			inline bool is_2D(void) const {
+				return glyph_dimension == 0;
+			}
+			///  check whether chosen glyph dimensionality is 3D
+			inline bool is_3D(void) const {
+				return glyph_dimension == 1;
+			}
 		};
 
 		/// renderer that supports textured cubic hermite spline tubes
@@ -144,6 +162,8 @@ namespace cgv { // @<
 			shader_define_map additional_defines;
 			/// keep track of which line primitive was active the last time the renderer drew something
 			glyph3D_spline_tube_render_style::LinePrimitive last_active_line_primitive;
+
+			glyph3D_spline_tube_render_style::GlyphDimension last_set_glyph_dimension;
 
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const;

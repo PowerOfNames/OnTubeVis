@@ -1027,6 +1027,18 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		reset_taa = true;
 	}
 
+	// THESIS:
+	if (m.is(render.style.glyph_dimension))
+	{
+		// perform smart toggle bookkeeping
+		if (!ui_state.dim_toggle.check_toggled()) {
+			ui_state.dim_toggle.current_glyph_dimension = render.style.glyph_dimension;
+		}
+
+		update_glyph_dimension_toggle();
+		do_full_gui_update = true;
+	}
+
 #ifdef RTX_SUPPORT
 	// ###############################
 	/* ### BEGIN: OptiX integration */ {
@@ -2120,8 +2132,20 @@ void on_tube_vis::create_gui(void)
 			layer_config_file_helper.create_gui("Configuration", layer_config_has_unsaved_changes ? "text_color=" + cgv::gui::theme_info::instance().warning_hex() : "");
 			align("%y-=8");
 			add_decorator("", "separator", "", "\n%y-=8");
+			/* Quick glyphType 2D/3D toggle */ {
+				std::string label = "Current GlyphType: ";
+				label += render.style.is_2D() ? "2D" : "3D";
+				label += " (toggle)";
+				ui_state.dim_toggle.button = add_button(get_glyph_dimension_toggle_label());
+				if (ui_state.dim_toggle.button)
+					connect_copy(
+						ui_state.dim_toggle.button->click,
+						cgv::signal::rebind(this, &on_tube_vis::toggle_glyph_dimension)
+					);
+			}
 			connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));
 			render.visualizations.front().manager.create_gui(this, *this);
+
 			align("\b");
 			end_tree_node(render.visualizations.front().manager);
 		}
@@ -2365,6 +2389,7 @@ void on_tube_vis::update_attribute_bindings(void) {
 		);
 
 		// Clear range and attribute buffers for glyph layers
+		//TODO THESIS
 		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
 			render.aindex_sbos[i].destruct(ctx);
 		for(size_t i = 0; i < render.attribs_sbos.size(); ++i)

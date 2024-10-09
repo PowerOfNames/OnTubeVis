@@ -352,6 +352,33 @@ protected:
 		ui_state.tr_toggle.button->set("label", get_tube_ribbon_toggle_label());
 	}
 
+	// THESIS:
+	void toggle_glyph_dimension()
+	{		
+		if (render.style.is_2D())
+			render.style.glyph_dimension = glyph3D_spline_tube_render_style::GD_3D;
+		else if(render.style.is_3D())
+			render.style.glyph_dimension = glyph3D_spline_tube_render_style::GD_2D;
+
+		render.visualizations.front().manager.SetGlyphDimensionTo2D(render.style.is_2D() ? true : false);
+		ui_state.dim_toggle.current_glyph_dimension = render.style.glyph_dimension;
+
+		ui_state.dim_toggle.was_toggled = true;
+		on_set(&render.style.glyph_dimension);
+	}
+	std::string get_glyph_dimension_toggle_label()
+	{
+		std::string label = "Current GlyphDimension: ";
+		label += render.style.is_2D() ? "2D" : "3D";
+		label += " (toggle)";
+		return label;
+	}
+	void update_glyph_dimension_toggle()
+	{
+		ui_state.dim_toggle.button->set("label", get_glyph_dimension_toggle_label());
+	}
+
+
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
 	cgv::render::box_render_data<> bbox_rd;
@@ -500,6 +527,14 @@ protected:
 			/// reference to the GUI button attached to the toggle
 			cgv::gui::button_ptr button;
 		} tr_toggle;
+
+		// THESIS
+		struct {
+			glyph3D_spline_tube_render_style::GlyphDimension current_glyph_dimension = glyph3D_spline_tube_render_style::GD_2D;
+			bool was_toggled = false;
+			bool check_toggled(void) { const bool toggled = was_toggled; was_toggled = false; return toggled; }
+			cgv::gui::button_ptr button;
+		}dim_toggle;
 	} ui_state;
 
 	bool benchmark_mode = false;

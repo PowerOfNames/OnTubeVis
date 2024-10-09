@@ -234,7 +234,10 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 
 		std::string name = std::to_string(i + 1);
 		if(gam.get_name().empty())
-			name = "(Layer " + name + ")";
+			if(is_2D)
+				name = "(Layer " + name + ")";
+			else
+				name = "(Glyph " + name + ")";
 		else
 			name = name + ": " + gam.get_name();
 
@@ -258,7 +261,10 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 			connect_copy(p.add_button("@9+", "w=20;color=0xb51c1c")->click, cgv::signal::rebind(this, &glyph_layer_manager::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
 
 			p.align("%y-=28");
-			gam.create_gui(this, p);
+			if(is_2D)
+				gam.create_glyph2D_gui(this, p);
+			else
+				gam.create_glyph3D_gui(this, p);
 
 			p.align("\b");
 			p.end_tree_node(gam);

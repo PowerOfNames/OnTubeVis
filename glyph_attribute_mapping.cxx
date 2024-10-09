@@ -60,7 +60,7 @@ void glyph_attribute_mapping::set_glyph_type(GlyphType type) {
 	create_glyph_shape();
 }
 
-void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider& p) {
+void glyph_attribute_mapping::create_glyph2D_gui(cgv::base::base* bp, cgv::gui::provider& p) {
 	if(!shape_ptr)
 		return;
 
@@ -71,7 +71,8 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 	add_local_member_control(p, bp, "Sampling Step", sampling_step, "value_slider", "min=0;max=10;step=0.001;ticks=true;log=true");
 	p.add_decorator("", "separator");
 
-	std::string enums = glyph_type_registry::display_name_enums();
+	
+	std::string enums = glyph_type_registry::display_name2D_enums();
 	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='" + enums + "'");
 	
 	bool global_block = false;
@@ -88,6 +89,43 @@ void glyph_attribute_mapping::create_gui(cgv::base::base* bp, cgv::gui::provider
 		}
 
 		if(i != 0 && separator_requested)
+			p.add_decorator("", "separator");
+
+		create_attribute_gui(bp, p, i, attrib, global_block);
+	}
+}
+
+//THESIS:
+void glyph_attribute_mapping::create_glyph3D_gui(cgv::base::base* bp, cgv::gui::provider& p) {
+	if (!shape_ptr)
+		return;
+
+	add_local_member_control(p, bp, "Name", name, "", "w=146", "%x+=2");
+	connect_copy(p.add_button("@1edit", "w=20")->click, cgv::signal::rebind(this, &glyph_attribute_mapping::update_name, cgv::signal::_c<cgv::base::base*>(bp)));
+
+	add_local_member_control(p, bp, "Sampling Strategy", sampling_strategy, "dropdown", "enums='Uniform Time,Equidistant,Original Samples'");
+	add_local_member_control(p, bp, "Sampling Step", sampling_step, "value_slider", "min=0;max=10;step=0.001;ticks=true;log=true");
+	p.add_decorator("", "separator");
+
+
+	std::string enums = glyph_type_registry::display_name3D_enums();
+	add_local_member_control(p, bp, "Shape", type, "dropdown", "enums='" + enums + "'");
+
+	bool global_block = false;
+	for (size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i) {
+		const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
+
+		bool separator_requested = false;
+		if (attrib.gui_hint == GH_BLOCK_START) {
+			separator_requested = true;
+			global_block = false;
+		}
+		else if (attrib.gui_hint == GH_GLOBAL_BLOCK_START) {
+			separator_requested = true;
+			global_block = true;
+		}
+
+		if (i != 0 && separator_requested)
 			p.add_decorator("", "separator");
 
 		create_attribute_gui(bp, p, i, attrib, global_block);

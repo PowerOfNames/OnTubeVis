@@ -64,6 +64,7 @@ public:
 		std::vector<layer_configuration> layer_configs;
 		std::string uniforms_definition = "";
 
+
 		void clear()
 		{
 			layer_configs.clear();
@@ -130,9 +131,16 @@ public:
 
 	ActionType action_type();
 
-	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
+	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);	
 
 	void notify_configuration_change();
 
 	void add_glyph_attribute_mapping(const glyph_attribute_mapping& attribute_mapping);
+
+	inline void SetGlyphDimensionTo2D(bool state) { is_2D = state; }
+	inline bool IsGlyphDimension2D() { return is_2D; }
+
+	private:
+		bool is_2D = true;
+
 };

@@ -153,7 +153,9 @@ public:
 		}
 	}
 
-	void create_gui(cgv::base::base* bp, cgv::gui::provider& p);
+	void create_glyph2D_gui(cgv::base::base* bp, cgv::gui::provider& p);
+	//THESIS:
+	void create_glyph3D_gui(cgv::base::base* bp, cgv::gui::provider& p);
 
 	void set_attrib_source_index(size_t attrib_idx, int source_idx) {
 		if(attrib_idx < attrib_source_indices.size())

@@ -26,6 +26,7 @@ namespace cgv {
 			bounding_geometry = BG_ALIGNED_BOX_BILLBOARD;
 			attrib_mode = AM_ALL;
 			line_primitive = LP_TUBE_RUSSIG;
+			glyph_dimension = GD_2D;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
@@ -123,14 +124,27 @@ namespace cgv {
 		{
 			const glyph3D_spline_tube_render_style& rs = get_style<glyph3D_spline_tube_render_style>();
 			last_active_line_primitive = rs.line_primitive;
+			last_set_glyph_dimension = rs.glyph_dimension;
 
-			//TODO THESIS:
-			if (rs.is_tube())
-				return prog.build_program(ctx, "textured_spline_tube.glpr", true, defines);
-			else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
-				return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
-			else
-				return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
+			//THESIS:
+			if (rs.is_2D())
+			{
+				if (rs.is_tube())
+					return prog.build_program(ctx, "textured_spline_tube.glpr", true, defines);
+				else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
+					return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
+				else
+					return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
+			} else if (rs.is_3D())
+			{
+				//TODO THESIS:
+				if (rs.is_tube())
+					return prog.build_program(ctx, "textured_spline_tube.glpr", true, defines);
+				else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
+					return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
+				else
+					return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
+			}
 		}
 		bool glyph3D_spline_tube_renderer::enable(context& ctx)
 		{
