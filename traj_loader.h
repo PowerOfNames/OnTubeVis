@@ -47,7 +47,7 @@ typedef typename std::underlying_type<VisualAttrib>::type VisualAttrib_int;
 /// enumeration of all supported attribute types
 enum class AttribType
 {
-	SCALAR, VEC2, VEC3, VEC4
+	SCALAR, VEC2, VEC3, VEC4, MAT33
 };
 /// underlying integer type of \ref AttribType
 typedef typename std::underlying_type<AttribType>::type AttribType_int;
@@ -112,6 +112,9 @@ public:
 
 	/// 4D vector type
 	typedef cgv::math::fvec<real, 4> Vec4;
+
+	/// 3x3 matrix type
+	typedef cgv::math::fmat<real, 3, 3> Mat33;
 
 	/// struct referencing some datapoint of this attribute
 	template <class T>
@@ -420,6 +423,18 @@ public:
 	/// construct with 4D vector attribute data and timestamps (both moved in)
 	traj_attribute(std::vector<Vec4> &&source, std::vector<real> &&timestamps);
 
+	/// construct with 3x3 matrix attribute data, generating uniformly spaced timestamps for each item
+	traj_attribute(const std::vector<Mat33> &source, float tstart=0, float dt=1);
+
+	/// construct with 3x3 matrix attribute data (moved in), generating uniformly spaced timestamps for each item
+	traj_attribute(std::vector<Mat33> &&source, float tstart=0, float dt=1);
+
+	/// construct with 3x3 matrix attribute data (moved in) and timestamps (copied)
+	traj_attribute(std::vector<Mat33> &&source, const std::vector<real> &timestamps);
+
+	/// construct with 3x3 matrix attribute data and timestamps (both moved in)
+	traj_attribute(std::vector<Mat33> &&source, std::vector<real> &&timestamps);
+
 	/// the destructor
 	~traj_attribute();
 
@@ -477,6 +492,14 @@ public:
 	/// access the attribute data as if it was of type Vec4 (read-only)
 	template <>
 	const container<Vec4>& get_data<Vec4>(void) const { return *dynamic_cast<container<Vec4>*>(_data); }
+
+	/// access the attribute data as if it was of type Mat33
+	template <>
+	container<Mat33>& get_data<Mat33>(void) { return *dynamic_cast<container<Mat33>*>(_data); }
+
+	/// access the attribute data as if it was of type Mat33 (read-only)
+	template <>
+	const container<Mat33>& get_data<Mat33>(void) const { return *dynamic_cast<container<Mat33>*>(_data); }
 
 	/// return a representation of the attribute datapoint at the given index that contains its magnitude instead of the actual value
 	datapoint_mag magnitude_at (unsigned index) const { return _data->magnitude_at(index); }
@@ -605,13 +628,13 @@ public:
 	typedef typename traj_attribute<real>::Vec4 Vec4;
 
 	/// 2D matrix type
-	typedef typename cgv::math::fmat<real, 2, 2> Mat2;
+	typedef typename cgv::math::fmat<real, 2, 2> Mat22;
 
 	/// 3D matrix type
-	typedef typename cgv::math::fmat<real, 3, 3> Mat3;
+	typedef typename cgv::math::fmat<real, 3, 3> Mat33;
 
 	/// 4D matrix type
-	typedef typename cgv::math::fmat<real, 4, 4> Mat4;
+	typedef typename cgv::math::fmat<real, 4, 4> Mat44;
 
 
 private:
@@ -950,6 +973,9 @@ public:
 	/// 4D vector type
 	typedef typename traj_attribute<real>::Vec4 Vec4;
 
+	/// 3x3 matrix type
+	typedef typename traj_attribute<real>::Mat33 Mat33;
+
 	/// color type
 	typedef typename visual_attribute_mapping<float>::Color Color;
 
@@ -1181,6 +1207,9 @@ public:
 	/// 4D vector type
 	typedef typename traj_dataset<real>::Vec4 Vec4;
 
+	/// 3x3 matrix type
+	typedef typename traj_dataset<real>::Mat33 Mat33;
+
 	/// color type
 	typedef typename traj_dataset<real>::Color Color;
 
@@ -1277,6 +1306,9 @@ public:
 
 	/// 4D vector type
 	typedef typename traj_format_handler<real>::Vec4 Vec4;
+
+	/// 3x3 matrix type
+	typedef typename traj_format_handler<real>::Mat33 Mat33;
 
 	/// color type
 	typedef typename traj_format_handler<real>::Color Color;

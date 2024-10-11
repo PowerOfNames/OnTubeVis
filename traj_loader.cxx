@@ -31,6 +31,7 @@ namespace type_str {
 	static const std::string VEC2       = "VEC2";
 	static const std::string VEC3       = "VEC3";
 	static const std::string VEC4       = "VEC4";
+	static const std::string MAT33      = "MAT33";
 	static const std::string ERROR_TYPE = "ERROR_TYPE";
 };
 
@@ -142,6 +143,9 @@ traj_attribute<flt_type>::traj_attribute (const traj_attribute &other)
 		case AttribType::VEC4:
 			_data = new container<Vec4>(*(container<Vec4>*)other._data);
 			return;
+		case AttribType::MAT33:
+			_data = new container<Mat33>(*(container<Mat33>*)other._data);
+			return;
 
 		default:
 			_data = new invalid_container<real>;
@@ -175,6 +179,10 @@ traj_attribute<flt_type>::traj_attribute (unsigned components) : _data(nullptr),
 		case 4:
 			_type = AttribType::VEC4;
 			_data = new container<Vec4>();
+			return;
+		case 9:
+			_type = AttribType::MAT33;
+			_data = new container<Mat33>();
 			return;
 
 		default:
@@ -336,6 +344,44 @@ traj_attribute<flt_type>::traj_attribute (std::vector<Vec4> &&source, std::vecto
 }
 
 template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (const std::vector<Mat33> &source, float tstart, float dt)
+		: _type(AttribType::MAT33), _data(nullptr), _id(get_unique_id())
+{
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<Mat33>(source, std::move(ts));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Mat33> &&source, float tstart, float dt)
+		: _type(AttribType::MAT33), _data(nullptr), _id(get_unique_id())
+{
+	// generate timestamps
+	std::vector<real> ts; ts.reserve(source.size());
+	for (unsigned i=0; i<(unsigned)source.size(); i++)
+		ts.emplace_back(tstart + dt*i);
+	// construct data container
+	_data = new container<Mat33>(std::move(source), std::move(ts));
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Mat33> &&source, const std::vector<real> &timestamps)
+		: _type(AttribType::MAT33), _data(nullptr), _id(get_unique_id())
+{
+	_data = new container<Mat33>(std::move(source), timestamps);
+}
+
+template <class flt_type>
+traj_attribute<flt_type>::traj_attribute (std::vector<Mat33> &&source, std::vector<real> &&timestamps)
+		: _type(AttribType::MAT33), _data(nullptr), _id(get_unique_id())
+{
+	_data = new container<Mat33>(std::move(source), std::move(timestamps));
+}
+
+template <class flt_type>
 traj_attribute<flt_type>::~traj_attribute()
 {
 	if (_data)
@@ -378,6 +424,8 @@ const std::string& traj_attribute<flt_type>::type_string (void) const
 			return type_str::VEC3;
 		case AttribType::VEC4:
 			return type_str::VEC4;
+		case AttribType::MAT33:
+			return type_str::MAT33;
 
 		default:
 			return type_str::ERROR_TYPE;
@@ -582,7 +630,27 @@ attrib_transform<flt_type>::~attrib_transform()
 	// perform appropriate functor deletion
 	switch (src_type)
 	{
+		case AttribType::MAT33: switch (tgt_type) {
+			case AttribType::MAT33:
+				delete (std::function<void(Mat33&, const Mat33&)>*)t_ptr;
+				goto _done;
+			case AttribType::VEC4:
+				delete (std::function<void(Vec4&, const Mat33&)>*)t_ptr;
+				goto _done;
+			case AttribType::VEC3:
+				delete (std::function<void(Vec3&, const Mat33&)>*)t_ptr;
+				goto _done;
+			case AttribType::VEC2:
+				delete (std::function<void(Vec2&, const Mat33&)>*)t_ptr;
+				goto _done;
+			case AttribType::SCALAR:
+				delete (std::function<void(real&, const Mat33&)>*)t_ptr;
+				goto _done;
+		}
 		case AttribType::VEC4: switch (tgt_type) {
+			case AttribType::MAT33:
+				delete (std::function<void(Mat33&, const Vec4&)>*)t_ptr;
+				goto _done;
 			case AttribType::VEC4:
 				delete (std::function<void(Vec4&, const Vec4&)>*)t_ptr;
 				goto _done;
@@ -597,6 +665,9 @@ attrib_transform<flt_type>::~attrib_transform()
 				goto _done;
 		}
 		case AttribType::VEC3: switch (tgt_type) {
+			case AttribType::MAT33:
+				delete (std::function<void(Mat33&, const Vec3&)>*)t_ptr;
+				goto _done;
 			case AttribType::VEC4:
 				delete (std::function<void(Vec4&, const Vec3&)>*)t_ptr;
 				goto _done;
@@ -611,6 +682,9 @@ attrib_transform<flt_type>::~attrib_transform()
 				goto _done;
 		}
 		case AttribType::VEC2: switch (tgt_type) {
+			case AttribType::MAT33:
+				delete (std::function<void(Mat33&, const Vec2&)>*)t_ptr;
+				goto _done;
 			case AttribType::VEC4:
 				delete (std::function<void(Vec4&, const Vec2&)>*)t_ptr;
 				goto _done;
@@ -625,6 +699,9 @@ attrib_transform<flt_type>::~attrib_transform()
 				goto _done;
 		}
 		case AttribType::SCALAR: switch (tgt_type) {
+			case AttribType::MAT33:
+				delete (std::function<void(Mat33&, const real&)>*)t_ptr;
+				goto _done;
 			case AttribType::VEC4:
 				delete (std::function<void(Vec4&, const real&)>*)t_ptr;
 				goto _done;
@@ -659,7 +736,27 @@ attrib_transform<flt_type>& attrib_transform<flt_type>::operator= (const attrib_
 	// only copy-construct new functor when not self assigning
 	if (!t_ptr && this != &other) switch (src_type)
 	{
+		case AttribType::MAT33: switch (tgt_type) {
+			case AttribType::MAT33:
+				t_ptr = new std::function<void(Mat33&, const Mat33&)>(*(std::function<void(Mat33&, const Mat33&)>*)other.t_ptr);
+				return *this;
+			case AttribType::VEC4:
+				t_ptr = new std::function<void(Vec4&, const Mat33&)>(*(std::function<void(Vec4&, const Mat33&)>*)other.t_ptr);
+				return *this;
+			case AttribType::VEC3:
+				t_ptr = new std::function<void(Vec3&, const Mat33&)>(*(std::function<void(Vec3&, const Mat33&)>*)other.t_ptr);
+				return *this;
+			case AttribType::VEC2:
+				t_ptr = new std::function<void(Vec2&, const Mat33&)>(*(std::function<void(Vec2&, const Mat33&)>*)other.t_ptr);
+				return *this;
+			case AttribType::SCALAR:
+				t_ptr = new std::function<void(real&, const Mat33&)>(*(std::function<void(real&, const Mat33&)>*)other.t_ptr);
+				return *this;
+		}
 		case AttribType::VEC4: switch (tgt_type) {
+			case AttribType::MAT33:
+				t_ptr = new std::function<void(Mat33&, const Vec4&)>(*(std::function<void(Mat33&, const Vec4&)>*)other.t_ptr);
+				return *this;
 			case AttribType::VEC4:
 				t_ptr = new std::function<void(Vec4&, const Vec4&)>(*(std::function<void(Vec4&, const Vec4&)>*)other.t_ptr);
 				return *this;
@@ -674,6 +771,9 @@ attrib_transform<flt_type>& attrib_transform<flt_type>::operator= (const attrib_
 				return *this;
 		}
 		case AttribType::VEC3: switch (tgt_type) {
+			case AttribType::MAT33:
+				t_ptr = new std::function<void(Mat33&, const Vec3&)>(*(std::function<void(Mat33&, const Vec3&)>*)other.t_ptr);
+				return *this;
 			case AttribType::VEC4:
 				t_ptr = new std::function<void(Vec4&, const Vec3&)>(*(std::function<void(Vec4&, const Vec3&)>*)other.t_ptr);
 				return *this;
@@ -688,6 +788,9 @@ attrib_transform<flt_type>& attrib_transform<flt_type>::operator= (const attrib_
 				return *this;
 		}
 		case AttribType::VEC2: switch (tgt_type) {
+			case AttribType::MAT33:
+				t_ptr = new std::function<void(Mat33&, const Vec2&)>(*(std::function<void(Mat33&, const Vec2&)>*)other.t_ptr);
+				return *this;
 			case AttribType::VEC4:
 				t_ptr = new std::function<void(Vec4&, const Vec2&)>(*(std::function<void(Vec4&, const Vec2&)>*)other.t_ptr);
 				return *this;
@@ -702,6 +805,9 @@ attrib_transform<flt_type>& attrib_transform<flt_type>::operator= (const attrib_
 				return *this;
 		}
 		case AttribType::SCALAR: switch (tgt_type) {
+			case AttribType::MAT33:
+				t_ptr = new std::function<void(Mat33&, const real&)>(*(std::function<void(Mat33&, const real&)>*)other.t_ptr);
+				return *this;
 			case AttribType::VEC4:
 				t_ptr = new std::function<void(Vec4&, const real&)>(*(std::function<void(Vec4&, const real&)>*)other.t_ptr);
 				return *this;
@@ -1540,6 +1646,7 @@ struct traj_manager<flt_type>::Impl
 	typedef typename traj_manager::Vec2 Vec2;
 	typedef typename traj_manager::Vec3 Vec3;
 	typedef typename traj_manager::Vec4 Vec4;
+	typedef typename traj_manager::Mat33 Mat33;
 	typedef typename traj_manager::Color Color;
 
 	// fields
@@ -1633,6 +1740,16 @@ struct traj_manager<flt_type>::Impl
 				case AttribType::VEC4:
 				{
 					const auto &data = attrib.template get_data<Vec4>();
+					out->reserve(out->size() + data.num());
+					for (unsigned i=0; i<data.num(); i++)
+					{
+						out->emplace_back();
+						ref.transform.exec(out->back(), data.values[i]);
+					}
+				}
+				case AttribType::MAT33:
+				{
+					const auto &data = attrib.template get_data<Mat33>();
 					out->reserve(out->size() + data.num());
 					for (unsigned i=0; i<data.num(); i++)
 					{
@@ -1778,6 +1895,15 @@ struct traj_manager<flt_type>::Impl
 					std::transform(
 						data.begin(), data.end(), std::back_inserter(*out),
 						[&ref] (const Vec4 &src) { Vec4 tmp; ref.transform.exec(tmp, src); return vec3_to_rgb(*(Vec3*)&tmp); }
+					);
+				}
+				case AttribType::MAT33:
+				{
+					const auto &data = attrib.template get_data<Mat33>();
+					out->reserve(out->size() + data.num());
+					std::transform(
+							data.begin(), data.end(), std::back_inserter(*out),
+							[&ref] (const Mat33 &src) { Mat33 tmp; ref.transform.exec(tmp, src); return vec3_to_rgb(*(Vec3*)&tmp); }
 					);
 				}
 			}
