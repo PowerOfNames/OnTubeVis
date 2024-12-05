@@ -111,6 +111,9 @@ set(SOURCES
 	traj_loader.cxx
 	tellocsv_handler.cxx
 	voxelizer.cxx
+	# THESIS:
+	glyph3D_renderer.cxx
+	glyph3D_spline_tube_renderer.cxx
 )
 # - C/C++ headers
 set(HEADERS
@@ -162,6 +165,9 @@ set(HEADERS
 	tellocsv_handler.h
 	voxel_grid.h
 	voxelizer.h
+	# THESIS:
+	glyph3D_renderer.h
+	glyph3D_spline_tube_renderer.h
 )
 # - GLSL shaders
 set (SHADERS
@@ -186,6 +192,12 @@ set (SHADERS
 	glsl/view_aligned_ribbon.glgs
 	glsl/view_aligned_ribbon.glpr
 	glsl/voxelize.glcs
+	# - THESIS
+	glsl/textured_spline_tube_extended.glfs
+	glsl/textured_spline_tube_extended.glgs
+	glsl/textured_spline_tube_extended.glpr
+	glsl/textured_spline_tube_extended_shading.glfs
+	glsl/textured_spline_tube_extended_shading.glpr
 )
 # - add contitional source files
 if (ENABLE_OPTIX_SUPPORT)

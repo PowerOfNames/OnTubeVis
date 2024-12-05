@@ -86,7 +86,7 @@ struct demo : public traj_format_handler<float>
 
 		//THESIS:
 		/// some Eigenvector+Eigenvalue matrix in form of 3 vec4s
-		//std::vector<attrib_value<Mat33>> attrib_tensor3x3;
+		std::vector<attrib_value<Mat33>> attrib_tensor3x3;
 		//std::vector<attrib_value<Vec4>> attrib_tensorEigen1;
 		//std::vector<attrib_value<Vec4>> attrib_tensorEigen2;
 		//std::vector<attrib_value<Vec4>> attrib_tensorEigen3;
@@ -310,7 +310,7 @@ struct demo : public traj_format_handler<float>
 				}
 			}
 		}
-		std::printf("Max: %i;%i \n", result.first, result.second);
+		//std::printf("Max: %i;%i \n", result.first, result.second);
 		return result;
 	}
 	//THESIS: (from chatGPT, but with adjustment to the theta calculation (switch to matrix(q,q) - matrix(p,p) from matrix(p,p) - matrix(q,q) because of colum-major order) and equivalent
@@ -321,8 +321,8 @@ struct demo : public traj_format_handler<float>
 		if (fabs(matrix(p,q)) < EPSILON) return; // Already close to zero
 
 		float theta = 0.5 * atan2(2 * matrix(p,q), matrix(q,q) - matrix(p,p));
-		std::printf("Current p: %i current q: %i CurrentRotationAngle: %f\n", p, q, theta);
-		std::printf("CurrentMaxOffDiagValue: %f ", matrix(p,q));
+		//std::printf("Current p: %i current q: %i CurrentRotationAngle: %f\n", p, q, theta);
+		//std::printf("CurrentMaxOffDiagValue: %f ", matrix(p,q));
 		
 
 		float c = cos(theta);
@@ -358,7 +358,7 @@ struct demo : public traj_format_handler<float>
 
 	static void PrintMatrix(const cgv::math::fmat<float, 3, 3>& matrix)
 	{
-		std::printf("CurrentMatrixRotation: \n");
+		//std::printf("CurrentMatrixRotation: \n");
 		for(uint32_t row = 0; row < 3; row++)
 		{
 			std::printf("{");
@@ -367,7 +367,6 @@ struct demo : public traj_format_handler<float>
 			std::printf("}\n");
 		}
 		std::printf("\n");
-
 	}
 	static void CheckEigen(const cgv::math::fmat<float, 3, 3>& matrix, const cgv::math::fmat<float, 3, 3>& eigenvectors, const cgv::math::fvec<float, 3>& eigenvalues)
 	{
@@ -407,7 +406,7 @@ struct demo : public traj_format_handler<float>
 			auto [p, q] = FindLargestOffDiagonal(matrix);
 			if (fabs(matrix(p,q)) < EPSILON) break; // Converged
 			JacobiRotation(matrix, eigenvectors, p, q);
-			PrintMatrix(matrix);
+			//PrintMatrix(matrix);
 		}
 
 		// Extract eigenvalues from the diagonal
@@ -428,6 +427,23 @@ struct demo : public traj_format_handler<float>
 		}
 	}
 
+	static void CalculateAnglesFromEigenVectors(cgv::math::fmat<float, 3, 3>& eigenvectors, cgv::math::fvec<float, 3>& angles)
+	{
+		constexpr float PI = 3.1415926535;
+		float rad1 = atan2(eigenvectors(1, 0), eigenvectors(0, 0));
+		float rad2 = asin(-eigenvectors(2, 0));
+		float rad3 = atan2(eigenvectors(2, 1), eigenvectors(2, 2));
+		angles[0] = rad1 < 0.0 ? rad1 + 2 * PI : rad1; //yaw in x/y plane
+		angles[0] /= 2 * PI;
+		angles[1] = rad2 + PI; //pitch - tilt from z axis
+		angles[1] /= PI;
+		angles[2] = rad3 < 0.0 ? rad2 + 2 * PI : rad3;//roll
+		angles[2] /= 2 * PI;
+
+		std::printf("Yaw: %f; Pitch: %f; Roll: %f \n", angles[0], angles[1], angles[2]);
+		std::printf("Yaw: %f; Pitch: %f; Roll: %f \n", (angles[0] * 180.0) / PI, (angles[1] * 180.0) / PI, (angles[2] * 180.0) / PI);
+	}
+
 	/// generate a trajectory and some attributes
 	static trajectory gen_trajectory (unsigned num_samples, unsigned seed=0)
 	{
@@ -438,6 +454,13 @@ struct demo : public traj_format_handler<float>
 		std::uniform_real_distribution<float> cube10(-10, 10);
 		std::normal_distribution<float> norm_sigma1by3(0, 0.3333f);
 		trajectory traj;
+
+		//THESIS:
+		Mat33 attrib_tensor3x3 = {
+			2.0f, 1.0f, 0.0f, //first column 
+			1.0f, 3.0f, 1.0f, //second column
+			0.0f, 1.0f, 2.0f  //third column
+		};
 
 		// geometry
 		// - uniformly sample the unit sphere for initial direction
@@ -471,26 +494,11 @@ struct demo : public traj_format_handler<float>
 				(0.0, 1.0, 2.0)
 			);
 			*/
-			//traj.attrib_tensor3x3.emplace_back(1, Mat33({2.0f, 1.0f, 1.0f, 1.0f, 3.0f, 1.0f, 0.0f, 1.0f, 2.0f}));
+			traj.attrib_tensor3x3.emplace_back((float)i/(num_samples-1), attrib_tensor3x3);
 
 			// iterate
 			dir = newdir;
-		}
-		//THESIS:
-		Mat33 attrib_tensor3x3 = {
-			2.0f, 1.0f, 0.0f, //first column 
-			1.0f, 3.0f, 1.0f, //second column
-			0.0f, 1.0f, 2.0f  //third column
-		};
-		cgv::math::fmat<float, 3, 3> eigenvectors;
-		cgv::math::fvec<float, 3> eigenvalues;
-		JacobiEigen(attrib_tensor3x3, eigenvectors, eigenvalues);
-		NormalizeEigenvectors(eigenvectors);
-		for (uint32_t i = 0; i < 3; i++)
-		{
-			std::printf("Eigenvalue %i: %f; Eigenvector: (%f, %f, %f)\n", i, eigenvalues[i], eigenvectors(i, 0), eigenvectors(i, 1), eigenvectors(i, 2));
-		}
-		CheckEigen(attrib_tensor3x3, eigenvectors, eigenvalues);
+		}	
 
 		// generic, independently sampled attributes
 		const float tn = (float)num_samples - 1;
@@ -545,11 +553,17 @@ struct demo : public traj_format_handler<float>
 			ds_trajs_scalar3,
 			ds_trajs_vec2,
 			ds_trajs_vec3,
-			ds_trajs_vec4;
+			ds_trajs_vec4,
 			//THESIS:
-			//ds_trajs_tensor3x3x,
-			//ds_trajs_tensor3x3y,
-			//ds_trajs_tensor3x3z;
+			//ds_trajs_tensorEigen1,
+			//ds_trajs_tensorEigen2,
+			//ds_trajs_tensorEigen3;
+			ds_trajs_tensorRadius1,
+			ds_trajs_tensorRadius2,
+			ds_trajs_tensorRadius3,
+			ds_trajs_tensorAngle1,
+			ds_trajs_tensorAngle2,
+			ds_trajs_tensorAngle3;
 		// - create geometry attributes
 		auto P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
 		auto T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
@@ -570,6 +584,13 @@ struct demo : public traj_format_handler<float>
 		//auto attrib_tensorEigen1 = add_attribute<Vec4>(ds, "tensorEigen1");
 		//auto attrib_tensorEigen2 = add_attribute<Vec4>(ds, "tensorEigen2");
 		//auto attrib_tensorEigen3 = add_attribute<Vec4>(ds, "tensorEigen3");
+		auto attrib_tensorRadius1 = add_attribute<real>(ds, "tensorRadius1");
+		auto attrib_tensorRadius2 = add_attribute<real>(ds, "tensorRadius2");
+		auto attrib_tensorRadius3 = add_attribute<real>(ds, "tensorRadius3");
+		auto attrib_tensorAngle1 = add_attribute<real>(ds, "tensorAngle1");
+		auto attrib_tensorAngle2 = add_attribute<real>(ds, "tensorAngle2");
+		auto attrib_tensorAngle3 = add_attribute<real>(ds, "tensorAngle3");
+
 
 		// compile
 		unsigned idx=0, idx_base=0, num_segs=0;
@@ -594,27 +615,17 @@ struct demo : public traj_format_handler<float>
 			ds_trajs_vec2.emplace_back(range{ attrib_vec2.data.num(), (unsigned)traj.attrib_vec2.size() });
 			ds_trajs_vec3.emplace_back(range{ attrib_vec3.data.num(), (unsigned)traj.attrib_vec3.size() });
 			ds_trajs_vec4.emplace_back(range{ attrib_vec4.data.num(), (unsigned)traj.attrib_vec4.size() });
-
-			//THESIS:
-			/*
-			// using x = 1
-			// for eigenvalue 2.0, normalized eigenvector (x, 0, x)
-			#define oneOverSqrt2 0.7071067812
-			#define sqrt2Over2 oneOverSqrt2
-			#define eigen1 vec4(oneOverSqrt2, 0.0, -oneOverSqrt2, 2.0)
-
-			// for eigenvalue 4.0, normalized eigenvector (x, x/2, x)
-			#define oneOverOnepFive 0.6666666667
-			#define eigen2 vec4(oneOverOnepFive, 0.75, oneOverOnepFive, 4.0)
-
-			// for eigenvalue 1.0, normalized eigenvector (x, -x, x)
-			#define sqrt3 1.732050808
-			#define oneOverSqrt3 0.5773502692
-			#define eigen3 vec4(oneOverSqrt3, -oneOverSqrt3, oneOverSqrt3, 1.0)
-			*/
-			/*ds_trajs_tensor3x3x.emplace_back(range{ attrib_tensorEigen1.data.num(), (unsigned)traj.attrib_tensor3x3x.size() });
-			ds_trajs_tensor3x3y.emplace_back(range{ attrib_tensorEigen2.data.num(), (unsigned)traj.attrib_tensor3x3y.size() });
-			ds_trajs_tensor3x3z.emplace_back(range{ attrib_tensorEigen3.data.num(), (unsigned)traj.attrib_tensor3x3z.size() });*/
+			
+			//THESIS: 
+			//ds_trajs_tensorEigen1.emplace_back(range{ attrib_tensorEigen1.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			//ds_trajs_tensorEigen2.emplace_back(range{ attrib_tensorEigen2.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			//ds_trajs_tensorEigen3.emplace_back(range{ attrib_tensorEigen3.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_tensorRadius1.emplace_back(range{ attrib_tensorRadius1.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_tensorRadius2.emplace_back(range{ attrib_tensorRadius2.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_tensorRadius3.emplace_back(range{ attrib_tensorRadius3.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_tensorAngle1.emplace_back(range{ attrib_tensorAngle1.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_tensorAngle2.emplace_back(range{ attrib_tensorAngle2.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_tensorAngle3.emplace_back(range{ attrib_tensorAngle3.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
 
 			// copy over position attribute, generate timestamps and determine avg segment length
 			P.data.append(traj.positions.front(), 0);
@@ -652,13 +663,49 @@ struct demo : public traj_format_handler<float>
 			for (const auto &attrib : traj.attrib_vec4)
 				attrib_vec4.data.append(attrib.value, attrib.t);
 
-			////THESIS:
-			//for (const auto& attrib : traj.attrib_tensor3x3x)
-			//	attrib_tensor3x3x.data.append(attrib.value, attrib.t);
-			//for (const auto& attrib : traj.attrib_tensor3x3y)
-			//	attrib_tensor3x3y.data.append(attrib.value, attrib.t);
-			//for (const auto& attrib : traj.attrib_tensor3x3z)
-			//	attrib_tensor3x3z.data.append(attrib.value, attrib.t);
+			//THESIS:
+			for (const auto& attrib : traj.attrib_tensor3x3)
+			{
+				/*
+				// using x = 1
+				// for eigenvalue 2.0, normalized eigenvector (x, 0, x)
+				#define oneOverSqrt2 0.7071067812
+				#define sqrt2Over2 oneOverSqrt2
+				#define eigen1 vec4(oneOverSqrt2, 0.0, -oneOverSqrt2, 2.0)
+
+				// for eigenvalue 4.0, normalized eigenvector (x, x/2, x)
+				#define oneOverOnepFive 0.6666666667
+				#define eigen2 vec4(oneOverOnepFive, 0.75, oneOverOnepFive, 4.0)
+
+				// for eigenvalue 1.0, normalized eigenvector (x, -x, x)
+				#define sqrt3 1.732050808
+				#define oneOverSqrt3 0.5773502692
+				#define eigen3 vec4(oneOverSqrt3, -oneOverSqrt3, oneOverSqrt3, 1.0)
+				*/
+				cgv::math::fmat<float, 3, 3> matCopy = attrib.value;
+				cgv::math::fmat<float, 3, 3> eigenvectors;
+				cgv::math::fvec<float, 3> eigenvalues;
+				JacobiEigen(matCopy, eigenvectors, eigenvalues);
+				PrintMatrix(matCopy);
+				cgv::math::fvec<float, 3> angles;
+				NormalizeEigenvectors(eigenvectors);
+				eigenvalues.normalize();
+				CalculateAnglesFromEigenVectors(eigenvectors, angles);
+				for (uint32_t i = 0; i < 3; i++)
+				{
+					std::printf("Eigenvalue %i: %f; Eigenvector: (%f, %f, %f)\n", i, eigenvalues[i], eigenvectors(i, 0), eigenvectors(i, 1), eigenvectors(i, 2));
+				}
+
+				//attrib_tensorEigen1.data.append(Vec4(eigenvectors.row(0), eigenvalues[0]), attrib.t);
+				//attrib_tensorEigen2.data.append(Vec4(eigenvectors.row(1), eigenvalues[1]), attrib.t);
+				//attrib_tensorEigen3.data.append(Vec4(eigenvectors.row(2), eigenvalues[2]), attrib.t);
+				attrib_tensorRadius1.data.append(eigenvalues[0], attrib.t);
+				attrib_tensorRadius2.data.append(eigenvalues[1], attrib.t);
+				attrib_tensorRadius3.data.append(eigenvalues[2], attrib.t);
+				attrib_tensorAngle1.data.append(angles[0], attrib.t);
+				attrib_tensorAngle2.data.append(angles[1], attrib.t);
+				attrib_tensorAngle3.data.append(angles[2], attrib.t);
+			}
 		}
 
 		// transfer trajectory ranges
@@ -678,10 +725,16 @@ struct demo : public traj_format_handler<float>
 		traj_format_handler<float>::trajectories(ds, attrib_vec3.attrib) = std::move(ds_trajs_vec3);
 		traj_format_handler<float>::trajectories(ds, attrib_vec4.attrib) = std::move(ds_trajs_vec4);
 
-		////THESIS:
-		//traj_format_handler<float>::trajectories(ds, attrib_tensor3x3x.attrib) = std::move(ds_trajs_tensor3x3x);
-		//traj_format_handler<float>::trajectories(ds, attrib_tensor3x3y.attrib) = std::move(ds_trajs_tensor3x3y);
-		//traj_format_handler<float>::trajectories(ds, attrib_tensor3x3z.attrib) = std::move(ds_trajs_tensor3x3z);
+		//THESIS:
+		//traj_format_handler<float>::trajectories(ds, attrib_tensorEigen1.attrib) = std::move(ds_trajs_tensorEigen1);
+		//traj_format_handler<float>::trajectories(ds, attrib_tensorEigen2.attrib) = std::move(ds_trajs_tensorEigen2);
+		//traj_format_handler<float>::trajectories(ds, attrib_tensorEigen3.attrib) = std::move(ds_trajs_tensorEigen3);
+		traj_format_handler<float>::trajectories(ds, attrib_tensorRadius1.attrib) = std::move(ds_trajs_tensorRadius1);
+		traj_format_handler<float>::trajectories(ds, attrib_tensorRadius2.attrib) = std::move(ds_trajs_tensorRadius2);
+		traj_format_handler<float>::trajectories(ds, attrib_tensorRadius3.attrib) = std::move(ds_trajs_tensorRadius3);
+		traj_format_handler<float>::trajectories(ds, attrib_tensorAngle1.attrib) = std::move(ds_trajs_tensorAngle1);
+		traj_format_handler<float>::trajectories(ds, attrib_tensorAngle2.attrib) = std::move(ds_trajs_tensorAngle2);
+		traj_format_handler<float>::trajectories(ds, attrib_tensorAngle3.attrib) = std::move(ds_trajs_tensorAngle3);
 
 		// finalize
 		ds.set_mapping(attrmap);

@@ -52,7 +52,15 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			std::string func_name_str = "sd_" + shape_ptr->name();
 			std::string glyph_coord_str = "glyphuv";
 			std::string glyph_outline_str = "0.0";
+			std::string glyph_windowed_size_str = "";
+
+			// We only allow one 3D glyph type. Other layers are for now reserved for morphing functions.
+			const bool glyph_is_3D = static_cast<uint32_t>(shape_ptr->type()) >= static_cast<uint32_t>(GlyphType::GT_FIRST_3D) && i == 0;
 			
+			// should maybe be a modifiable renderer uniform!
+			const std::string normalCalcDisplacement = "0.001";
+			std::string glyph_coord_3D_str = "pos";
+
 			// the parameters used in the signed distance and splat function calls
 			std::vector<std::string> float_parameter_strs;
 			std::vector<std::string> color_parameter_strs;
@@ -62,7 +70,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			const std::vector<vec4> &attrib_values = gam.ref_attrib_mapping_values();
 			const std::vector<rgb> &attrib_colors = gam.ref_attrib_colors();
 
-			for(size_t j = 0; j < attrib_indices.size(); ++j) {
+			for (size_t j = 0; j < attrib_indices.size(); ++j) {
 				int idx = attrib_indices[j];
 				int color_map_idx = color_map_indices[j];
 				GlyphAttributeType type = attribs[j].type;
@@ -73,45 +81,48 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				std::string parameter_str = "";
 
 				// skip this parameter if it is not mapped from an attribute and does not allow constant values
-				if(idx < 0 && is_non_const && !is_global)
+				if (idx < 0 && is_non_const && !is_global)
 					continue;
 
-				if(idx < 0 || is_global) {
+				if (idx < 0 || is_global) {
 					// constant non-mapped parameter
 					std::string uniform_name;
 
-					if(type == GAT_COLOR) {
+					if (type == GAT_COLOR) {
 						uniform_name = config.constant_color_parameter_name_prefix + "[" + std::to_string(config.constant_color_parameters.size()) + "]";
 
 						config.constant_color_parameters.push_back(std::make_pair(uniform_name, &attrib_colors[j]));
-					} else {
+					}
+					else {
 						uniform_name = config.constant_float_parameter_name_prefix + "[" + std::to_string(config.constant_float_parameters.size()) + "]";
-						
+
 						layer_config.glyph_mapping_parameters.push_back({ 0, config.constant_float_parameters.size() - last_constant_float_parameters_size, &attrib_values[j] });
 						config.constant_float_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j][3]));
 					}
 
 					parameter_str = uniform_name;
-				} else {
+				}
+				else {
 					// mapped parameter
 					const std::string& attrib_variable_name = "v[" + std::to_string(config.mapping_parameters.size() - last_mapping_parameters_size) + "]";
 					std::string uniform_name = config.mapped_parameter_name_prefix + "[" + std::to_string(config.mapping_parameters.size()) + "]";
 
 					std::string remap_func = "clamp_remap";
-					switch(type) {
-					case GAT_SIGNED_UNIT: remap_func = "clamp_remap11"; break;
-					case GAT_UNIT:
-					//case GAT_COLOR: remap_func = "clamp_remap01"; break;
-					default: break;
+					switch (type) {
+						case GAT_SIGNED_UNIT: remap_func = "clamp_remap11"; break;
+						case GAT_UNIT:
+							//case GAT_COLOR: remap_func = "clamp_remap01"; break;
+						default: break;
 					}
 					parameter_str = remap_func + "(glyph." + attrib_variable_name + ", " + uniform_name + ")";
 
-					if(type == GAT_COLOR) {
-						if(color_map_idx < 0)
+					if (type == GAT_COLOR) {
+						if (color_map_idx < 0)
 							parameter_str = "vec3(0.0)";
 						else
 							parameter_str = "map_to_color(" + parameter_str + ", " + std::to_string(color_map_idx) + ")";
-					} else {
+					}
+					else {
 						layer_config.glyph_mapping_parameters.push_back({ 1, config.mapping_parameters.size() - last_mapping_parameters_size, &attrib_values[j] });
 					}
 
@@ -119,20 +130,26 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					layer_config.mapped_attributes.push_back(idx);
 				}
 
-				switch(type) {
-				case GAT_ORIENTATION:
-				case GAT_ANGLE: parameter_str = "radians(" + parameter_str + ")"; break;
-				case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
-				default: break;
+				switch (type) {
+					case GAT_ORIENTATION:
+					case GAT_ANGLE: parameter_str = "radians(" + parameter_str + ")"; break;
+					case GAT_DOUBLE_ANGLE: parameter_str = "radians(0.5*" + parameter_str + ")"; break;
+					default: break;
 				}
 
-				if(type == GAT_ORIENTATION) {
+				if (type == GAT_ORIENTATION) {
 					glyph_coord_str = "rotate(glyphuv, " + parameter_str + ")";
-				} else if(type == GAT_COLOR) {
+				}
+				else if (type == GAT_COLOR) {
 					color_parameter_strs.push_back(parameter_str);
-				} else if(type == GAT_OUTLINE) {
+				}
+				else if (type == GAT_OUTLINE) {
 					glyph_outline_str = parameter_str;
-				} else {
+				}
+				else if (type == GAT_WINDOW_SIZE) {
+					glyph_windowed_size_str = parameter_str;			
+				} 
+				else {
 					float_parameter_strs.push_back(parameter_str);
 				}
 			}
@@ -153,9 +170,13 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 				std::string color_str = "vec3(0.0)";
 				if(color_parameter_strs.size() > 0)
-					color_str = color_parameter_strs[0];
+					color_str = color_parameter_strs[0]; //TODO THESIS BUG_FOUND: Why only the first?
 
-				splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + + ", " + glyph_outline_str + ", non_outline_factor)";
+				if (glyph_is_3D)
+					splat_func = "splat_generic_glyph_windowed(glyph.debug_info, glyphuv, " + glyph_func + ", " + color_str + + ", pos_eye, pos_tube_center, tangent_eye, bitangent_eye, depth, " + glyph_windowed_size_str + ")";				
+				else
+					splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + + ", " + glyph_outline_str + ", non_outline_factor)";
+
 			} else {
 				// This is a special glyph.
 				// It uses its own splat function and value handling is fully manual.
@@ -196,6 +217,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			}
 
 			layer_config.glyph_definition = "finalize_glyph(glyph.debug_info, glyphuv, " + splat_func + ", color);";
+			layer_config.glyph_normal_definition = "";
 
 			last_constant_float_parameters_size = config.constant_float_parameters.size();
 			last_constant_color_parameters_size = config.constant_color_parameters.size();

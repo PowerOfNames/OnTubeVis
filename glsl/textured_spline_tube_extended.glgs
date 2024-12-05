@@ -1,0 +1,1447 @@
+#version 460
+
+#define USE_CONSERVATIVE_DEPTH 0
+#define USE_CUBIC_TANGENTS 1
+#define USE_VIEW_SPACE_POSITION 1
+
+/* 0: BOX
+   1: APPROXIMATE_BILLBOARD
+   2: EXACT_POLYGON
+   3: BOX_BILLBOARD
+   4: ALIGNED_BOX_BILLBOARD
+   5: BOX_SPLITSIMUL1
+   6: BOX_SPLITSIMUL2
+   7: ALIGNED_BOX_BILLBOARD_SPLITSIMUL1
+   8: ALIGNED_BOX_BILLBOARD_SPLITSIMUL2*/
+#define BOUNDING_GEOMETRY_TYPE 4
+
+/* 0: All attributes in geom->frag interface
+   1: No curve attributes in geom->frag interface
+   2: No color attributes in geom->frag interface
+   3: Attribute-less (except segment and sub-curve ids) */
+#define ATTRIB_MODE 0
+
+#define ONE_OVER_THREE (1.0/3.0)
+
+//***** begin interface of view.glsl ***********************************
+mat4 get_modelview_matrix();
+mat4 get_projection_matrix();
+mat4 get_modelview_projection_matrix();
+mat4 get_inverse_modelview_matrix();
+mat4 get_inverse_modelview_projection_matrix();
+mat3 get_normal_matrix();
+mat3 get_inverse_normal_matrix();
+//***** end interface of view.glsl ***********************************
+
+#if BOUNDING_GEOMETRY_TYPE == 0
+const vec4 corners[4] = {
+	vec4(-0.5, -0.5, -0.5, 1.0),
+	vec4(+0.5, -0.5, -0.5, 1.0),
+	vec4(-0.5, +0.5, -0.5, 1.0),
+	vec4(-0.5, -0.5, +0.5, 1.0)
+};
+#elif BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+const vec4 corners[4] = {
+	vec4(-0.5, -0.5, -0.5, 1.0),
+	vec4( 0,   -0.5, -0.5, 1.0),
+	vec4(-0.5, +0.5, -0.5, 1.0),
+	vec4(-0.5, -0.5, +0.5, 1.0)
+};
+#elif BOUNDING_GEOMETRY_TYPE == 1
+const vec4 corners[4] = {
+	vec4(-0.5, +0.0, +0.0, 1.0),
+	vec4(+0.5, +0.0, +0.0, 1.0),
+	vec4(-0.5, +0.5, +0.0, 1.0),
+	vec4(-0.5, +0.0, +0.5, 1.0)
+};
+#endif
+
+struct TubeNode {
+	vec3 pos;
+	float rad;
+
+	vec3 pos_tan;
+	float rad_tan;
+};
+
+struct Tube {
+	TubeNode s;
+	TubeNode e;
+};
+
+struct QTubeNode {
+	vec3 pos;
+	float rad;
+};
+
+struct QTube {
+	QTubeNode s;
+	QTubeNode h;
+	QTubeNode e;
+};
+
+layout(points) in;
+#if BOUNDING_GEOMETRY_TYPE == 0
+layout(triangle_strip, max_vertices = 28) out;
+#elif BOUNDING_GEOMETRY_TYPE == 5
+layout(triangle_strip, max_vertices = 60) out; // includes 2x 2 redundent vertices causing 2x 4 degenerate triangles needed to separate objects within a strip
+#elif BOUNDING_GEOMETRY_TYPE == 6
+layout(triangle_strip, max_vertices = 56) out;
+#elif BOUNDING_GEOMETRY_TYPE == 1
+layout(triangle_strip, max_vertices = 8) out;
+#elif BOUNDING_GEOMETRY_TYPE == 2
+layout(triangle_strip, max_vertices = 12) out;
+#elif BOUNDING_GEOMETRY_TYPE == 7
+layout(triangle_strip, max_vertices = 20) out; // includes 2x 2 redundent vertices causing 2x 4 degenerate triangles needed to separate quads within a strip
+#elif BOUNDING_GEOMETRY_TYPE == 8
+layout(triangle_strip, max_vertices = 16) out;
+#else
+layout(triangle_strip, max_vertices = 8) out;
+#endif
+
+struct node_data_type {
+	vec4 pos_rad;
+	vec4 color;
+	vec4 tangent;
+	vec4 t; // only uses .x component to store t, yzw are reserved for future use
+};
+
+layout(std430, binding = 0) readonly buffer data_buffer {
+    node_data_type nodes[];
+};
+
+uniform float radius_scale;
+uniform vec3 cyclopic_eye;
+uniform vec3 view_dir;
+uniform vec4 viewport;
+uniform float max_t;
+
+vec3 eye_pos = (get_inverse_modelview_matrix()*vec4(0, 0, 0, 1)).xyz;
+
+in flat uvec2 node_ids_gs[];
+in flat int segment_id_gs[];
+
+#if USE_VIEW_SPACE_POSITION == 1
+out vec3 position_fs;
+#endif
+out flat float l_offset_fs;
+#if !(ATTRIB_MODE & 2)
+	out flat uint color0_fs;
+	out flat uint color1_fs;
+#endif
+#if !(ATTRIB_MODE & 1)
+	out flat QTube qTube_fs;
+#endif
+out flat int segment_id_fs;
+#if USE_CUBIC_TANGENTS == 1
+out flat mat4 SM_fs; // spline matrix
+#endif
+
+float saturate(float x) { return clamp(x, 0.0, 1.0); }
+
+vec3 project_to_plane(vec3 vec, vec3 n) {
+
+	return vec - n * dot(vec, n) / dot(n, n);
+}
+
+// returns a non-normalized vector orthogonal to the input v
+// source: http://lolengine.net/blog/2013/09/21/picking-orthogonal-vector-combing-coconuts
+vec3 ortho_vec(vec3 v) {
+
+    return abs(v.x) > abs(v.z) ? vec3(-v.y, v.x, 0.0) : vec3(0.0, -v.z, v.y);
+}
+
+#define DEF_EvalCSplineMidPoint(T)					\
+void EvalCSplineMidPoint(T p1, T t1, T p2, T t2,	\
+	out T out_p, out T out_t)						\
+{													\
+	T h1 = p1 + t1 * ONE_OVER_THREE;				\
+	T h2 = p2 - t2 * ONE_OVER_THREE;				\
+													\
+	T a1 = (p1 + h1) * 0.5;							\
+	T a2 = (h1 + h2) * 0.5;							\
+	T a3 = (h2 + p2) * 0.5;							\
+													\
+	T b1 = (a1 + a2) * 0.5;							\
+	T b2 = (a2 + a3) * 0.5;							\
+													\
+	out_t = (b2 - b1) * 3.0;						\
+	out_p = (b1 + b2) * 0.5;						\
+}
+
+DEF_EvalCSplineMidPoint(float)
+DEF_EvalCSplineMidPoint(vec3)
+
+#define DEF_SplitCurve(T)						\
+void SplitCurve(T v0, T d0, T v1, T d1,			\
+	out T v00_out, out T h0_out, out T v10_out,	\
+	out T v01_out, out T h1_out, out T v11_out)	\
+{												\
+	v00_out = v0;								\
+	h0_out = v0 + d0 * 0.2667/*ONE_OVER_THREE*/;	\
+	T h1 = v1 - d1 * 0.2667/*ONE_OVER_THREE*/;	\
+	v10_out = (h0_out + h1) * 0.5;				\
+												\
+	v01_out = v10_out;							\
+	h1_out = h1;								\
+	v11_out = v1;								\
+}
+
+DEF_SplitCurve(float)
+DEF_SplitCurve(vec3)
+
+#define SPLIT_CURVE(TUBE, MEM_V, MEM_D, QTUBE0, QTUBE1)		\
+SplitCurve(													\
+	TUBE.s.MEM_V, TUBE.s.MEM_D, TUBE.e.MEM_V, TUBE.e.MEM_D,	\
+	QTUBE0.s.MEM_V, QTUBE0.h.MEM_V, QTUBE0.e.MEM_V,			\
+	QTUBE1.s.MEM_V, QTUBE1.h.MEM_V, QTUBE1.e.MEM_V			\
+)
+
+void SplitTube(Tube tube, out QTube qTube0, out QTube qTube1)
+{
+	SPLIT_CURVE(tube, pos, pos_tan, qTube0, qTube1);
+	SPLIT_CURVE(tube, rad, rad_tan, qTube0, qTube1);
+}
+
+void SplinePointsToPolyCoeffs(float p0, float h, float p1, out float o_c[3])
+{
+	o_c[0] = p0;
+	o_c[1] = -2.0 * p0 + 2.0 * h;
+	o_c[2] =   p0 + p1 - 2.0 * h;
+}
+
+float EvalPolyD0(float x, float c[3]) {
+
+	return x * (x * c[2] + c[1]) + c[0];
+}
+
+#if BOUNDING_GEOMETRY_TYPE<2 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+mat4 calculate_transformation_matrix(QTube qTube) {
+
+	vec3 x, y, z;
+	float xl, yl;
+	bool xq = false;
+	bool yq = false;
+	{
+		x = qTube.e.pos - qTube.s.pos;
+		xl = length(x);
+		
+		if(xl < 0.0001) {
+			y = qTube.h.pos - qTube.s.pos;
+			yl = length(y);
+			
+			if(yl < 0.0001) {
+				x = vec3(1.0, 0.0, 0.0);
+				y = vec3(0.0, 1.0, 0.0);
+				z = vec3(0.0, 0.0, 1.0);
+				
+				xl = 1.0; xq = true;
+				yl = 1.0; yq = true;
+			} else {
+				x = normalize(ortho_vec(x));
+				xl = 1.0; xq = true;
+				
+				z = cross(x, y);
+			}
+		} else {
+			y = project_to_plane(qTube.h.pos - qTube.s.pos, x);
+			yl = length(y);
+			
+			if(yl < 0.0001) {
+				y = normalize(ortho_vec(x));
+				yl = 1.0; yq = true;
+			}
+			
+			z = cross(x, y);
+		}
+	}	
+
+	vec3 xd = x / xl;
+	vec3 yd = y / yl;
+	vec3 zd = normalize(z);
+	
+	float xm, xp, ym, yp, zm;
+	{
+		float xyl = dot(qTube.h.pos - qTube.s.pos, xd);
+		
+		float cx[3];
+		SplinePointsToPolyCoeffs(0.0, xyl, xl, cx);
+		
+		float cy[3];
+		SplinePointsToPolyCoeffs(0.0, yl, 0.0, cy);
+		
+		float rc[3];
+		SplinePointsToPolyCoeffs(qTube.s.rad, qTube.h.rad, qTube.e.rad, rc);
+		
+		float c_xm[3];
+		c_xm[0] = cx[0] - rc[0]; c_xm[1] = cx[1] - rc[1]; c_xm[2] = cx[2] - rc[2];
+		
+		float c_xp[3];
+		c_xp[0] = cx[0] + rc[0]; c_xp[1] = cx[1] + rc[1]; c_xp[2] = cx[2] + rc[2];
+		
+		xm = min(-qTube.s.rad, min(xl - qTube.e.rad, EvalPolyD0(saturate(-c_xm[1] / c_xm[2] * 0.5), c_xm)));
+		xp = max( qTube.s.rad, max(xl + qTube.e.rad, EvalPolyD0(saturate(-c_xp[1] / c_xp[2] * 0.5), c_xp)));
+		
+		float c_ym[3];
+		c_ym[0] = cy[0] - rc[0]; c_ym[1] = cy[1] - rc[1]; c_ym[2] = cy[2] - rc[2];
+		
+		float c_yp[3];
+		c_yp[0] = cy[0] + rc[0]; c_yp[1] = cy[1] + rc[1]; c_yp[2] = cy[2] + rc[2];
+		
+		ym = min(-qTube.s.rad, min(-qTube.e.rad, EvalPolyD0(saturate(-c_ym[1] / c_ym[2] * 0.5), c_ym)));
+		yp = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-c_yp[1] / c_yp[2] * 0.5), c_yp)));
+		
+		zm = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-rc[1] / rc[2] * 0.5), rc)));
+		
+		if(xq) { xm = -zm; xp = zm; }
+		if(yq) { ym = -zm; yp = zm; }
+	}
+	
+	vec3 center = qTube.s.pos + 0.5*(xd * (xm + xp) + yd * (ym + yp));
+
+	mat4 M;
+	M[0] = vec4((xp - xm) * xd, 0.0);
+	M[1] = vec4((yp - ym) * yd, 0.0);
+	M[2] = vec4(2.0 * zm  * zd, 0.0);
+	M[3] = vec4(center, 1.0);
+	
+	return M;
+}
+
+#else
+
+mat3 calculate_transformation_parameters(QTube qTube, out vec3 scale, out vec3 translation) {
+
+	vec3 x, y, z;
+	float xl, yl;
+	bool xq = false;
+	bool yq = false;
+	{
+		x = qTube.e.pos - qTube.s.pos;
+		xl = length(x);
+		
+		if(xl < 0.0001) {
+			y = qTube.h.pos - qTube.s.pos;
+			yl = length(y);
+			
+			if(yl < 0.0001) {
+				x = vec3(1.0, 0.0, 0.0);
+				y = vec3(0.0, 1.0, 0.0);
+				z = vec3(0.0, 0.0, 1.0);
+				
+				xl = 1.0; xq = true;
+				yl = 1.0; yq = true;
+			} else {
+				x = normalize(ortho_vec(x));
+				xl = 1.0; xq = true;
+				
+				z = cross(x, y);
+			}
+		} else {
+			y = project_to_plane(qTube.h.pos - qTube.s.pos, x);
+			yl = length(y);
+			
+			if(yl < 0.0001) {
+				y = normalize(ortho_vec(x));
+				yl = 1.0; yq = true;
+			}
+			
+			z = cross(x, y);
+		}
+	}	
+
+	vec3 xd = x / xl;
+	vec3 yd = y / yl;
+	vec3 zd = normalize(z);
+	
+	float xm, xp, ym, yp, zm;
+	{
+		float xyl = dot(qTube.h.pos - qTube.s.pos, xd);
+		
+		float cx[3];
+		SplinePointsToPolyCoeffs(0.0, xyl, xl, cx);
+		
+		float cy[3];
+		SplinePointsToPolyCoeffs(0.0, yl, 0.0, cy);
+		
+		float rc[3];
+		SplinePointsToPolyCoeffs(qTube.s.rad, qTube.h.rad, qTube.e.rad, rc);
+		
+		float c_xm[3];
+		c_xm[0] = cx[0] - rc[0]; c_xm[1] = cx[1] - rc[1]; c_xm[2] = cx[2] - rc[2];
+		
+		float c_xp[3];
+		c_xp[0] = cx[0] + rc[0]; c_xp[1] = cx[1] + rc[1]; c_xp[2] = cx[2] + rc[2];
+		
+		xm = min(-qTube.s.rad, min(xl - qTube.e.rad, EvalPolyD0(saturate(-c_xm[1] / c_xm[2] * 0.5), c_xm)));
+		xp = max( qTube.s.rad, max(xl + qTube.e.rad, EvalPolyD0(saturate(-c_xp[1] / c_xp[2] * 0.5), c_xp)));
+		
+		float c_ym[3];
+		c_ym[0] = cy[0] - rc[0]; c_ym[1] = cy[1] - rc[1]; c_ym[2] = cy[2] - rc[2];
+		
+		float c_yp[3];
+		c_yp[0] = cy[0] + rc[0]; c_yp[1] = cy[1] + rc[1]; c_yp[2] = cy[2] + rc[2];
+		
+		ym = min(-qTube.s.rad, min(-qTube.e.rad, EvalPolyD0(saturate(-c_ym[1] / c_ym[2] * 0.5), c_ym)));
+		yp = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-c_yp[1] / c_yp[2] * 0.5), c_yp)));
+		
+		zm = max( qTube.s.rad, max( qTube.e.rad, EvalPolyD0(saturate(-rc[1] / rc[2] * 0.5), rc)));
+		
+		if(xq) { xm = -zm; xp = zm; }
+		if(yq) { ym = -zm; yp = zm; }
+	}
+	
+	vec3 center = qTube.s.pos + 0.5*(xd * (xm + xp) + yd * (ym + yp));
+
+	scale = vec3(
+		xp - xm,
+		yp - ym,
+		2.0 * zm
+	);
+
+	translation = center;
+
+	mat3 R;
+	R[0] = xd;
+	R[1] = yd;
+	R[2] = zd;
+	
+	return R;
+}
+#endif
+
+#if BOUNDING_GEOMETRY_TYPE == 1
+/*
+	Rounded cone signed distance function from:
+	https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
+*/
+float sd_rounded_cone(vec3 p, vec4 a, vec4 b) {
+    // sampling independent computations (only depend on shape)
+    vec3  ba = b.xyz - a.xyz;
+    float l2 = dot(ba,ba);
+    float rr = a.w - b.w;
+    float a2 = l2 - rr*rr;
+    float il2 = 1.0/l2;
+    
+    // sampling dependant computations
+    vec3 pa = p - a.xyz;
+    float y = dot(pa,ba);
+    float z = y - l2;
+	vec3 v = pa*l2 - ba*y;
+    float x2 = dot(v, v);
+    float y2 = y*y*l2;
+    float z2 = z*z*l2;
+
+    float k = sign(rr)*rr*rr*x2;
+
+    if(sign(z)*a2*z2 > k)
+		return sqrt(x2 + z2) * il2 - b.w;
+
+    if(sign(y)*a2*y2 < k)
+		return sqrt(x2 + y2) * il2 - a.w;
+    
+	return (sqrt(x2*a2*il2) + y*rr) * il2 - a.w;
+}
+
+#elif BOUNDING_GEOMETRY_TYPE > 1
+
+// https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
+float sd_box(vec3 p, vec3 b) {
+  vec3 q = abs(p) - b;
+  return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+}
+#endif
+
+mat4x3 quad(vec4 start, vec4 end) {
+
+	vec3 ps = start.xyz;
+	vec3 pe = end.xyz;
+	vec2 rse = vec2(start.w, end.w);
+	vec3 delta = normalize(pe - ps);
+
+	vec3 start_to_eye = eye_pos - ps;
+	vec3 end_to_eye   = eye_pos - pe;
+	
+	vec2 dse = vec2(length(start_to_eye), length(end_to_eye));
+
+	vec2 pr_fac = rse / sqrt(dse*dse - rse*rse);
+
+	vec2 pr = dse * pr_fac;
+
+	start_to_eye /= dse.x;
+	end_to_eye /= dse.y;
+
+	vec2 pr2 = dse * vec2(max(pr_fac.x, pr_fac.y));
+
+	vec3 aligned_up = normalize(cross(delta, start_to_eye));
+	vec3 bitangent0 = cross(aligned_up, start_to_eye); // aligned_up and start_to_eye are perpendicular and unit vectors, so no normalization is needed
+	vec3 bitangent1 = cross(aligned_up, end_to_eye); // same as for bitangent0
+
+	vec3 p0 = ps + pr.x * bitangent0;
+	vec3 p1 = ps - pr.x * bitangent0;
+	vec3 p2 = pe + pr.y * bitangent1;
+	vec3 p3 = pe - pr.y * bitangent1;
+
+	vec3 test_dir = normalize(cross(aligned_up, view_dir));
+
+	float mag0 = dot(normalize(p0 - eye_pos), test_dir);
+	float mag1 = dot(normalize(p1 - eye_pos), test_dir);
+	float mag2 = dot(normalize(p2 - eye_pos), test_dir);
+	float mag3 = dot(normalize(p3 - eye_pos), test_dir);
+
+	vec3 a = p0;
+	vec3 b = p3;
+	vec2 rab = pr2;
+
+	if(mag0 > mag2) {
+		a = p2;
+		rab.x = pr2.y;
+	}
+
+	if(mag1 > mag3) {
+		b = p1;
+		rab.y = pr2.x;
+	}
+
+	mat4x3 ret;
+	ret[0] = a - rab.x * aligned_up;
+	ret[1] = a + rab.x * aligned_up;
+	ret[2] = b - rab.y * aligned_up;
+	ret[3] = b + rab.y * aligned_up;
+
+	return ret;
+}
+
+#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+void emit_bounding_box(int segment_idx, QTube qTube) {
+
+	mat4 M = calculate_transformation_matrix(qTube);
+	vec4 p000 = M * corners[0];
+	vec4 p100 = M * corners[1];
+	vec4 p010 = M * corners[2];
+	vec4 p001 = M * corners[3];
+
+	mat4 MV = get_modelview_matrix();
+
+	#if !(ATTRIB_MODE & 1)
+		qTube.s.pos = (MV * vec4(qTube.s.pos, 1.0)).xyz;
+		qTube.h.pos = (MV * vec4(qTube.h.pos, 1.0)).xyz;
+		qTube.e.pos = (MV * vec4(qTube.e.pos, 1.0)).xyz;
+		qTube_fs = qTube;
+	#endif
+
+	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
+
+#if USE_VIEW_SPACE_POSITION == 0
+	mat4 MVP = get_projection_matrix() * MV;
+
+	// generate transformed base vector corners of the box
+	p000 = MVP * p000;
+	p100 = MVP * p100;
+	p010 = MVP * p010;
+	p001 = MVP * p001;
+
+	// calculate remaining corners
+	#if BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+		vec4 dx = p100 - p000;
+	#endif
+	vec4 dy = p010 - p000;
+	vec4 dz = p001 - p000;
+
+	vec4 p110 = p100 + dy;
+	vec4 p101 = p100 + dz;
+	vec4 p011 = p010 + dz;
+	vec4 p111 = p110 + dz;
+
+	gl_Position = p011; EmitVertex();
+	gl_Position = p111; EmitVertex();
+	gl_Position = p001; EmitVertex();
+	gl_Position = p101; EmitVertex();
+	gl_Position = p100; EmitVertex();
+	gl_Position = p111; EmitVertex();
+	gl_Position = p110; EmitVertex();
+	gl_Position = p011; EmitVertex();
+	gl_Position = p010; EmitVertex();
+	gl_Position = p001; EmitVertex();
+	gl_Position = p000; EmitVertex();
+	gl_Position = p100; EmitVertex();
+	gl_Position = p010; EmitVertex();
+	gl_Position = p110; EmitVertex();
+	#if BOUNDING_GEOMETRY_TYPE > 4
+		#if BOUNDING_GEOMETRY_TYPE == 5
+			// use degenerate triangles for sub-box separation:
+			// create 1st degenerate triangle, using last vertex of first sub-box
+			EmitVertex();  // <-- 1st parity flip
+		#else
+			// actually start a new triangle strip for second sub-box
+			EndPrimitive();
+		#endif
+		// update vertex position for second sub-box
+		p000 = p000 + dx;
+		p100 = p100 + dx;
+		p010 = p010 + dx;
+		p001 = p001 + dx;
+		p110 = p110 + dx;
+		p101 = p101 + dx;
+		p011 = p011 + dx;
+		p111 = p111 + dx;
+		// emit second sub-box
+		gl_Position = p011; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 2nd degenerate triangle
+		#if BOUNDING_GEOMETRY_TYPE == 5
+			// one more degenerate inter-object triangle (3rd degenerate triangle in total)
+			EmitVertex();  // <-- 2nd parity flip, also starts off new sub-strip
+		#endif
+		// remaining new box triangles
+		gl_Position = p111; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 4th and last degenerate triangle
+		gl_Position = p001; EmitVertex();
+		gl_Position = p101; EmitVertex();
+		gl_Position = p100; EmitVertex();
+		gl_Position = p111; EmitVertex();
+		gl_Position = p110; EmitVertex();
+		gl_Position = p011; EmitVertex();
+		gl_Position = p010; EmitVertex();
+		gl_Position = p001; EmitVertex();
+		gl_Position = p000; EmitVertex();
+		gl_Position = p100; EmitVertex();
+		gl_Position = p010; EmitVertex();
+		gl_Position = p110; EmitVertex();
+	#endif
+#else
+	// generate transformed base vector corners of the box
+	p000 = MV * p000;
+	p100 = MV * p100;
+	p010 = MV * p010;
+	p001 = MV * p001;
+
+	// calculate remaining corners
+	#if BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+		vec4 dx = p100 - p000;
+	#endif
+	vec4 dy = p010 - p000;
+	vec4 dz = p001 - p000;
+
+	vec4 p110 = p100 + dy;
+	vec4 p101 = p100 + dz;
+	vec4 p011 = p010 + dz;
+	vec4 p111 = p110 + dz;
+
+	mat4 P = get_projection_matrix();
+
+	position_fs = p011.xyz;
+	gl_Position = P * p011; EmitVertex();
+	position_fs = p111.xyz;
+	gl_Position = P * p111; EmitVertex();
+	position_fs = p001.xyz;
+	gl_Position = P * p001; EmitVertex();
+	position_fs = p101.xyz;
+	gl_Position = P * p101; EmitVertex();
+	position_fs = p100.xyz;
+	gl_Position = P * p100; EmitVertex();
+	position_fs = p111.xyz;
+	gl_Position = P * p111; EmitVertex();
+	position_fs = p110.xyz;
+	gl_Position = P * p110; EmitVertex();
+	position_fs = p011.xyz;
+	gl_Position = P * p011; EmitVertex();
+	position_fs = p010.xyz;
+	gl_Position = P * p010; EmitVertex();
+	position_fs = p001.xyz;
+	gl_Position = P * p001; EmitVertex();
+	position_fs = p000.xyz;
+	gl_Position = P * p000; EmitVertex();
+	position_fs = p100.xyz;
+	gl_Position = P * p100; EmitVertex();
+	position_fs = p010.xyz;
+	gl_Position = P * p010; EmitVertex();
+	position_fs = p110.xyz;
+	gl_Position = P * p110; EmitVertex();
+	#if BOUNDING_GEOMETRY_TYPE > 4
+		#if BOUNDING_GEOMETRY_TYPE == 5
+			// use degenerate triangles for sub-box separation:
+			// create 1st degenerate triangle, using last vertex of first sub-box
+			EmitVertex();  // <-- 1st parity flip
+		#else
+			// actually start a new triangle strip for second sub-box
+			EndPrimitive();
+		#endif
+		// update vertex position for second sub-box
+		p000 = p000 + dx;
+		p100 = p100 + dx;
+		p010 = p010 + dx;
+		p001 = p001 + dx;
+		p110 = p110 + dx;
+		p101 = p101 + dx;
+		p011 = p011 + dx;
+		p111 = p111 + dx;
+		// emit second sub-box
+		position_fs = p011.xyz;
+		gl_Position = P*p011; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 2nd degenerate triangle
+		#if BOUNDING_GEOMETRY_TYPE == 5
+			// one more degenerate inter-object triangle (3rd degenerate triangle in total)
+			EmitVertex();  // <-- 2nd parity flip, also starts off new sub-strip
+		#endif
+		// remaining new box triangles
+		position_fs = p111.xyz;
+		gl_Position = P * p111; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 4th and last degenerate triangle
+		position_fs = p001.xyz;
+		gl_Position = P * p001; EmitVertex();
+		position_fs = p101.xyz;
+		gl_Position = P * p101; EmitVertex();
+		position_fs = p100.xyz;
+		gl_Position = P * p100; EmitVertex();
+		position_fs = p111.xyz;
+		gl_Position = P * p111; EmitVertex();
+		position_fs = p110.xyz;
+		gl_Position = P * p110; EmitVertex();
+		position_fs = p011.xyz;
+		gl_Position = P * p011; EmitVertex();
+		position_fs = p010.xyz;
+		gl_Position = P * p010; EmitVertex();
+		position_fs = p001.xyz;
+		gl_Position = P * p001; EmitVertex();
+		position_fs = p000.xyz;
+		gl_Position = P * p000; EmitVertex();
+		position_fs = p100.xyz;
+		gl_Position = P * p100; EmitVertex();
+		position_fs = p010.xyz;
+		gl_Position = P * p010; EmitVertex();
+		position_fs = p110.xyz;
+		gl_Position = P * p110; EmitVertex();
+	#endif
+#endif
+	EndPrimitive();
+}
+
+#elif BOUNDING_GEOMETRY_TYPE == 1
+
+void emit_rounded_cone_billboard(int segment_idx, QTube qTube) {
+
+	mat4 M = calculate_transformation_matrix(qTube);
+	vec4 p000 = M * corners[0];
+	vec4 p100 = M * corners[1];
+	vec4 p010 = M * corners[2];
+	vec4 p001 = M * corners[3];
+
+	vec4 dy = p010 - p000;
+	vec4 dz = p001 - p000;
+
+	float r = max(length(dy), length(dz));
+
+	vec4 sp = p000;
+	vec4 ep = p100;
+	sp.w = r;
+	ep.w = r;
+
+	mat4x3 ps = quad(sp, ep);
+
+#if USE_CONSERVATIVE_DEPTH == 1
+	float dist = sd_rounded_cone(eye_pos, sp, ep);
+	ps[0] = eye_pos + dist*normalize(ps[0] - eye_pos);
+	ps[1] = eye_pos + dist*normalize(ps[1] - eye_pos);
+	ps[2] = eye_pos + dist*normalize(ps[2] - eye_pos);
+	ps[3] = eye_pos + dist*normalize(ps[3] - eye_pos);
+#endif
+
+	#if !(ATTRIB_MODE & 1)
+		qTube.s.pos = (get_modelview_matrix() * vec4(qTube.s.pos, 1.0)).xyz;
+		qTube.h.pos = (get_modelview_matrix() * vec4(qTube.h.pos, 1.0)).xyz;
+		qTube.e.pos = (get_modelview_matrix() * vec4(qTube.e.pos, 1.0)).xyz;
+		qTube_fs = qTube;
+	#endif
+
+	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
+
+#if USE_VIEW_SPACE_POSITION == 0
+	mat4 MVP = get_modelview_projection_matrix();
+
+	gl_Position = MVP * vec4(ps[0], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[1], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[2], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(ps[3], 1.0); EmitVertex();
+#else
+	vec4 p00 = get_modelview_matrix() * vec4(ps[0], 1.0);
+	vec4 p10 = get_modelview_matrix() * vec4(ps[1], 1.0);
+	vec4 p01 = get_modelview_matrix() * vec4(ps[2], 1.0);
+	vec4 p11 = get_modelview_matrix() * vec4(ps[3], 1.0);
+
+	mat4 PM = get_projection_matrix();
+
+	position_fs = p00.xyz;
+	gl_Position = PM * p00; EmitVertex();
+	position_fs = p10.xyz;
+	gl_Position = PM * p10; EmitVertex();
+	position_fs = p01.xyz;
+	gl_Position = PM * p01; EmitVertex();
+	position_fs = p11.xyz;
+	gl_Position = PM * p11; EmitVertex();
+#endif
+	EndPrimitive();
+}
+
+#elif BOUNDING_GEOMETRY_TYPE == 2
+
+void emit_exact_box_polygon(int segment_idx, QTube qTube) {
+
+	vec3 scale, origin;
+	mat3 R = calculate_transformation_parameters(qTube, scale, origin);
+	
+	vec3 dx = R * vec3(1.0, 0.0, 0.0);
+	vec3 dy = R * vec3(0.0, 1.0, 0.0);
+	vec3 dz = R * vec3(0.0, 0.0, 1.0);
+
+	dx *= scale.x;
+	dy *= scale.y;
+	dz *= scale.z;
+
+	vec3 half_diag = 0.5f * (dx + dy + dz);
+	
+	vec3 a = origin - half_diag;
+	vec3 b = origin + half_diag;
+	vec3 org = 0.5*(a + b);
+
+	if(dot(eye_pos - org, dx) < 0) {
+		a += dx;
+		b -= dx;
+		dx = -dx;
+	}
+	if(dot(eye_pos - org, dy) < 0) {
+		a += dy;
+		b -= dy;
+		dy = -dy;
+	}
+	if(dot(eye_pos - org, dz) < 0) {
+		a += dz;
+		b -= dz;
+		dz = -dz;
+	}
+
+	int mask = 0;
+	if(dot(eye_pos - b, dx) < 0)
+		mask |= 1;
+	if(dot(eye_pos - b, dy) < 0)
+		mask |= 2;
+	if(dot(eye_pos - b, dz) < 0)
+		mask |= 4;
+		
+	int count = 6;
+	vec3 c[6];
+	c[0] = a + dy;
+	c[1] = a + dz;
+	c[2] = a + dy + dx;
+	c[3] = a + dz + dx;
+
+	switch(mask) {
+	case 0:
+		c[1] = b - dx;
+		c[3] = a + dz;
+		c[4] = a + dx;
+		c[5] = b - dy;
+		break;
+	case 1:
+		c[1] = b - dz;
+		c[2] = b - dx;
+		c[3] = b;
+		c[4] = a + dz;
+		c[5] = b - dy;
+		break;
+	case 2:
+		c[0] = b - dx;
+		c[2] = b;
+		c[4] = b - dz;
+		c[5] = a + dx;
+		break;
+	case 3:
+		c[0] = b - dx;
+		c[2] = b;
+		count = 4;
+		break;
+	case 4:
+		c[1] = b - dx;
+		c[3] = b;
+		c[4] = a + dx;
+		c[5] = b - dy;
+		break;
+	case 5:
+		c[1] = b - dx;
+		c[3] = b;
+		count = 4;
+		break;
+	case 6:
+		c[0] = b - dz;
+		c[1] = b;
+		c[2] = a + dx;
+		count = 4;
+		break;
+	}
+
+#if USE_CONSERVATIVE_DEPTH == 1
+	// The signed distance function is defined on an axis aligned box centered in the origin.
+	// The scale of the box can simply be passed to the distance calculation, however we need
+	// to account for the orientation and translation of the box by inversely transforming
+	// the eye position.
+	// Since we have the rotation given as a matrix and the translation as a vector,
+	// this simplyfies to:
+	vec3 pos = (eye_pos - origin) * R; // with: R^(-1) = R^T and R^T * v = (v^T * R)^T (GLSL automatically transposes vectors)
+	float dist = sd_box(pos, 0.5*scale);
+	c[0] = eye_pos + dist * normalize(c[0] - eye_pos);
+	c[1] = eye_pos + dist * normalize(c[1] - eye_pos);
+	c[2] = eye_pos + dist * normalize(c[2] - eye_pos);
+	c[3] = eye_pos + dist * normalize(c[3] - eye_pos);
+	c[4] = eye_pos + dist * normalize(c[4] - eye_pos);
+	c[5] = eye_pos + dist * normalize(c[5] - eye_pos);
+#endif
+
+	#if !(ATTRIB_MODE & 1)
+		qTube.s.pos = (get_modelview_matrix() * vec4(qTube.s.pos, 1.0)).xyz;
+		qTube.h.pos = (get_modelview_matrix() * vec4(qTube.h.pos, 1.0)).xyz;
+		qTube.e.pos = (get_modelview_matrix() * vec4(qTube.e.pos, 1.0)).xyz;
+		qTube_fs = qTube;
+	#endif
+
+	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
+
+#if USE_VIEW_SPACE_POSITION == 0
+	mat4 MVP = get_modelview_projection_matrix();
+
+	for(int i = 0; i < count; ++i) {
+		gl_Position = MVP * vec4(c[i], 1.0);
+		EmitVertex();
+	}
+#else
+	vec4 ps[6];
+
+	ps[0] = get_modelview_matrix() * vec4(c[0], 1.0);
+	ps[1] = get_modelview_matrix() * vec4(c[1], 1.0);
+	ps[2] = get_modelview_matrix() * vec4(c[2], 1.0);
+	ps[3] = get_modelview_matrix() * vec4(c[3], 1.0);
+	ps[4] = get_modelview_matrix() * vec4(c[4], 1.0);
+	ps[5] = get_modelview_matrix() * vec4(c[5], 1.0);
+
+	mat4 PM = get_projection_matrix();
+
+	for(int i = 0; i < count; ++i) {
+		position_fs = ps[i].xyz;
+		gl_Position = PM * ps[i];
+		EmitVertex();
+	}
+#endif
+	EndPrimitive();
+}
+
+#elif BOUNDING_GEOMETRY_TYPE == 3
+
+vec3 intersect_plane(vec3 pn, vec3 ro, vec3 rd) {
+	// the plane has its origin in (0,0,0)
+	// assume that there always is an intersection
+	float t = dot(-ro, pn) / dot(pn, rd);
+	return ro + t * rd;
+}
+
+float dot2(vec2 v) {
+	return dot(v, v);
+}
+
+void emit_box_billboard(int segment_idx, QTube qTube) {
+
+	vec3 scale, origin;
+	mat3 R = calculate_transformation_parameters(qTube, scale, origin);
+	
+	vec3 dx = R * vec3(1.0, 0.0, 0.0);
+	vec3 dy = R * vec3(0.0, 1.0, 0.0);
+	vec3 dz = R * vec3(0.0, 0.0, 1.0);
+
+	dx *= scale.x;
+	dy *= scale.y;
+	dz *= scale.z;
+
+	vec3 p000 = origin - 0.5f * (dx + dy + dz);
+	vec3 p100 = p000 + dx;
+	vec3 p010 = p000 + dy;
+	vec3 p001 = p000 + dz;
+
+	vec3 p110 = p100 + dy;
+	vec3 p101 = p100 + dz;
+	vec3 p011 = p010 + dz;
+	vec3 p111 = p110 + dz;
+
+	vec3 eye_to_origin = normalize(origin - eye_pos);
+
+
+
+
+
+
+	/*float ref_dot = abs(dot(dx, eye_to_origin)) / scale.x;
+	vec3 ref_dir = dx;
+	
+	float ang = abs(dot(eye_to_origin, dy)) / scale.y;
+	if(ang < ref_dot) {
+		ref_dot = ang;
+		ref_dir = dy;
+	}
+	ang = abs(dot(eye_to_origin, dz)) / scale.z;
+	if(ang < ref_dot) {
+		ref_dot = ang;
+		ref_dir = dz;
+	}*/
+
+
+
+
+	mat4 MVP = get_modelview_projection_matrix();
+
+	vec4 pro = MVP * vec4(p000, 1.0);
+	vec4 prx = MVP * vec4(p100, 1.0);
+	vec4 pry = MVP * vec4(p010, 1.0);
+	vec4 prz = MVP * vec4(p001, 1.0);
+	pro /= pro.w;
+	prx /= prx.w;
+	pry /= pry.w;
+	prz /= prz.w;
+
+	vec2 oo = (pro.xy / pro.w) * viewport.zw;
+	vec2 xx = (prx.xy / prx.w) * viewport.zw;
+	vec2 yy = (pry.xy / pry.w) * viewport.zw;
+	vec2 zz = (prz.xy / prz.w) * viewport.zw;
+
+	float lx = dot2(oo - xx);
+	float ly = dot2(oo - yy);
+	float lz = dot2(oo - zz);
+
+	float ref_l = lx;
+	vec3 ref_dir = dx;
+	
+	if(ly > ref_l) {
+		ref_l = ly;
+		ref_dir = dy;
+	}
+	if(lz > ref_l) {
+		ref_l = lz;
+		ref_dir = dz;
+	}
+
+
+
+
+
+
+
+	vec3 aligned_up = normalize(cross(ref_dir, eye_to_origin));
+	vec3 aligned_right = cross(eye_to_origin, aligned_up); // no need to normalize cross product of two unit vectors
+	
+	vec3 ps[8];
+	// The plane is defined by origin p000 and view direction as normal.
+	// By subtracting p000 from the points the plane origin is effectively moved to (0,0,0).
+	// Further the normalization of the directional vectors, i.e. eye_pos - p###, is not necessary,
+	// since this does not influece the computation of the intersection point.
+	ps[0] = intersect_plane(eye_to_origin, p000 - p000, eye_pos - p000);
+	ps[1] = intersect_plane(eye_to_origin, p100 - p000, eye_pos - p100);
+	ps[2] = intersect_plane(eye_to_origin, p010 - p000, eye_pos - p010);
+	ps[3] = intersect_plane(eye_to_origin, p001 - p000, eye_pos - p001);
+
+	ps[4] = intersect_plane(eye_to_origin, p110 - p000, eye_pos - p110);
+	ps[5] = intersect_plane(eye_to_origin, p101 - p000, eye_pos - p101);
+	ps[6] = intersect_plane(eye_to_origin, p011 - p000, eye_pos - p011);
+	ps[7] = intersect_plane(eye_to_origin, p111 - p000, eye_pos - p111);
+
+	// same as projecting ps[i] onto the line p000 + t*aligned_right; keeps the sign and only gets the length; division by squared length  of aligned_right not necessary, since aligned_right is a unit vector
+	float u, min_u, max_u;
+	u = dot(ps[0], aligned_right); min_u = u; max_u = u;
+	u = dot(ps[1], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[2], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[3], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[4], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[5], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[6], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+	u = dot(ps[7], aligned_right); min_u = min(min_u, u); max_u = max(max_u, u);
+
+	float v, min_v, max_v;
+	v = dot(ps[0], aligned_up); min_v = v; max_v = v;
+	v = dot(ps[1], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[2], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[3], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[4], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[5], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[6], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+	v = dot(ps[7], aligned_up); min_v = min(min_v, v); max_v = max(max_v, v);
+
+	vec3 c[4];
+	c[0] = p000 + min_u * aligned_right + min_v * aligned_up;
+	c[1] = p000 + max_u * aligned_right + min_v * aligned_up;
+	c[2] = p000 + min_u * aligned_right + max_v * aligned_up;
+	c[3] = p000 + max_u * aligned_right + max_v * aligned_up;
+	
+#if USE_CONSERVATIVE_DEPTH == 1
+	// The signed distance function is defined on an axis aligned box centered in the origin.
+	// The scale of the box can simply be passed to the distance calculation, however we need
+	// to account for the orientation and translation of the box by inversely transforming
+	// the eye position.
+	// Since we have the rotation given as a matrix and the translation as a vector,
+	// this simplyfies to:
+	vec3 pos = (eye_pos - origin) * R; // with: R^(-1) = R^T and R^T * v = (v^T * R)^T (GLSL automatically transposes vectors)
+	float dist = sd_box(pos, 0.5*scale);
+	c[0] = eye_pos + dist * normalize(c[0] - eye_pos);
+	c[1] = eye_pos + dist * normalize(c[1] - eye_pos);
+	c[2] = eye_pos + dist * normalize(c[2] - eye_pos);
+	c[3] = eye_pos + dist * normalize(c[3] - eye_pos);
+#endif
+
+	#if !(ATTRIB_MODE & 1)
+		qTube.s.pos = (get_modelview_matrix() * vec4(qTube.s.pos, 1.0)).xyz;
+		qTube.h.pos = (get_modelview_matrix() * vec4(qTube.h.pos, 1.0)).xyz;
+		qTube.e.pos = (get_modelview_matrix() * vec4(qTube.e.pos, 1.0)).xyz;
+		qTube_fs = qTube;
+	#endif
+	
+	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
+	
+	//mat4 MVP = get_modelview_projection_matrix();
+
+#if USE_VIEW_SPACE_POSITION == 0
+	gl_Position = MVP * vec4(c[0], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[1], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[2], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(c[3], 1.0); EmitVertex();
+#else
+	position_fs = (get_modelview_matrix() * vec4(c[0], 1.0)).xyz;
+	gl_Position = MVP * vec4(c[0], 1.0); EmitVertex();
+	position_fs = (get_modelview_matrix() * vec4(c[1], 1.0)).xyz;
+	gl_Position = MVP * vec4(c[1], 1.0); EmitVertex();
+	position_fs = (get_modelview_matrix() * vec4(c[2], 1.0)).xyz;
+	gl_Position = MVP * vec4(c[2], 1.0); EmitVertex();
+	position_fs = (get_modelview_matrix() * vec4(c[3], 1.0)).xyz;
+	gl_Position = MVP * vec4(c[3], 1.0); EmitVertex();
+#endif
+	EndPrimitive();
+}
+
+#else
+
+vec2 ortho_vec(vec2 v) {
+
+	return vec2(v.y, -v.x);
+}
+
+vec2 project_to_vector(vec2 a, vec2 b) {
+	return (dot(a, b) / dot(b, b)) * b;
+}
+
+void emit_aligned_box_billboard(int segment_idx, QTube qTube) {
+
+	#if USE_VIEW_SPACE_POSITION > 0 || !(ATTRIB_MODE & 1)
+		const mat4 MV = get_modelview_matrix();
+	#endif
+	#if !(ATTRIB_MODE & 1)
+		qTube_fs.s.pos = (MV * vec4(qTube.s.pos, 1.0)).xyz;
+		qTube_fs.h.pos = (MV * vec4(qTube.h.pos, 1.0)).xyz;
+		qTube_fs.e.pos = (MV * vec4(qTube.e.pos, 1.0)).xyz;
+		qTube_fs.s.rad = qTube.s.rad;
+		qTube_fs.h.rad = qTube.h.rad;
+		qTube_fs.e.rad = qTube.e.rad;
+	#endif
+
+	vec3 center = qTube.s.pos + qTube.h.pos + qTube.e.pos;
+	center *= 0.333333f;
+
+	vec3 delta = normalize(qTube.e.pos - qTube.s.pos);
+	vec3 local_z = normalize(center - eye_pos);
+	vec3 local_y = normalize(cross(delta, local_z));
+	vec3 local_x = cross(local_z, local_y);
+
+	// translate positions by local coordinate system origin
+	qTube.s.pos -= center;
+	qTube.h.pos -= center;
+	qTube.e.pos -= center;
+
+	// project positions onto local axes, i.e. rotate them into local system
+	// by applying the inverse rotation
+	// this is a bit faster than constructing a matrix first: mat3 R = transpose(mat3(local_x, local_y, local_z))
+	vec3 p0 = vec3(dot(qTube.s.pos, local_x), dot(qTube.s.pos, local_y), dot(qTube.s.pos, local_z));
+	vec3 p1 = vec3(dot(qTube.h.pos, local_x), dot(qTube.h.pos, local_y), dot(qTube.h.pos, local_z));
+	vec3 p2 = vec3(dot(qTube.e.pos, local_x), dot(qTube.e.pos, local_y), dot(qTube.e.pos, local_z));
+
+	vec2 x, z, y;
+	float xl, zl, yl;
+	bool xq = false;
+	bool yq = false;
+
+	// TODO: fix orientation when xl gets close to zero
+	{
+		x = p2.xy - p0.xy;
+		xl = length(x);
+
+		if(xl < 0.0001) {
+			y = p1.xy - p0.xy;
+			yl = length(y);
+
+			if(yl < 0.0001) {
+				x = vec2(1.0, 0.0);
+				y = vec2(0.0, 1.0);
+				xl = 1.0; xq = true;
+				yl = 1.0; yq = true;
+			} else {
+				x = normalize(ortho_vec(y));
+				xl = 1.0; xq = true;
+			}
+		} else {
+			y = project_to_vector(p1.xy - p0.xy, ortho_vec(x));
+			yl = length(y);
+
+			if(yl < 0.0001) {
+				y = normalize(ortho_vec(x));
+				yl = 1.0; yq = true;
+			}
+		}
+
+		z = p2.zy - p0.zy;
+		zl = length(z);
+	}
+
+	vec2 xd = x / xl;
+	vec2 zd = z / zl;
+	vec2 yd = y / yl;
+
+	float r0 = qTube.s.rad;
+	float r1 = qTube.h.rad;
+	float r2 = qTube.e.rad;
+
+	vec3 cp[4];
+
+	{
+		float xm, xp, ym, yp, zm, zp, rm;
+		float xyl = dot(p1.xy - p0.xy, xd);
+		float zyl = dot(p1.zy - p0.zy, zd);
+
+		float rc[3];
+		rc[0] = r0;
+		rc[1] = 2.0 * (r1 - r0);
+		rc[2] = r0 + r2 - (r1 + r1);
+
+		float c_x1 = xyl + xyl;
+		float c_x2 = xl - c_x1;
+		float cx[3];
+		cx[0] = -rc[0];
+		cx[1] = c_x1 - rc[1];
+		cx[2] = c_x2 - rc[2];
+
+		xm = min(-r0, min(xl - r2, EvalPolyD0(saturate(-cx[1] / cx[2] * 0.5), cx)));
+
+		cx[0] = +rc[0];
+		cx[1] = c_x1 + rc[1];
+		cx[2] = c_x2 + rc[2];
+
+		xp = max(+r0, max(xl + r2, EvalPolyD0(saturate(-cx[1] / cx[2] * 0.5), cx)));
+
+		float c_y1 = yl + yl;
+		float cy[3];
+		cy[0] = - rc[0];
+		cy[1] = c_y1 - rc[1];
+		cy[2] = -c_y1 - rc[2];
+
+		ym = min(-r0, min(-r2, EvalPolyD0(saturate(-cy[1] / cy[2] * 0.5), cy)));
+
+		cy[0] = +rc[0];
+		cy[1] = c_y1 + rc[1];
+		cy[2] = -c_y1 + rc[2];
+
+		yp = max(+r0, max(+r2, EvalPolyD0(saturate(-cy[1] / cy[2] * 0.5), cy)));
+
+		float c_z1 = zyl + zyl;
+		float c_z2 = zl - c_z1;
+		float cz[3];
+		cz[0] = -rc[0];
+		cz[1] = c_z1 - rc[1];
+		cz[2] = c_z2 - rc[2];
+
+		zm = min(-r0, min(zl - r2, EvalPolyD0(saturate(-cz[1] / cz[2] * 0.5), cz)));
+
+		cz[0] = +rc[0];
+		cz[1] = c_z1 + rc[1];
+		cz[2] = c_z2 + rc[2];
+
+		zp = max(+r0, max(zl + r2, EvalPolyD0(saturate(-cz[1] / cz[2] * 0.5), cz)));
+
+		rm = max(r0, max(r2, EvalPolyD0(saturate(-rc[1] / rc[2] * 0.5), rc)));
+
+		if(xq) { xm = -rm; xp = rm; }
+		if(yq) { ym = -rm; yp = rm; }
+
+
+
+		vec2 txy = p0.xy + 0.5*(xd * (xm + xp) + yd * (ym + yp));
+		float dx = xp - xm;
+		float dy = yp - ym;
+
+		float tz = p0.z + 0.5 * (zd.x * (zm + zp) - zp + zm);
+
+		vec2 p00 = txy - 0.5 * vec2(dx, dy);
+		vec2 p10 = p00;
+		p00.x += dx;
+		vec2 p01 = p00;
+		p01.y += dy;
+		vec2 p11 = p10;
+		p11.y += dy;
+
+		vec3 local_z_scaled = tz * local_z;
+		cp[0] = center + p00.x * local_x + p00.y * local_y + local_z_scaled;
+		cp[1] = center + p10.x * local_x + p10.y * local_y + local_z_scaled;
+		cp[2] = center + p01.x * local_x + p01.y * local_y + local_z_scaled;
+		cp[3] = cp[1] + cp[2] - cp[0];
+	}
+
+	l_offset_fs = segment_idx == 0 ? 0.0 : 0.5;
+
+#if BOUNDING_GEOMETRY_TYPE==7 || BOUNDING_GEOMETRY_TYPE==8
+	vec3 cpm[2];
+	cpm[0] = 0.5*(cp[0]+cp[1]);
+	cpm[1] = 0.5*(cp[2]+cp[3]);
+#endif
+
+#if USE_VIEW_SPACE_POSITION == 0
+	const mat4 MVP = get_modelview_projection_matrix();
+
+	gl_Position = MVP * vec4(cp[0], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(cp[2], 1.0); EmitVertex();
+	#if BOUNDING_GEOMETRY_TYPE > 6
+		// finish first sub-quad at mid-point
+		gl_Position = MVP * vec4(cpm[0], 1.0); EmitVertex();
+		gl_Position = MVP * vec4(cpm[1], 1.0); EmitVertex();
+		#if BOUNDING_GEOMETRY_TYPE == 7
+			// use degenerate triangles for sub-quad separation:
+			// create 1st degenerate triangle, using last vertex of first sub-quad
+			EmitVertex();  // <-- 1st parity flip
+		#else
+			// actually start a new triangle strip for second sub-quad
+			EndPrimitive();
+		#endif
+		// emit second sub-box
+		gl_Position = MVP * vec4(cpm[0], 1.0); EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 2nd degenerate triangle
+		#if BOUNDING_GEOMETRY_TYPE == 7
+			// one more degenerate inter-quad triangle (3rd degenerate triangle in total)
+			EmitVertex();  // <-- 2nd parity flip, also starts off new sub-strip
+		#endif
+		// remaining new box triangles
+		gl_Position = MVP * vec4(cpm[1], 1.0); EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 4th and last degenerate triangle
+	#endif
+	gl_Position = MVP * vec4(cp[1], 1.0); EmitVertex();
+	gl_Position = MVP * vec4(cp[3], 1.0); EmitVertex();
+#else
+	mat4 PM = get_projection_matrix();
+
+	vec4 p00 = MV * vec4(cp[0], 1.0);
+	vec4 p10 = MV * vec4(cp[2], 1.0);
+	vec4 p01 = MV * vec4(cp[1], 1.0);
+	vec4 p11 = MV * vec4(cp[3], 1.0);
+	#if BOUNDING_GEOMETRY_TYPE==7 || BOUNDING_GEOMETRY_TYPE==8
+		const vec4 mid1 = MV * vec4(cpm[0], 1.0);
+		const vec4 mid2 = MV * vec4(cpm[1], 1.0);
+	#endif
+
+	position_fs = p00.xyz;
+	gl_Position = PM * p00; EmitVertex();
+	position_fs = p10.xyz;
+	gl_Position = PM * p10; EmitVertex();
+	#if BOUNDING_GEOMETRY_TYPE > 6
+		// finish first sub-quad at mid-point
+		position_fs = mid1.xyz;
+		gl_Position = PM * mid1; EmitVertex();
+		position_fs = mid2.xyz;
+		gl_Position = PM * mid2; EmitVertex();
+		#if BOUNDING_GEOMETRY_TYPE == 7
+			// use degenerate triangles for sub-quad separation:
+			// create 1st degenerate triangle, using last vertex of first sub-quad
+			EmitVertex();  // <-- 1st parity flip
+		#else
+			// actually start a new triangle strip for second sub-quad
+			EndPrimitive();
+		#endif
+		// emit second sub-box
+		position_fs = mid1.xyz;
+		gl_Position = PM * mid1; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 2nd degenerate triangle
+		#if BOUNDING_GEOMETRY_TYPE == 7
+			// one more degenerate inter-quad triangle (3rd degenerate triangle in total)
+			EmitVertex();  // <-- 2nd parity flip, also starts off new sub-strip
+		#endif
+		// remaining new box triangles
+		position_fs = mid2.xyz;
+		gl_Position = PM * mid2; EmitVertex(); // in case of BOUNDING_GEOMETRY_TYPE==5, causes 4th and last degenerate triangle
+	#endif
+	position_fs = p01.xyz;
+	gl_Position = PM * p01; EmitVertex();
+	position_fs = p11.xyz;
+	gl_Position = PM * p11; EmitVertex();
+#endif
+	EndPrimitive();
+}
+
+#endif
+
+void main()
+{
+	Tube tube;
+	
+	node_data_type n0 = nodes[node_ids_gs[0].x];
+	
+	tube.s.pos = n0.pos_rad.xyz;
+	tube.s.rad = n0.pos_rad.w * radius_scale;
+	tube.s.pos_tan = n0.tangent.xyz;
+	tube.s.rad_tan = n0.tangent.w;
+
+	node_data_type n1 = nodes[node_ids_gs[0].y];
+	
+	tube.e.pos = n1.pos_rad.xyz;
+	tube.e.rad = n1.pos_rad.w * radius_scale;
+	tube.e.pos_tan = n1.tangent.xyz;
+	tube.e.rad_tan = n1.tangent.w;
+	
+	QTube qTube0, qTube1;
+	SplitTube(tube, qTube0, qTube1);
+	
+	segment_id_fs = segment_id_gs[0];
+
+#if USE_CUBIC_TANGENTS == 1
+	mat4 Bk; // matrix of control points and tangents
+	Bk[0] = vec4(tube.s.pos, 0.0);
+	Bk[1] = vec4(tube.e.pos, 0.0);
+	Bk[2] = vec4(tube.s.pos_tan, 0.0);
+	Bk[3] = vec4(tube.e.pos_tan, 0.0);
+
+	mat4 Mh; // hermite matrix
+	Mh[0] = vec4( 2, -2,  1,  1);
+	Mh[1] = vec4(-3,  3, -2, -1);
+	Mh[2] = vec4( 0,  0,  1,  0);
+	Mh[3] = vec4( 1,  0,  0,  0);
+	SM_fs = Bk * Mh;
+#endif
+	
+#if !(ATTRIB_MODE & 2)
+	color0_fs = packUnorm4x8(vec4(n0.color.rgb, 1.0));
+	color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
+#endif
+
+	// only emit geometry if the tube at least partly passes the max_t threshold
+	if (n0.t.x < max_t)
+	{
+	#if BOUNDING_GEOMETRY_TYPE==0 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+		emit_bounding_box(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_bounding_box(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 1
+		emit_rounded_cone_billboard(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_rounded_cone_billboard(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 2
+		emit_exact_box_polygon(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_exact_box_polygon(1, qTube1);
+	#elif BOUNDING_GEOMETRY_TYPE == 3
+		emit_box_billboard(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_box_billboard(1, qTube1);
+	#else
+		emit_aligned_box_billboard(0, qTube0);
+		if (0.5*(n0.t.x + n1.t.x) < max_t)
+			emit_aligned_box_billboard(1, qTube1);
+	#endif
+	}
+}

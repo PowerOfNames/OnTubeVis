@@ -125,6 +125,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 
 	//TODO THESIS
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
+	shaders.add("tube_shading_extended", "textured_spline_tube_extended_shading.glpr");
 
 	// add framebuffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "uint32[D]");
@@ -757,6 +758,10 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		context& ctx = *get_context();
 		tube_shading_defines = build_tube_shading_defines();
 		shaders.reload(ctx, "tube_shading", tube_shading_defines);
+		//THESIS:
+		shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
+
+
 
 		// reset glyph layer configuration file
 		layer_config_file_helper.set_file_name("");
@@ -795,6 +800,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			context& ctx = *get_context();
 			tube_shading_defines = defines;
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+			//THESIS:
+			shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
 		}
 	}
 
@@ -842,6 +849,9 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			context& ctx = *get_context();
 			tube_shading_defines = build_tube_shading_defines();
 			shaders.reload(ctx, "tube_shading", tube_shading_defines);
+			//THESIS:
+			shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
+
 
 			compile_glyph_attribs();
 
@@ -1338,6 +1348,9 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	tube_shading_defines = build_tube_shading_defines();
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
+	//THESIS:
+	shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
+
 
 	// init shared attribute array manager
 	success &= render.aam.init(ctx);
@@ -2417,7 +2430,8 @@ void on_tube_vis::update_attribute_bindings(void) {
 		render.render_sbo.destruct(ctx);
 		// - compile data
 		const size_t num_nodes = render.data->positions.size();
-		std::vector<node_attribs> render_attribs; render_attribs.reserve(num_nodes);
+		std::vector<node_attribs> render_attribs; 
+		render_attribs.reserve(num_nodes);
 		for (size_t i=0; i<num_nodes; i++)
 		{
 			// convenience shortcut
@@ -2757,7 +2771,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 #endif
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
-		shader_program& prog = shaders.get("tube_shading");
+		//shader_program& prog = shaders.get("tube_shading");
+		//TODO THESIS
+		shader_program& prog = shaders.get("tube_shading_extended");
+
 		prog.enable(ctx);
 		// set render parameters
 		prog.set_uniform(ctx, "use_gamma", true);
@@ -2828,6 +2845,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
+		prog.set_uniform(ctx, "framebuf_height", (float)fb_size.y());
 
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);
@@ -2904,6 +2922,10 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
 
+	// glyph type
+	const bool is3D = render.style.is_3D();
+	shader_code::set_define(defines, "GLYPH_TYPE_IS_3D", is3D, false);
+
 	// glyph layer defines
 	const auto &glyph_layers_config = render.visualizations.front().config;
 	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
@@ -2916,8 +2938,14 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 		const auto& lc = glyph_layers_config.layer_configs[i];
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
 		shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
+		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));	
+		
+		//THESIS TODO:	Should be moved outside the layer specific config into general config -> the normal calculation is baes off of the final SDF definition
+		//				In the future, a glyphs appearance should be morphable via additional layers defining morphing functions
+		if (is3D && i == 1)
+			shader_code::set_define(defines, "GLYPH_NORMAL_DEFINITION", lc.glyph_normal_definition, std::string(""));
 	}
+
 
 	return defines;
 }

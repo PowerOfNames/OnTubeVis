@@ -139,7 +139,7 @@ namespace cgv {
 			{
 				//TODO THESIS:
 				if (rs.is_tube())
-					return prog.build_program(ctx, "textured_spline_tube.glpr", true, defines);
+					return prog.build_program(ctx, "textured_spline_tube_extended.glpr", true, defines);
 				else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
 					return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
 				else
