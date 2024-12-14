@@ -1,6 +1,10 @@
 #version 430
 #define M_PI 3.14159265359
 
+//THESIS:
+#define EPSILON 0.01
+#define MAX_RM_ITERATIONS 5
+
 #define DEBUG_SEGMENTS 0
 
 #define ENABLE_AMBIENT_OCCLUSION 1
@@ -9,12 +13,13 @@
 #define ENABLE_FUZZY_GRID 0
 #define GRID_NORMAL_SETTINGS 0
 #define OUTLINE_INWARDS 0
-#define GLYPH_TYPE_IS_3D 1
+#define GLYPH_TYPE_IS_3D 0
 
 #define CONSTANT_FLOAT_UNIFORM_COUNT 0
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
-#define GLYPH_NORMAL_DEFINITION // TODO THESIS: Temporary: 3D glyphs only support one glyph type at a time. other layers will be used for morphing functionality in the future
+#define GLYPH_SDF_DEFINITION 100.0
+#define GLYPH_NORMAL_DEFINITION vec3(0.0, 0.0, 0.0)// TODO THESIS: Temporary: 3D glyphs only support one glyph type at a time. other layers will be used for morphing functionality in the future
 #define L0_VISIBLE 1
 #define L0_MAPPED_ATTRIB_COUNT 0
 #define L0_GLYPH_DEFINITION
@@ -42,8 +47,8 @@ mat3 get_inverse_normal_matrix();
 vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side, float specular_factor);
 ////***** end interface of surface.glsl ***********************************
 
-layout (binding = 0) uniform sampler2D albedo_tex;
-layout (binding = 1) uniform sampler2D position_tex;
+layout (binding = 0) uniform usampler2D albedo_tex;
+layout (binding = 1) uniform usampler2D position_tex;
 layout (binding = 2) uniform sampler2D normal_tex;
 layout (binding = 3) uniform sampler2D tangent_tex;
 layout (binding = 4) uniform sampler2D depth_tex;
@@ -88,6 +93,10 @@ uniform bool  holographic_raycast;
 uniform float viewport_width;
 uniform float framebuf_width;
 uniform float framebuf_height;
+
+//THESIS:
+//3D parameters
+uniform float uv_displacement_factor;
 
 // attribute mapping parameters
 #if CONSTANT_FLOAT_UNIFORM_COUNT > 0
@@ -1399,9 +1408,9 @@ float sd_sphereWindowed(in vec2 p, in float radius)
 	return length(p) - radius;
 }
 
-float sd_sphere(in vec3 p, in float radius)
+float sd_sphere(in vec3 ray_pos_glyph, in float radius)
 {
-	return length(p) - radius;
+	return length(ray_pos_glyph) - radius;
 }
 
 // transform of p using eigen vector transform matrix:
@@ -1434,60 +1443,60 @@ vec4 cheapSmoothStep(vec4 colorStart, vec4 colorEnd, float x, float bias) {
 }
 
 //THESIS: 3D normal calculation from 2D UV coordinate
-//vec3 Calculate3DNormal(in float normalCalculationDisplacement, in vec3 hit_pos)
+//vec3 calculate_SDF_normal_glyph(in vec3 hit_pos)
 //{
-//	return vec3(sd_sphereWindowed(vec3(hit_pos.x + normalCalculationDisplacement, hit_pos.yz), radius) - sd_sphereWindowed(vec3(hit_pos.x - normalCalculationDisplacement, hit_pos.yz), radius),
-//				sd_sphereWindowed(vec3(hit_pos.x, hit_pos.y + normalCalculationDisplacement, hit_pos.z), radius) - sd_sphereWindowed(vec3(hit_pos.x, uv.y - normalCalculationDisplacement, hit_pos.z), radius),
-//				sd_sphereWindowed(vec3(hit_pos.xy, hit_pos.z + normalCalculationDisplacement), radius) - sd_sphereWindowed(vec3(hit_pos.xy, hit_pos.z - normalCalculationDisplacement), radius));
+//	float normal_calc_delta = 0.001;
+//	vec3 hit_pos_plus = hit_pos + normal_calc_delta;
+//	vec3 hit_pos_minus = hit_pos - normal_calc_delta;
+//	return GLYPH_NORMAL_DEFINITION;
+//
+//	// ----- Example GLYPH_NORMAL_DEFINITION for sd_sphere -----
+//	//	return vec3(sd_sphere(vec3(hit_pos_plus.x, hit_pos.yz), radius) - sd_sphere(vec3(hit_pos_minus.x, hit_pos.yz), radius),
+//	//				sd_sphere(vec3(hit_pos.x, hit_pos_plus.y, hit_pos.z), radius) - sd_sphere(vec3(hit_pos.x, hit_pos_minus.y, hit_pos.z), radius),
+//	//				sd_sphere(vec3(hit_pos.xy, hit_pos_plus.z), radius) - sd_sphere(vec3(hit_pos.xy, hit_pos_minus.z), radius));
+//	// ----- Example SDF Sphere ----- END
 //}
 
-//calculates the radius of the tube using the normals given and the displacement between the uv coords used to get the normals
-float calcTubeRadius(in vec3 normal_tube_at_uv, in vec3 normal_tube_displaced, in float displacement)
+struct ray_march_result
 {
-	// no need to clamp dot to -1 1, because input is normalized
-	float theta = acos(dot(normal_tube_displaced*1000.0, normal_tube_at_uv*1000.0));
-	return tan(theta) * displacement;
-}
+	bool hit;
+	vec3 pos_eye, normal_eye;
+	vec3 debug_color;
+};
 
-vec4 splat_generic_glyph_windowed(in uint debug_info, in vec2 uv, in float dist, /*in vec3 hit_Pos,*/ in vec3 glyph_color, in vec3 pos_eye, in vec3 normal_eye, in vec3 tangent_eye, in vec3 bitangent_eye, inout float depth, in float windowedSize) {	
-	
-	vec3 tubeInnerColor = vec3(0.0, 0.0, 0.3);
-	float absX = abs(uv.x);
-
-
-	return vec4(normal_eye, 1.0);
-	return vec4(normal_eye - (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz, 1.0);
-	
-	
-	if(dist <= 0.0)
-	{
-		//vec2 bitangent_screen = vec2(/*framebuf_width **/ (bitangent_ndc.x + 1.0) / 2.0 , /*framebuf_height */(bitangent_ndc.y + 1.0) / 2.0);
-		//return vec4((bitangent_clip.xy + 1.0) / 2.0, 0.0, 1.0);
-	}
-	//return vec4((/*get_inverse_normal_matrix() **/ pos_eye).x, 0.0, 0.0, 1.0);
-	//return vec4(0.0, (get_inverse_normal_matrix() * pos_eye).y, 0.0, 1.0);
-	//return vec4(0.0, 0.0, (get_inverse_normal_matrix() * pos_eye).z, 1.0);
-
-//	{		
-//		//reminder: vec3 normal_eye = texture(normal_tex, fb_uv).xyz;	
-//		vec3 normal_tube_at_uv = normalize(get_inverse_normal_matrix() * normal_eye);
-//		vec3 normal_tube_displaced = normalize(get_inverse_normal_matrix() * normal_displaced);
-//
-//		//return vec4(pos, 1.0);
-//		//return vec4(normal, 1.0);
-//		//return vec4(GLYPH_NORMAL_DEFINITION, 1.0);
+//THESIS TODO: back an forth transformations between eye and glyph local space should be simplified if possible, e.g. when the glyph scale is already in eye space. 
+//bool ray_march_3D_glyph_eye(in uint debug_info, in int closestID, in vec3 glyph_pos_eye, in vec3 start_pos_eye, inout ray_march_result rmr)
+//{
+//	//transform eye_space direction into glyph_space
+//	vec3 ray_dir_glyph = normalize((get_inverse_modelview_matrix() * vec4(start_pos_eye, 0.0)).xyz);
+//	vec3 ray_pos_glyph = (get_inverse_modelview_matrix() * vec4((start_pos_eye - glyph_pos_eye), 1.0)).xyz;
+//	float dist = 100.0;
+//	int i = 0;
+//	while(dist > EPSILON && i < MAX_RM_ITERATIONS)
+//	{
+//		dist = GLYPH_SDF_DEFINITION;
+//		if(dist < EPSILON)
+//		{
+//			rmr.normal_eye = normalize(get_normal_matrix() * calculate_SDF_normal_glyph(ray_pos_glyph));
+//			rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph, 1.0)).xyz + glyph_pos_eye;
+//			return true;	
+//		}
+//		ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
+//		i++;
 //	}
+//	return false;
+//}
 
-
-	if(dist < 0.0 && abs(uv.y) < windowedSize)
-		return mix(vec4(tubeInnerColor, 1.0), vec4(glyph_color, 1.0), abs(dist));
-
-	if(absX < windowedSize + 0.2 && abs(uv.y) < windowedSize)
-		//return skewedSmoothStep(vec4(glyph_color, abs(dist)), defaultColor, abs(uv.x), windowedSize);
-		return skewedSmoothStep(vec4(tubeInnerColor, 1.0), vec4(tubeInnerColor, 0.0), abs(uv.y) - windowedSize + 1.0, 3);
-	else		
-		return vec4(0.0);
+vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result rmr, in float tube_radius, inout float depth, in vec3 glyph_color, in float windowedSize) {	
 	
+	if(abs(uv.y) <= windowedSize)
+	{		
+		if(rmr.hit)
+			return vec4(1.0, 0.0, 0.0, 1.0);
+
+		return vec4(rmr.debug_color, 1.0);		
+	}
+	return vec4(1.0, 1.0, 1.0, 0.0);	
 }
 
 void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
@@ -1553,13 +1562,17 @@ void main()
 	const vec2 fb_uv = vec2(/*(holographic_raycast ? pxl*subpxl_width : */pxl*pxl_width + subp*subpxl_width + intra_fbtexel_offset,
 		texcoord_fs.y);
 
-	vec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
-	vec3 color = unpackUnorm4x8(floatBitsToUint(albedo_texcoord_seg.x)).rgb;
-	vec2 texcoord = albedo_texcoord_seg.yz;
-	int segment_id = floatBitsToInt(albedo_texcoord_seg.w);
+	uvec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
+	vec3 color = unpackUnorm4x8(albedo_texcoord_seg.x).rgb;
+	vec2 texcoord = vec2(uintBitsToFloat(albedo_texcoord_seg.y), uintBitsToFloat(albedo_texcoord_seg.z));
+	int segment_id = int(albedo_texcoord_seg.w);
 
-	vec3 pos_eye = texture(position_tex, fb_uv).xyz;
-	vec3 normal_eye = texture(normal_tex, fb_uv).xyz;
+	uvec4 pos_eye_radius = texture(position_tex, fb_uv);
+	vec3 pos_eye = vec3(uintBitsToFloat(pos_eye_radius.x), uintBitsToFloat(pos_eye_radius.y), uintBitsToFloat(pos_eye_radius.z));
+	//float tube_radius = uintBitsToFloat(pos_eye_radius.w);
+	float tube_radius = 0.25;
+
+	vec3 normal_eye = texture(normal_tex, fb_uv).rgb;
 	vec3 tangent_eye = texture(tangent_tex, fb_uv).xyz;
 	vec3 bitangent_eye = vec3(1.0);
 	float depth = texture(depth_tex, fb_uv).r;
@@ -1600,8 +1613,75 @@ void main()
 				);
 				
 				//vec3 pos = (get_inverse_modelview_matrix() * vec4(glyph, 1.0)).xyz;
+				ray_march_result rmr;
+		#if GLYPH_TYPE_IS_3D == 1
+				{
+					// ----- Manual radius calculation -----
+					// TODO: for steep angles (bitangents near parallel to screen plane) we dont want to get the 3D glyphs but keep 2D to reduce artifacts
+					// TODO: only perfomr these calculations without "windowed" size
+					//Tube radius
+					//bitangent_eye = cross(normal_eye, tangent_eye);
+					//vec4 bitangent_clip = get_projection_matrix() * vec4(bitangent_eye, 0.0);
+					// TODO: make this depth dependent -> farther away requires smaller step size
+					//float uv_s_direction = glyphuv.s < 0.5 ? -1.0 : 1.0;
+					//float uv_t_direction = glyphuv.t < 0 ? -1.0 : 1.0;					
+					
+					//float scaled_depth = uv_displacement_factor*(1.0-depth);
+					//const vec2 uv_displaced = fb_uv + bitangent_clip.xy * scaled_depth * uv_t_direction /* subpxl_width*/;
+					//vec3 normal_at_displacement = texture(normal_tex, uv_displaced).xyz;
+					//tubeRadius = calcTubeRadius(normalize(get_inverse_normal_matrix() * normal_eye), normalize(get_inverse_normal_matrix() * normal_at_displacement), length(uv_displaced - fb_uv));
+					// ----- Manual radius calculation ----- END					
 
-//				finalize_glyph(
+					// ----- Calculation of the Glyph-Position in eye-space -----
+					//THESIS TODO: Make more precise (fragmented at cases where the step in tangent direction leaves the correct/current tube segment)
+					//THESIS TODO: Check if transformation is neccessary (I assumed it was, because it should increase precision (tube-space >> eye), 
+					//				but all these back-and-forth transformations are expensive
+					vec3 pos_tube = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
+					vec3 tangent_tube = normalize(get_inverse_normal_matrix() * tangent_eye);
+					vec3 center_frame_pos_tube = pos_tube + closest.d * (closest_prev ? tangent_tube : -tangent_tube); // from the current pos at the tubes surface, move in tangent direction by glyph_uv.s
+					vec3 center_frame_pos_eye = (get_modelview_matrix() * vec4(center_frame_pos_tube, 1.0)).xyz;
+
+					vec4 center_frame_pos_clip = get_projection_matrix() * vec4(center_frame_pos_eye, 1.0);
+					vec3 center_frame_pos_ndc = center_frame_pos_clip.xyz / center_frame_pos_clip.w;
+					vec2 center_frame_pos_screen = vec2((center_frame_pos_ndc.x + 1.0) / 2.0 , (center_frame_pos_ndc.y + 1.0) / 2.0);
+						
+					vec3 center_frame_normal_eye = texture(normal_tex, center_frame_pos_screen).xyz;
+					vec3 center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
+					vec3 glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
+
+					vec3 ray_dir_glyph = normalize(pos_eye);
+					//vec3 ray_dir_glyph = normalize((get_inverse_modelview_matrix() * vec4(pos_eye, 0.0)).xyz);
+					vec3 ray_pos_glyph = pos_tube - center_frame_center_tube;			
+					//vec3 ray_pos_glyph = (get_inverse_modelview_matrix() * vec4((pos_eye - center_frame_center_tube), 1.0)).xyz;					
+					rmr.hit = false;
+					float dist = 100.0;
+					int i = 0;
+					while(i < MAX_RM_ITERATIONS)
+					{
+						dist = GLYPH_SDF_DEFINITION;
+						if(dist < EPSILON)
+						{
+							rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
+							rmr.hit = true;
+							rmr.debug_color = vec3(float(i) / MAX_RM_ITERATIONS, 0.0, 0.0);
+							break;
+						}
+						ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
+						i++;
+					}
+					if(rmr.hit)
+					{
+						const float normal_calc_delta = 0.001;
+						vec3 hit_pos_plus = ray_pos_glyph + normal_calc_delta;
+						vec3 hit_pos_minus = ray_pos_glyph - normal_calc_delta;
+						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_NORMAL_DEFINITION);
+					}
+					rmr.debug_color = ray_pos_glyph;
+					// ----- Calculation of the Glyph-Position in eye-space ----- END
+				}
+		#endif
+				// ----- Reference for example L##N_GLYPH_DEFINITION -----
+				//				finalize_glyph(
 //					glyph.debug_info, 
 //					glyphuv, 
 //					splat_generic_glyph( -> glyph color/texturing
@@ -1617,49 +1697,13 @@ void main()
 //						), 
 //					color
 //				);"
-
-				float tubeRadius = 1.0;
-				vec3 pos_tube_center = vec3(1.0);
-				if(GLYPH_TYPE_IS_3D == 1)
-				{
-					// TODO: for steep angles (bitangents near parallel to screen plane) we dont want to get the 3D glyphs but keep 2D to reduce artifacts
-					// TODO: only perfomr these calculations without "windowed" size
-					//Tube radius
-					bitangent_eye = cross(normal_eye, tangent_eye);
-					vec4 bitangent_clip = get_projection_matrix() * vec4(bitangent_eye, 0.0);
-					// TODO: make this depth dependent -> farther away requires smaller step size
-					float bitangent_factor = glyphuv.t < 0 ? -1.0 : 1.0; 
-					
-					
-					float linear_depth = 100.0 / (10000.1 - depth * 9999.99);
-					float scaled_depth = max(10.0 / pow(linear_depth, 1.0), 0.1);
-					const vec2 uv_displaced = fb_uv + bitangent_clip.xy * scaled_depth * bitangent_factor /** subpxl_width*/;
-					//const vec2 uv_displaced = fb_uv + bitangent_clip.xy * (-2.0*sqrt(scaled_depth)+2.0) /** bitangent_factor*/ /** subpxl_width*/;
-					//const vec2 uv_displaced = fb_uv + bitangent_clip.xy * (9.0 * depth * depth - 20.0*depth + 11.0) * bitangent_factor /** subpxl_width*/;
-					//const vec2 uv_displaced = fb_uv + bitangent_clip.xy * (12.0 - 12.0*depth) * bitangent_factor /** subpxl_width*/;
-					vec3 normal_at_displacement = texture(normal_tex, uv_displaced).xyz;
-					tubeRadius = calcTubeRadius(normalize(get_inverse_normal_matrix() * normal_eye), normalize(get_inverse_normal_matrix() * normal_at_displacement), length(uv_displaced - fb_uv));
-
-					//Glyph tube center pos (in tube space)
-					vec3 pos_tube = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
-					vec3 tangent_tube = normalize(get_inverse_normal_matrix() * tangent_eye); //check if transformation is neccessary
-					vec3 center_frame_pos_eye = pos_tube + glyphuv.s * tangent_eye; // from the current pos at the tubes surface, move in tangent direction by glyph_uv.s
-					vec4 center_frame_pos_clip = get_projection_matrix() * vec4(center_frame_pos_eye, 1.0);
-					vec3 center_frame_pos_ndc = center_frame_pos_clip.xyz / center_frame_pos_clip.w;
-					vec2 center_frame_pos_screen = vec2((center_frame_pos_ndc.x + 1.0) / 2.0 , (center_frame_pos_ndc.y + 1.0) / 2.0);
-					
-					vec3 center_frame_pos_tube = (get_inverse_modelview_matrix() * vec4(center_frame_pos_eye, 1.0)).xyz;
-					pos_tube_center = texture(normal_tex, center_frame_pos_screen).xyz /** (-tubeRadius) - center_frame_pos_tube*/;
-					
-					pos_tube_center = vec3(linear_depth, 0.0, 1.0);
-					//pos_tube_center = vec3(1.0 - dot(normal_at_displacement, normal_eye), 0.0, 0.0);
-					//pos_tube_center = vec3(abs(tubeRadius) / 5.0 , 0.0, 0.0);
-				}
+				// ----- Reference for example LN_GLYPH_DEFINITION ----- END
 
 				float non_outline_factor = 1;
 				L0_GLYPH_DEFINITION
 				
 				specular_factor = non_outline_factor*0.25;
+				
 			}
 		}
 #endif

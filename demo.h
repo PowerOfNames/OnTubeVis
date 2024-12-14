@@ -472,17 +472,17 @@ struct demo : public traj_format_handler<float>
 		traj.tangents.emplace_back(Vec4(dir, 0.f));
 		traj.radii.emplace_back(radius);
 		traj.colors.emplace_back(0.75f, 0.8f, 0.9f);
-		for (unsigned i=1; i < num_samples; i++)
+		for (unsigned i = 1; i < num_samples; i++)
 		{
 			// - update position
-			traj.positions.emplace_back(traj.positions.back() + dir*length);
+			traj.positions.emplace_back(traj.positions.back() + dir * length);
 			// - generate new properties
 			const Vec3 dirdelta(norm_sigma1by3(generator), norm_sigma1by3(generator), norm_sigma1by3(generator)),
-			           newdir(cgv::math::normalize(dir + dirdelta));
+				newdir(cgv::math::normalize(dir + dirdelta));
 			/* update_radius() */
-			const float tanlen = length*0.75f;
+			const float tanlen = length * 0.75f;
 			// - compose
-			traj.tangents.emplace_back(Vec4(tanlen*cgv::math::normalize((dir+newdir)*0.5), 0.f));
+			traj.tangents.emplace_back(Vec4(tanlen * cgv::math::normalize((dir + newdir) * 0.5), 0.f));
 			traj.radii.emplace_back(radius);
 			traj.colors.emplace_back(0.75f, 0.8f, 0.9f);
 
@@ -494,7 +494,11 @@ struct demo : public traj_format_handler<float>
 				(0.0, 1.0, 2.0)
 			);
 			*/
-			traj.attrib_tensor3x3.emplace_back((float)i/(num_samples-1), attrib_tensor3x3);
+			for (uint32_t j = 0; j < 10; j++)
+			{
+				traj.attrib_tensor3x3.emplace_back(((float)i - 1.0f) + (float)j/10.0f, attrib_tensor3x3);
+			}
+			//traj.attrib_tensor3x3.emplace_back((float)i / (num_samples - 1), attrib_tensor3x3);
 
 			// iterate
 			dir = newdir;

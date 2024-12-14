@@ -41,6 +41,8 @@ protected:
 
 	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
 	float sampling_step = 1.0f;
+	//THESIS:
+	float uv_displacement_factor = 1.0f;
 	GlyphType type = GT_CIRCLE;
 	glyph_shape* shape_ptr = nullptr;
 
@@ -94,6 +96,7 @@ public:
 		swap(first.active, second.active);
 		swap(first.sampling_strategy, second.sampling_strategy);
 		swap(first.sampling_step, second.sampling_step);
+		swap(first.uv_displacement_factor, second.uv_displacement_factor);
 		swap(first.type, second.type);
 		swap(first.attrib_source_indices, second.attrib_source_indices);
 		swap(first.color_source_indices, second.color_source_indices);
@@ -112,7 +115,7 @@ public:
 	void set_name(const std::string& name) { this->name = name; }
 
 	bool& ref_active() { return active; }
-
+	
 	bool get_active() const { return active; }
 
 	void set_active(bool flag) { active = flag; }
@@ -120,10 +123,14 @@ public:
 	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
 	
 	const float get_sampling_step() const { return sampling_step; }
+	//THESIS:
+	const float get_uv_disp_factor() const { return uv_displacement_factor; }
 
 	void set_sampling_strategy(AttributeSamplingStrategy strategy) { sampling_strategy = strategy; }
 
 	void set_sampling_step(float step) { sampling_step = step; }
+	//THESIS:
+	void set_uv_disp_factor(float factor) { uv_displacement_factor = factor; }
 
 	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
 

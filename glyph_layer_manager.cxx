@@ -42,6 +42,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 		layer_config.visible = gam.get_active();
 		layer_config.sampling_strategy = gam.get_sampling_strategy();
 		layer_config.sampling_step = gam.get_sampling_step();
+		//THESIS:
+		layer_config.uv_displacement_factor = gam.get_uv_disp_factor();
 
 		if(shape_ptr) {
 			// TODO: this may be unsafe (make a copy? needs to be deleted afterwards)
@@ -52,13 +54,12 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			std::string func_name_str = "sd_" + shape_ptr->name();
 			std::string glyph_coord_str = "glyphuv";
 			std::string glyph_outline_str = "0.0";
-			std::string glyph_windowed_size_str = "";
+			std::string glyph_windowed_size_str = "0.0";
 
 			// We only allow one 3D glyph type. Other layers are for now reserved for morphing functions.
 			const bool glyph_is_3D = static_cast<uint32_t>(shape_ptr->type()) >= static_cast<uint32_t>(GlyphType::GT_FIRST_3D) && i == 0;
 			
 			// should maybe be a modifiable renderer uniform!
-			const std::string normalCalcDisplacement = "0.001";
 			std::string glyph_coord_3D_str = "pos";
 
 			// the parameters used in the signed distance and splat function calls
@@ -156,26 +157,53 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 			const std::string layer_id = std::to_string(i);
 
+			if (glyph_is_3D)
+			{
+				//THESIS: GLYPH_SDF_DEFINITION
+				std::string glyph_sdf_str = func_name_str + "(ray_pos_glyph";
+				if (float_parameter_strs.size() > 0)
+					glyph_sdf_str += ", ";
+				glyph_sdf_str += cgv::utils::join(float_parameter_strs, ", ");
+				glyph_sdf_str += ")";
+				layer_config.glyph_sdf_definition = glyph_sdf_str;
+
+				//THESIS: GLYPH_NORMAL_DEFINITION
+				std::string glyph_normal_str = "vec3(";
+				std::string glyph_def_params_str = "";
+				if (float_parameter_strs.size() > 0)
+					glyph_def_params_str += ", ";
+				glyph_def_params_str += cgv::utils::join(float_parameter_strs, ", ");
+
+				glyph_normal_str += func_name_str + "(vec3(hit_pos_plus.x, ray_pos_glyph.yz)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(hit_pos_minus.x, ray_pos_glyph.yz)" + glyph_def_params_str + "),";
+				glyph_normal_str += func_name_str + "(vec3(ray_pos_glyph.x, hit_pos_plus.y, ray_pos_glyph.z)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(ray_pos_glyph.x, hit_pos_minus.y, ray_pos_glyph.z)" + glyph_def_params_str + "),";
+				glyph_normal_str += func_name_str + "(vec3(ray_pos_glyph.xy, hit_pos_plus.z)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(ray_pos_glyph.xy, hit_pos_minus.z)" + glyph_def_params_str + "))";
+
+				layer_config.glyph_normal_definition = glyph_normal_str;
+			}
+
 			// generate the glyph splat function
 			std::string splat_func = shape_ptr->splat_func();
-			if(splat_func == "") {
+			if(splat_func == "") {				
+				//THESIS:
+				
 				// This is a generic glyph.
 				// It directly takes all the float parameters in the signed distance function call
 				// and only ever uses one color, which is given to the splat function.
-				std::string glyph_func = func_name_str + "(" + glyph_coord_str;
-				if(float_parameter_strs.size() > 0)
-					glyph_func += ", ";
-				glyph_func += cgv::utils::join(float_parameter_strs, ", ");
-				glyph_func += ")";
-
 				std::string color_str = "vec3(0.0)";
-				if(color_parameter_strs.size() > 0)
-					color_str = color_parameter_strs[0]; //TODO THESIS BUG_FOUND: Why only the first?
+				if (color_parameter_strs.size() > 0)
+					color_str = color_parameter_strs[0];
 
 				if (glyph_is_3D)
-					splat_func = "splat_generic_glyph_windowed(glyph.debug_info, glyphuv, " + glyph_func + ", " + color_str + + ", pos_eye, pos_tube_center, tangent_eye, bitangent_eye, depth, " + glyph_windowed_size_str + ")";				
+					splat_func = "splat_generic_glyph_3D(glyph.debug_info, glyphuv, rmr, tube_radius, depth, " + color_str + ", " + glyph_windowed_size_str + ")";
 				else
-					splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str + + ", " + glyph_outline_str + ", non_outline_factor)";
+				{
+					std::string glyph_func = func_name_str + "(" + glyph_coord_str;
+					if (float_parameter_strs.size() > 0)
+						glyph_func += ", ";
+					glyph_func += cgv::utils::join(float_parameter_strs, ", ");
+					glyph_func += ")";
+					splat_func = "splat_generic_glyph(glyph.debug_info, " + glyph_func + ", " + color_str  + ", " + glyph_outline_str + ", non_outline_factor)";
+				}
 
 			} else {
 				// This is a special glyph.
@@ -217,7 +245,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			}
 
 			layer_config.glyph_definition = "finalize_glyph(glyph.debug_info, glyphuv, " + splat_func + ", color);";
-			layer_config.glyph_normal_definition = "";
 
 			last_constant_float_parameters_size = config.constant_float_parameters.size();
 			last_constant_color_parameters_size = config.constant_color_parameters.size();

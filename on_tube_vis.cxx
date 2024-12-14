@@ -129,8 +129,9 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 
 	// add framebuffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "uint32[D]");
-	fbc.add_attachment("albedo", "flt32[R,G,B,A]");
-	fbc.add_attachment("position", "flt32[R,G,B]");
+	fbc.add_attachment("albedo", "uint32[R,G,B,A]");
+	//THESIS: - extended position texture to 4-float
+	fbc.add_attachment("position", "uint32[R,G,B,A]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
 
@@ -1829,6 +1830,7 @@ void on_tube_vis::init_frame (cgv::render::context &ctx)
 	/*if (misc_cfg.fix_view_up_dir_proxy && view_ptr)
 		view_ptr->set_view_up_dir(0, 1, 0);*/
 
+
 	// update color and mapping legends if necessary
 	if (update_legends) {
 		color_legend_mgr.compose(
@@ -2845,7 +2847,11 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
+		//THESIS:
 		prog.set_uniform(ctx, "framebuf_height", (float)fb_size.y());
+
+		if(glyph_layers_config.layer_configs.size())
+			prog.set_uniform(ctx, "uv_displacement_factor", glyph_layers_config.layer_configs[0].uv_displacement_factor);
 
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);
@@ -2944,6 +2950,7 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 		//				In the future, a glyphs appearance should be morphable via additional layers defining morphing functions
 		if (is3D && i == 1)
 			shader_code::set_define(defines, "GLYPH_NORMAL_DEFINITION", lc.glyph_normal_definition, std::string(""));
+			shader_code::set_define(defines, "GLYPH_SDF_DEFINITION", lc.glyph_sdf_definition, std::string(""));
 	}
 
 

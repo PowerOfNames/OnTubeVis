@@ -9,6 +9,8 @@ glyph_attribute_mapping::glyph_attribute_mapping(const glyph_attribute_mapping& 
 	active(other.active),
 	sampling_strategy(other.sampling_strategy),
 	sampling_step(other.sampling_step),
+	//THESIS
+	uv_displacement_factor(other.uv_displacement_factor),
 	type(other.type),
 	attrib_source_indices(other.attrib_source_indices),
 	color_source_indices(other.color_source_indices),
@@ -105,6 +107,8 @@ void glyph_attribute_mapping::create_glyph3D_gui(cgv::base::base* bp, cgv::gui::
 
 	add_local_member_control(p, bp, "Sampling Strategy", sampling_strategy, "dropdown", "enums='Uniform Time,Equidistant,Original Samples'");
 	add_local_member_control(p, bp, "Sampling Step", sampling_step, "value_slider", "min=0;max=10;step=0.001;ticks=true;log=true");
+	//THESIS
+	add_local_member_control(p, bp, "UV Disp Factor", uv_displacement_factor, "value_slider", "min=0;max=20;step=0.01;ticks=true;log=true");
 	p.add_decorator("", "separator");
 
 
@@ -141,6 +145,12 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 
 	if(member_ptr == &sampling_step) {
 		sampling_step = std::max(sampling_step, 0.0f);
+		last_action_type = AT_CONFIGURATION_VALUE_CHANGE;
+	}
+
+	//THESIS:
+	if (member_ptr == &uv_displacement_factor) {
+		uv_displacement_factor = std::max(uv_displacement_factor, 0.0f);
 		last_action_type = AT_CONFIGURATION_VALUE_CHANGE;
 	}
 

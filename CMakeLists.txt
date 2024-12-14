@@ -125,7 +125,7 @@ set(HEADERS
 	3rd/peridetic/peridetic.h
 	# - Wgs84mercator geoid utility header-only library
 	3rd/wgs84mercator/WGS84toCartesian.hpp
-	
+
 	# arclength helpers
 	arclength/bezier.h
 	arclength/hermite.h

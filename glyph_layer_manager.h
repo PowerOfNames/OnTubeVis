@@ -41,10 +41,12 @@ public:
 			bool visible;
 			AttributeSamplingStrategy sampling_strategy;
 			float sampling_step;
+			float uv_displacement_factor;
 			const glyph_shape* shape_ptr;
 			std::vector<int> mapped_attributes;
 			std::vector<glyph_mapping_triple> glyph_mapping_parameters;
 			std::string glyph_definition = "";
+			std::string glyph_sdf_definition = "";
 			std::string glyph_normal_definition = "";
 		};
 
