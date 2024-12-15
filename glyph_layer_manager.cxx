@@ -168,17 +168,17 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				layer_config.glyph_sdf_definition = glyph_sdf_str;
 
 				//THESIS: GLYPH_NORMAL_DEFINITION
-				std::string glyph_normal_str = "vec3(";
+				std::string glyph_surface_grad_str = "vec3(";
 				std::string glyph_def_params_str = "";
 				if (float_parameter_strs.size() > 0)
 					glyph_def_params_str += ", ";
 				glyph_def_params_str += cgv::utils::join(float_parameter_strs, ", ");
 
-				glyph_normal_str += func_name_str + "(vec3(hit_pos_plus.x, ray_pos_glyph.yz)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(hit_pos_minus.x, ray_pos_glyph.yz)" + glyph_def_params_str + "),";
-				glyph_normal_str += func_name_str + "(vec3(ray_pos_glyph.x, hit_pos_plus.y, ray_pos_glyph.z)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(ray_pos_glyph.x, hit_pos_minus.y, ray_pos_glyph.z)" + glyph_def_params_str + "),";
-				glyph_normal_str += func_name_str + "(vec3(ray_pos_glyph.xy, hit_pos_plus.z)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(ray_pos_glyph.xy, hit_pos_minus.z)" + glyph_def_params_str + "))";
+				glyph_surface_grad_str += func_name_str + "(vec3(hit_pos_plus.x, ray_pos_glyph.yz)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(hit_pos_minus.x, ray_pos_glyph.yz)" + glyph_def_params_str + "),";
+				glyph_surface_grad_str += func_name_str + "(vec3(ray_pos_glyph.x, hit_pos_plus.y, ray_pos_glyph.z)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(ray_pos_glyph.x, hit_pos_minus.y, ray_pos_glyph.z)" + glyph_def_params_str + "),";
+				glyph_surface_grad_str += func_name_str + "(vec3(ray_pos_glyph.xy, hit_pos_plus.z)" + glyph_def_params_str + ") - " + func_name_str + "(vec3(ray_pos_glyph.xy, hit_pos_minus.z)" + glyph_def_params_str + "))";
 
-				layer_config.glyph_normal_definition = glyph_normal_str;
+				layer_config.glyph_surface_grad_definition = glyph_surface_grad_str;
 			}
 
 			// generate the glyph splat function

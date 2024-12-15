@@ -2948,9 +2948,11 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 		
 		//THESIS TODO:	Should be moved outside the layer specific config into general config -> the normal calculation is baes off of the final SDF definition
 		//				In the future, a glyphs appearance should be morphable via additional layers defining morphing functions
-		if (is3D && i == 1)
-			shader_code::set_define(defines, "GLYPH_NORMAL_DEFINITION", lc.glyph_normal_definition, std::string(""));
+		if (is3D && i == 0)
+		{
+			shader_code::set_define(defines, "GLYPH_SURFACE_GRAD_DEFINITION", lc.glyph_surface_grad_definition, std::string(""));
 			shader_code::set_define(defines, "GLYPH_SDF_DEFINITION", lc.glyph_sdf_definition, std::string(""));
+		}
 	}
 
 

@@ -2,8 +2,8 @@
 #define M_PI 3.14159265359
 
 //THESIS:
-#define EPSILON 0.01
-#define MAX_RM_ITERATIONS 5
+#define EPSILON 0.005
+#define MAX_RM_ITERATIONS 10
 
 #define DEBUG_SEGMENTS 0
 
@@ -19,7 +19,7 @@
 #define CONSTANT_COLOR_UNIFORM_COUNT 0
 #define MAPPING_PARAMETER_UNIFORM_COUNT 0
 #define GLYPH_SDF_DEFINITION 100.0
-#define GLYPH_NORMAL_DEFINITION vec3(0.0, 0.0, 0.0)// TODO THESIS: Temporary: 3D glyphs only support one glyph type at a time. other layers will be used for morphing functionality in the future
+#define GLYPH_SURFACE_GRAD_DEFINITION vec3(0.0, 0.0, 0.0)// TODO THESIS: Temporary: 3D glyphs only support one glyph type at a time. other layers will be used for morphing functionality in the future
 #define L0_VISIBLE 1
 #define L0_MAPPED_ATTRIB_COUNT 0
 #define L0_GLYPH_DEFINITION
@@ -1492,9 +1492,15 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 	if(abs(uv.y) <= windowedSize)
 	{		
 		if(rmr.hit)
-			return vec4(1.0, 0.0, 0.0, 1.0);
+		{
+			//THESIS TODO: 
+			//vec4 hit_pos_clip = get_projection_matrix() * vec4(rmr.pos_eye, 1.0);
+			//depth = ((hit_pos_clip.z / hit_pos_clip.w) + 1.0) / 2.0;
+			return vec4(glyph_color, 1.0);
+		}
 
-		return vec4(rmr.debug_color, 1.0);		
+		//THESIS TODO: render tube backside?
+		return vec4(1.0, 1.0, 1.0, 1.0);		
 	}
 	return vec4(1.0, 1.0, 1.0, 0.0);	
 }
@@ -1638,7 +1644,7 @@ void main()
 					//				but all these back-and-forth transformations are expensive
 					vec3 pos_tube = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
 					vec3 tangent_tube = normalize(get_inverse_normal_matrix() * tangent_eye);
-					vec3 center_frame_pos_tube = pos_tube + closest.d * (closest_prev ? tangent_tube : -tangent_tube); // from the current pos at the tubes surface, move in tangent direction by glyph_uv.s
+					vec3 center_frame_pos_tube = pos_tube + closest.d * (closest_prev ? -tangent_tube : tangent_tube); // from the current pos at the tubes surface, move in tangent direction by glyph_uv.s
 					vec3 center_frame_pos_eye = (get_modelview_matrix() * vec4(center_frame_pos_tube, 1.0)).xyz;
 
 					vec4 center_frame_pos_clip = get_projection_matrix() * vec4(center_frame_pos_eye, 1.0);
@@ -1649,7 +1655,7 @@ void main()
 					vec3 center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
 					vec3 glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
 
-					vec3 ray_dir_glyph = normalize(pos_eye);
+					vec3 ray_dir_glyph = normalize(get_inverse_normal_matrix() * pos_eye);
 					//vec3 ray_dir_glyph = normalize((get_inverse_modelview_matrix() * vec4(pos_eye, 0.0)).xyz);
 					vec3 ray_pos_glyph = pos_tube - center_frame_center_tube;			
 					//vec3 ray_pos_glyph = (get_inverse_modelview_matrix() * vec4((pos_eye - center_frame_center_tube), 1.0)).xyz;					
@@ -1671,12 +1677,13 @@ void main()
 					}
 					if(rmr.hit)
 					{
-						const float normal_calc_delta = 0.001;
+						const float normal_calc_delta = 0.1;
 						vec3 hit_pos_plus = ray_pos_glyph + normal_calc_delta;
 						vec3 hit_pos_minus = ray_pos_glyph - normal_calc_delta;
-						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_NORMAL_DEFINITION);
-					}
-					rmr.debug_color = ray_pos_glyph;
+						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_SURFACE_GRAD_DEFINITION);
+						normal_eye = rmr.normal_eye;
+					}				
+						
 					// ----- Calculation of the Glyph-Position in eye-space ----- END
 				}
 		#endif

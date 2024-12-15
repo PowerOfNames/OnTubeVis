@@ -47,7 +47,7 @@ public:
 			std::vector<glyph_mapping_triple> glyph_mapping_parameters;
 			std::string glyph_definition = "";
 			std::string glyph_sdf_definition = "";
-			std::string glyph_normal_definition = "";
+			std::string glyph_surface_grad_definition = "";
 		};
 
 		struct shader_configuration {
