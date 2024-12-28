@@ -333,6 +333,10 @@ public:
 	/// 4D vector type
 	typedef typename super::Vec4 Vec4;
 
+	//THESIS
+	/// 3x3 matrix
+	typedef typename super::Mat33 Mat33;
+
 	/// rgb color type
 	typedef typename super::Color Color;
 

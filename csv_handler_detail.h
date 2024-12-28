@@ -14,6 +14,8 @@ struct csv_handler<flt_type>::Impl
 	typedef flt_type real;
 	typedef typename csv_handler::Vec3 Vec3;
 	typedef typename csv_handler::Vec4 Vec4;
+	//THESIS
+	typedef typename csv_handler::Mat33 Mat33;
 	typedef typename csv_handler::Color Color;
 	struct declared_attrib
 	{
@@ -96,6 +98,15 @@ struct csv_handler<flt_type>::Impl
 			{
 				auto &dst_data = dest.template get_data<Vec4>();
 				const auto &src_data = src.template get_data<Vec4>();
+				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
+				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
+				break;
+			}
+			//THESIS:
+			case AttribType::MAT33:
+			{
+				auto& dst_data = dest.template get_data<Mat33>();
+				const auto& src_data = src.template get_data<Mat33>();
 				std::copy(src_data.values.begin(), src_data.values.end(), std::back_inserter(dst_data.values));
 				std::copy(src_data.timestamps.begin(), src_data.timestamps.end(), std::back_inserter(dst_data.timestamps));
 				break;
@@ -270,6 +281,19 @@ struct csv_handler<flt_type>::Impl
 		// ToDo: investigate compile-time for-loop (explicit unrolling) techniques
 		for (unsigned i=0; i<components; i++)
 			ret[i] = parse_field(fields[field_ids[i]]);
+		return std::move(ret);
+	}
+	//THESIS:
+	template <unsigned rows, unsigned columns>
+	static cgv::math::fmat<real, rows, columns> parse_fields(
+		const std::vector<std::string>& fields, const std::vector<unsigned> field_ids
+	)
+	{
+		cgv::math::fmat<real, rows, columns> ret;
+		// ToDo: investigate compile-time for-loop (explicit unrolling) techniques
+		for (unsigned i = 0; i < rows; i++)
+			for(unsigned j = 0; j < columns; j++)
+				ret(i,j) = parse_field(fields[field_ids[i*rows + j]]);
 		return std::move(ret);
 	}
 

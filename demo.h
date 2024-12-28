@@ -316,7 +316,7 @@ struct demo : public traj_format_handler<float>
 	//THESIS: (from chatGPT, but with adjustment to the theta calculation (switch to matrix(q,q) - matrix(p,p) from matrix(p,p) - matrix(q,q) because of colum-major order) and equivalent
 	//			for the eigenvector rotation
 	#define EPSILON 1e-10
-	static void JacobiRotation(cgv::math::fmat<float, 3, 3>& matrix, cgv::math::fmat<float, 3, 3>& eigenvectors, uint32_t p, uint32_t q)
+	static void JacobiRotation(cgv::math::fmat<float, 3, 3>& matrix, cgv::math::fmat<float, 3, 3>& eigenvectors, uint32_t p, uint32_t q, cgv::math::fvec<float, 3>& permutationVector)
 	{
 		if (fabs(matrix(p,q)) < EPSILON) return; // Already close to zero
 
@@ -392,7 +392,7 @@ struct demo : public traj_format_handler<float>
 		}
 	}
 	//THESIS: (from chatGPT)	
-	static void JacobiEigen(cgv::math::fmat<float, 3, 3>& matrix, cgv::math::fmat<float, 3, 3>& eigenvectors, cgv::math::fvec<float, 3>& eigenvalues)
+	static void JacobiEigen(cgv::math::fmat<float, 3, 3>& matrix, cgv::math::fmat<float, 3, 3>& eigenvectors, cgv::math::fvec<float, 3>& eigenvalues, cgv::math::fvec<float, 3>& permutationVector)
 	{
 		//Eigenvector initialization to identity matrix
 		for (int i = 0; i < 3; ++i) {
@@ -405,7 +405,7 @@ struct demo : public traj_format_handler<float>
 		for (int iter = 0; iter < 100; ++iter) {
 			auto [p, q] = FindLargestOffDiagonal(matrix);
 			if (fabs(matrix(p,q)) < EPSILON) break; // Converged
-			JacobiRotation(matrix, eigenvectors, p, q);
+			JacobiRotation(matrix, eigenvectors, p, q, permutationVector);
 			//PrintMatrix(matrix);
 		}
 
@@ -489,7 +489,7 @@ struct demo : public traj_format_handler<float>
 			//THESIS:
 			/*
 			mat3 tensor = mat3(
-				(2.0 1.0, 0.0), //first column
+				(2.0, 1.0, 0.0), //first column
 				(1.0, 3.0, 1.0),
 				(0.0, 1.0, 2.0)
 			);
@@ -689,16 +689,17 @@ struct demo : public traj_format_handler<float>
 				cgv::math::fmat<float, 3, 3> matCopy = attrib.value;
 				cgv::math::fmat<float, 3, 3> eigenvectors;
 				cgv::math::fvec<float, 3> eigenvalues;
-				JacobiEigen(matCopy, eigenvectors, eigenvalues);
+				cgv::math::fvec<float, 3> permutationVector;
+				JacobiEigen(matCopy, eigenvectors, eigenvalues, permutationVector);
 				PrintMatrix(matCopy);
 				cgv::math::fvec<float, 3> angles;
 				NormalizeEigenvectors(eigenvectors);
 				eigenvalues.normalize();
 				CalculateAnglesFromEigenVectors(eigenvectors, angles);
-				for (uint32_t i = 0; i < 3; i++)
+				/*for (uint32_t i = 0; i < 3; i++)
 				{
 					std::printf("Eigenvalue %i: %f; Eigenvector: (%f, %f, %f)\n", i, eigenvalues[i], eigenvectors(i, 0), eigenvectors(i, 1), eigenvectors(i, 2));
-				}
+				}*/
 
 				//attrib_tensorEigen1.data.append(Vec4(eigenvectors.row(0), eigenvalues[0]), attrib.t);
 				//attrib_tensorEigen2.data.append(Vec4(eigenvectors.row(1), eigenvalues[1]), attrib.t);

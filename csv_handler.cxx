@@ -549,6 +549,15 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 					);
 					continue;
 				}
+				//THESIS TODO: mat33 (9)
+				case 9:
+				{
+					auto& a = Impl::ensure_traj(attrib.trajs, traj_id, 9);
+					a.template get_data<Mat33>().append(
+						std::move(Impl::template parse_fields<3,3>(fields, attrib.field_ids)), (real)t_mod
+					);
+					continue;
+				}
 
 				default:
 					/* DoNothing() */;
@@ -775,6 +784,46 @@ csv_imldevice_reg(
 		colormap({{ 166.f/255.f, 206.f/255.f, 227.f/255.f }, { 31.f/255.f, 120.f/255.f, 180.f/255.f }})
 	),
 	"csv handler (float) - "+csv_imldevice_desc.name()
+);
+
+//THESIS
+//Register Debug dataset containing 9 individual values encoding a 3x3 diffusion tensor
+static const csv_descriptor csv_debug_diffTens_desc("Diffusion Tensor Debug", ",", {
+	{ "t", {"Timestamp", false, 0}, CSV::TIMESTAMP },
+	{ "id", {"ID", false, 1}, CSV::TRAJ_ID },
+	{ "Position", {{"Pos:0", false, 2}, {"Pos:1", false, 3}, {"Pos:2", false, 4}}, CSV::POS },
+	{ "DiffTensor", {	{"Diff:0", false, 5},
+						{"Diff:1", false, 6},
+						{"Diff:2", false, 7},
+						{"Diff:3", false, 8},
+						{"Diff:4", false, 9},
+						{"Diff:5", false, 10},
+						{"Diff:6", false, 11},
+						{"Diff:7", false, 12},
+						{"Diff:8", false, 13} }}
+	});
+cgv::base::object_registration_2<
+	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
+> csv_debug_diffTens_reg(
+	csv_debug_diffTens_desc,
+	visual_attribute_mapping<float>({
+		{ VisualAttrib::POSITION, {
+			"Position", attrib_transform<float>::vec3_to_vec3(
+				[](csv_handler<float>::Vec3& out, const csv_handler<float>::Vec3& in) {
+					out = in;
+				}
+			)
+		}},
+		{ VisualAttrib::RADIUS, {
+			// scale up radius accordingly but not as much to reduce overlapping tubes
+			"_radius", attrib_transform<float>::real_to_real(
+				[](float& out, const float& in) {
+					out = in;
+				}
+			)
+		 }}}
+	),
+	"csv handler (float) - "+csv_debug_diffTens_desc.name()
 );
 
 // Register handler for streamline .csv files exported from paraview

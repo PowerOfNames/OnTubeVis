@@ -1413,22 +1413,52 @@ float sd_sphere(in vec3 ray_pos_glyph, in float radius)
 	return length(ray_pos_glyph) - radius;
 }
 
+float sdTensorEllipsoid(in vec3 p, in vec3 radii)
+{
+    float k0 = length(p/radii);
+    float k1 = length(p/(radii*radii));
+    return k0*(k0-1.0)/k1;
+}
+
+//phi for yaw,
+//theta fpr pitch,
+//psi for yaw
+mat3 reconstructRotMat(in float yaw, in float pitch, in float roll)
+{
+	float sPhi = sin(yaw);
+	float cPhi = cos(yaw);
+	float sTheta = sin(pitch);
+	float cTheta = cos(pitch);
+	float sPsi = sin(roll);
+	float cPsi = cos(roll);
+
+	return mat3(cTheta*cPsi, cPsi*sTheta*sPhi-cPhi*sPsi, cPhi*cPsi*sTheta+sTheta*sPsi,
+				cTheta*sPsi, cPhi*cPsi+sTheta*sPhi*sPsi, cPhi*sTheta*sPsi-cPsi*sTheta,
+				-sTheta, cTheta*sPhi, cTheta*cPhi);
+}
 // transform of p using eigen vector transform matrix:
 // mat3 transform = mat3(eigen1.xyz, eigen2.xyz, eigen3.xyz);
 // actual p = transpose(transform) * (rayPos - ellipsoidPos);
 // Now, rayPos is just a UV coord and ellipsoid Pos is basically the center of the 2D glyph rectangle. I just need to do a 2D ellipsoid check, using two 
 // rotations to get a spalled version of the 3D version and then using the left out rotation as a mapping parameter to gradient shade the color or better,
 // simulate the surface light by calculating normals.
-float sd_ellipsoid3x3tensor(in vec2 p, in float radiusX, in float radiusY, in float radiusZ, in float angleX, in float angleY, in float angleZ) 
+// anglex -> yaw in x/z-plane; 
+// angley -> pitch in y/z-plane
+// anglez -> roll in x/y plane
+//THESIS TODO:	Transformation to the ray_pos_glyph MUST happen BEFORE ray_marching happens. Otherwise the whole Transformation-reconstruction+transformation happens
+//				at every step+Normalcalc as well. -> It'S even possible to skew space using the radii -> use Sphere SDF instead of Ellipse (but need to do the inverse afterwards, prob.)
+float sd_ellipsoid3x3tensor(in vec3 ray_pos_glyph, in float radiusX, in float radiusY, in float radiusZ, in float angleX, in float angleY, in float angleZ) 
 {
-	return sd_ellipsoidWindowedTensor(p, radiusX, radiusY, radiusZ, angleX, angleY, angleZ);
-//	vec3 radii = vec3(radiusX, radiusY, radiusZ);
-//	mat3 transform = mat3();
-//		
-//	float k0 = length(p/radii);
-//    float k1 = length(p/(radii*radii));
-//    return k0*(k0-1.0)/k1;
+	vec3 radii = vec3(radiusX, radiusY, radiusZ);
+	mat3 transform = reconstructRotMat(angleX, angleY, angleZ);
+	vec3 posTrans = transform*ray_pos_glyph;
+
+	float k0 = length(posTrans/radii);
+    float k1 = length(posTrans/(radii*radii));
+    return k0*(k0-1.0)/k1;
 }
+
+
 
 vec4 skewedSmoothStep(vec4 colorStart, vec4 colorEnd, float x, float skew) {
     float t = pow(x, skew); // Apply skew to shift the slope
@@ -1502,7 +1532,7 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 		//THESIS TODO: render tube backside?
 		return vec4(1.0, 1.0, 1.0, 1.0);		
 	}
-	return vec4(1.0, 1.0, 1.0, 0.0);	
+	return vec4(rmr.debug_color, 1.0);	
 }
 
 void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
@@ -1683,7 +1713,7 @@ void main()
 						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_SURFACE_GRAD_DEFINITION);
 						normal_eye = rmr.normal_eye;
 					}				
-						
+					rmr.debug_color = get_inverse_normal_matrix() * normal_eye;
 					// ----- Calculation of the Glyph-Position in eye-space ----- END
 				}
 		#endif
