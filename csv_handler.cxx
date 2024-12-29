@@ -24,6 +24,9 @@
 // local includes
 #include "regulargrid.h"
 
+// THESIS:
+#include <JacobiEigen.h>
+
 // implemented header
 #include "csv_handler.h"
 #include "csv_handler_detail.h"
@@ -431,6 +434,37 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	/// \END hack
 	///////////
 
+	//THESIS:
+	///////////
+	/// XXX: Hack to calculate the Eigenvector and Eigenvalues from the tensor matrix composed out of 9 float values.
+	
+	//ID just placeholder -> Filling happens later
+	static const csv_descriptor::attribute eigen_attribs[] = {
+		{"radius1", {"ID", false, 1}},
+		{"radius2", {"ID", false, 1}},
+		{"radius3", {"ID", false, 1}},
+		{"angle1", {"ID", false, 1}},
+		{"angle2", {"ID", false, 1}},
+		{"angle3", {"ID", false, 1}}
+	};
+	bool is_tensor_contained = false;
+	if (impl.csv_desc.name().compare("Diffusion Tensor Debug") == 0)
+	{
+		for (const auto& vattr : eigen_attribs)
+		{
+			declared_attribs.emplace_back(vattr);
+			auto& attrib = declared_attribs.back();
+			for (const auto& col : vattr.columns)
+			{
+				attrib.field_ids.emplace_back(col.number);
+				undeclared_cols.erase(col.number);
+			}
+		}
+		is_tensor_contained = true;
+	}
+	/// \END hack
+	///////////
+
 	// parse the stream until EOF
 	bool nothing_loaded = true;
 	real dist_accum = 0;
@@ -484,6 +518,14 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 			t_mod = (real)(t = (real)P.size());
 		}
 	
+		//THESIS:
+		bool performed_tensor_jacobi = false;
+		cgv::math::fmat<float, 3, 3> eigenvectors;
+		cgv::math::fvec<float, 3> permutationVector; // For order
+		
+		cgv::math::fvec<float, 3> eigenvalues;
+		cgv::math::fvec<float, 3> angles;
+
 		// read in all declared attributes
 		for (auto &attrib : declared_attribs)
 		{
@@ -497,28 +539,80 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				{
 					auto &a = Impl::ensure_traj(attrib.trajs, traj_id, 1);
 
+					//THESIS:
+					///////////
+					/// XXX: Hack to calculate the Eigenvector and Eigenvalues from the tensor matrix composed out of 9 float values.
+					if (is_tensor_contained && performed_tensor_jacobi && [&attrib]
+						{
+							for (const auto& vattr : eigen_attribs)
+								if (&attrib.desc == &vattr) // <-- this works because attrib just references the underlying csv_desc
+									return true;
+							return false;
+						}())
+					{
+						//Really not the best way to do this (Ideally you would not separate the values into individual floats
+						//But just pass two vectors instead (containing 3 radii and three angles) But the backend is not make for this currently
+						//And I lack the time I would need to invest to make this work
+						if (attrib.desc.name == "radius1")
+						{
+							a.template get_data<real>().append(std::move(eigenvalues[0]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "radius2")
+						{
+							a.template get_data<real>().append(std::move(eigenvalues[1]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "radius3")
+						{
+							a.template get_data<real>().append(std::move(eigenvalues[2]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "angle1")
+						{
+							a.template get_data<real>().append(std::move(angles[0]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "angle2")
+						{
+							a.template get_data<real>().append(std::move(angles[1]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "angle3")
+						{
+							a.template get_data<real>().append(std::move(angles[2]), (real)t_mod);
+							continue;
+						}
+					}
+					/// \END hack
+					///////////
+					 
+					
 					///////////
 					/// XXX: Hack to get absolute values of vorticity vector components for Paraview-exported Streamline datasets
 					///      Note: also has a preparatory custom hack in the initialization phase
 
-					if (is_paraview_streamline && [&attrib] {
-						for (const auto &vattr : abs_attribs)
-							if (&attrib.desc == &vattr) // <-- this works because attrib just references the underlying csv_desc
-								return true;
-						return false;
-					}()) {
+					if (is_paraview_streamline && [&attrib] 
+						{
+							for (const auto &vattr : abs_attribs)
+								if (&attrib.desc == &vattr) // <-- this works because attrib just references the underlying csv_desc
+									return true;
+							return false;
+						}()) 
+					{
 						a.template get_data<real>().append(
 							std::abs(Impl::parse_field(fields[attrib.field_ids.front()])), (real)t_mod
 						);
+						continue;
 					}
-					else
-
 					/// \END hack
 					///////////
-
-					a.template get_data<real>().append(
-						Impl::parse_field(fields[attrib.field_ids.front()]), (real)t_mod
-					);
+					else
+					{
+						a.template get_data<real>().append(
+							Impl::parse_field(fields[attrib.field_ids.front()]), (real)t_mod
+						);
+					}
 					continue;
 				}
 
@@ -553,9 +647,30 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 				case 9:
 				{
 					auto& a = Impl::ensure_traj(attrib.trajs, traj_id, 9);
+					cgv::math::fmat<real, 3, 3> tensorMatrix = Impl::template parse_fields<3, 3>(fields, attrib.field_ids);
+					if (is_tensor_contained && attrib.desc.semantics == CSV_AttribSemantics::TENSOR3x3)
+					{
+						// We calculate the Eigenvalues and angles of the Eigenvectors to their respective unit axis
+						// and store them per data point for further usage (in the respective attributes)
+						// -> CAUTION: This will only work correctly if the tensor (9 component attrib) is processed before the result
+						
+						// Would make sense to create a unique hash per Tensor matrix and store the results in a 
+						// map as a way of caching, to reduce overhead for equal (potentially similar) tensors
+						// which would result in indistinguishable ellipsoids
+						cgv::math::fmat<float, 3, 3> matCopy = tensorMatrix;
+						JacobiEigen::JacobiEigen(matCopy, eigenvectors, eigenvalues, permutationVector);
+						JacobiEigen::PrintMatrix(matCopy);
+						JacobiEigen::NormalizeEigenvectors(eigenvectors);
+						eigenvalues.normalize();
+						JacobiEigen::CalculateAnglesFromEigenVectors(eigenvectors, angles);
+						performed_tensor_jacobi = true;
+					}
+					
+					//Not used yet -> not sure what happens to the data on the GPU side (might just upload the mag of mags of the row vectors or something, did not check)
 					a.template get_data<Mat33>().append(
-						std::move(Impl::template parse_fields<3,3>(fields, attrib.field_ids)), (real)t_mod
+						std::move(tensorMatrix), (real)t_mod
 					);
+					
 					continue;
 				}
 
@@ -592,7 +707,8 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		auto it = attr.trajs.begin();
 		attr.ds_attrib = std::move(it->second);
 		ds_trajs.emplace_back(range{ 0, attr.ds_attrib.num() });
-		it++; for (; it!=attr.trajs.end(); it++)
+		it++; 
+		for (; it!=attr.trajs.end(); it++)
 		{
 			const auto &traj_attrib = it->second;
 			// generate range
@@ -800,7 +916,7 @@ static const csv_descriptor csv_debug_diffTens_desc("Diffusion Tensor Debug", ",
 						{"Diff:5", false, 10},
 						{"Diff:6", false, 11},
 						{"Diff:7", false, 12},
-						{"Diff:8", false, 13} }}
+						{"Diff:8", false, 13} }, CSV::TENSOR3x3}
 	});
 cgv::base::object_registration_2<
 	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>
@@ -810,18 +926,18 @@ cgv::base::object_registration_2<
 		{ VisualAttrib::POSITION, {
 			"Position", attrib_transform<float>::vec3_to_vec3(
 				[](csv_handler<float>::Vec3& out, const csv_handler<float>::Vec3& in) {
-					out = in;
+					out = 40.0f * in; //THESIS TODO: 40, because the radius seems to be 0.025 -> we set that to 1.0 for now, which is 40x
 				}
 			)
 		}},
-		{ VisualAttrib::RADIUS, {
-			// scale up radius accordingly but not as much to reduce overlapping tubes
+		{VisualAttrib::RADIUS, {
+			//THESID TODO: Tube radius seems to be 0.025, rescale to 1.0 for now, so the hardcoded 1.0 inside the shader matches
 			"_radius", attrib_transform<float>::real_to_real(
 				[](float& out, const float& in) {
-					out = in;
+					out = in / in;
 				}
 			)
-		 }}}
+		 }} }
 	),
 	"csv handler (float) - "+csv_debug_diffTens_desc.name()
 );

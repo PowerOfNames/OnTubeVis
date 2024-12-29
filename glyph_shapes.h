@@ -23,9 +23,7 @@ enum GlyphType {
 	//THESIS:
 	//3D
 	GT_3D_SPHERE,
-	GT_3D_SPHERE_WINDOWED,
 	GT_3D_ELLIPSOID_3x3_TENSOR,
-	GT_3D_ELLIPSOID_WINDOWED_TENSOR,
 	GT_FIRST_3D = GT_3D_SPHERE
 };
 
@@ -562,36 +560,6 @@ public:
 	}
 };
 
-class sphereWindowed_glyph : public glyph_shape {
-public:
-	virtual sphereWindowed_glyph* copy() const {
-		return new sphereWindowed_glyph(*this);
-	}
-
-	virtual GlyphType type() const {
-		return GT_3D_SPHERE_WINDOWED;
-	}
-
-	virtual std::string name() const {
-		return "sphereWindowed";
-	}
-
-	virtual const attribute_list& supported_attributes() const {
-		static const attribute_list attributes = {
-			//{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "windowedSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius", GAT_SIZE },
-		};
-		return attributes;
-	}
-
-	virtual float get_size(const std::vector<float>& param_values) const {
-		//TODO: silhouette size
-		return (2.0f * param_values[1]) /*+ windowedSize //to make the window larger*/;
-	}
-};
-
 class ellipsoid3x3tensor_glyph : public glyph_shape {
 public:
 	virtual ellipsoid3x3tensor_glyph* copy() const {
@@ -621,45 +589,14 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		//TODO:
-		return 2.0f * param_values[1];
+		uint32_t largestIdx = 1; // with 1, 2, 3 being the three ellipsoid radii
+		if (param_values[largestIdx] < param_values[2])
+			largestIdx = 2;
+		if (param_values[largestIdx] < param_values[3])
+			largestIdx = 3;
+		return 2.0f * param_values[largestIdx];
 	}
 };
-
-class ellipsoidWindowedtensor_glyph : public glyph_shape {
-public:
-	virtual ellipsoidWindowedtensor_glyph* copy() const {
-		return new ellipsoidWindowedtensor_glyph(*this);
-	}
-
-	virtual GlyphType type() const {
-		return GT_3D_ELLIPSOID_WINDOWED_TENSOR;
-	}
-
-	virtual std::string name() const {
-		return "ellipsoidWindowedTensor";
-	}
-
-	virtual const attribute_list& supported_attributes() const {
-		static const attribute_list attributes = {
-			{ "outline", GAT_OUTLINE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
-			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius1", GAT_SIZE },
-			{ "radius2", GAT_SIZE },
-			{ "radius3", GAT_SIZE },
-			{ "angle1", GAT_ANGLE },
-			{ "angle2", GAT_ANGLE },
-			{ "angle3", GAT_ANGLE }
-		};
-		return attributes;
-	}
-
-	virtual float get_size(const std::vector<float>& param_values) const {
-		//TODO:
-		return 2.0f * param_values[1];
-	}
-};
-
 
 struct glyph_type_registry {
 	static GlyphType type(const std::string& name) {
@@ -681,9 +618,7 @@ struct glyph_type_registry {
 			//THESIS:
 			//3D
 			{ n3D[0], GT_3D_SPHERE},
-			{ n3D[1], GT_3D_SPHERE_WINDOWED},
-			{ n3D[2], GT_3D_ELLIPSOID_3x3_TENSOR },
-			{ n3D[3], GT_3D_ELLIPSOID_WINDOWED_TENSOR }
+			{ n3D[1], GT_3D_ELLIPSOID_3x3_TENSOR }
 		};
 
 		auto it = mapping.find(name);
@@ -707,9 +642,7 @@ struct glyph_type_registry {
 			"line_plot",
 			"temporal_heat_map",
 			"sphere",
-			"sphere_windowed",
-			"ellipsoid_3x3_tensor",
-			"ellipsoid_windowed_tensor"
+			"ellipsoid_3x3_tensor"
 		};
 
 		return n;
@@ -730,9 +663,7 @@ struct glyph_type_registry {
 			"Line Plot",
 			"Temporal Heat Map",
 			"Sphere",
-			"Sphere Windowed",
-			"Ellipsoid Tensor3x3",
-			"Ellipsoid Windowed Tensor"
+			"Ellipsoid Tensor3x3"
 		};
 
 		return n;
@@ -808,9 +739,7 @@ struct glyph_type_registry {
 	static std::vector<std::string> names3D() {
 		static const std::vector<std::string> n = {
 			"sphere",
-			"sphereWindowed",
-			"ellipsoid3x3tensor",
-			"ellipsoidWindowedTensor"
+			"ellipsoid3x3tensor"
 		};
 
 		return n;
@@ -818,9 +747,7 @@ struct glyph_type_registry {
 	static std::vector<std::string> display_names3D() {
 		static const std::vector<std::string> n3D = {
 			"Sphere",
-			"Sphere Windowed",
-			"Ellipsoid Tensor3x3",
-			"Ellipsoid Tensor Windowed"
+			"Ellipsoid Tensor3x3"
 		};
 
 		return n3D;
@@ -858,9 +785,7 @@ struct glyph_shape_factory {
 		//THESIS:
 		//3D
 		case GT_3D_SPHERE: shape_ptr = new sphere_glyph(); break;
-		case GT_3D_SPHERE_WINDOWED: shape_ptr = new sphereWindowed_glyph(); break;
 		case GT_3D_ELLIPSOID_3x3_TENSOR: shape_ptr = new ellipsoid3x3tensor_glyph(); break;
-		case GT_3D_ELLIPSOID_WINDOWED_TENSOR: shape_ptr = new ellipsoidWindowedtensor_glyph(); break;
 		default: shape_ptr = new circle_glyph(); break;
 		}
 

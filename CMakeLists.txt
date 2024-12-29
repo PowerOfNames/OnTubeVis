@@ -111,6 +111,7 @@ set(SOURCES
 	traj_loader.cxx
 	tellocsv_handler.cxx
 	voxelizer.cxx
+
 	# THESIS:
 	glyph3D_renderer.cxx
 	glyph3D_spline_tube_renderer.cxx
@@ -168,6 +169,7 @@ set(HEADERS
 	# THESIS:
 	glyph3D_renderer.h
 	glyph3D_spline_tube_renderer.h
+	JacobiEigen.h
 )
 # - GLSL shaders
 set (SHADERS

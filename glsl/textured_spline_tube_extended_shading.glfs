@@ -1377,8 +1377,9 @@ vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color,
 
 
 
-//from https://iquilezles.org/articles/ellipsedist/
-float sd_ellipsoidWindowedTensor(in vec2 p, in float radiusX, in float radiusY, in float radiusZ, in float angleX, in float angleY, in float angleZ)
+//from https://iquilezles.org/articles/ellipsedist/ 
+// 2D
+float sd_ellipsoidTensor2D(in vec2 p, in float radiusX, in float radiusY, in float radiusZ, in float angleX, in float angleY, in float angleZ)
 {
 	vec2 ab = vec2(radiusX, radiusY);
 	// symmetry
@@ -1402,22 +1403,9 @@ float sd_ellipsoidWindowedTensor(in vec2 p, in float radiusX, in float radiusY, 
     return length(p-ab*vec2(cos(w),sin(w))) * (s?1.0:-1.0);
 }
 
-
-float sd_sphereWindowed(in vec2 p, in float radius)
-{
-	return length(p) - radius;
-}
-
 float sd_sphere(in vec3 ray_pos_glyph, in float radius)
 {
 	return length(ray_pos_glyph) - radius;
-}
-
-float sdTensorEllipsoid(in vec3 p, in vec3 radii)
-{
-    float k0 = length(p/radii);
-    float k1 = length(p/(radii*radii));
-    return k0*(k0-1.0)/k1;
 }
 
 //phi for yaw,
@@ -1472,50 +1460,12 @@ vec4 cheapSmoothStep(vec4 colorStart, vec4 colorEnd, float x, float bias) {
 	return mix(colorStart, colorEnd, t);
 }
 
-//THESIS: 3D normal calculation from 2D UV coordinate
-//vec3 calculate_SDF_normal_glyph(in vec3 hit_pos)
-//{
-//	float normal_calc_delta = 0.001;
-//	vec3 hit_pos_plus = hit_pos + normal_calc_delta;
-//	vec3 hit_pos_minus = hit_pos - normal_calc_delta;
-//	return GLYPH_NORMAL_DEFINITION;
-//
-//	// ----- Example GLYPH_NORMAL_DEFINITION for sd_sphere -----
-//	//	return vec3(sd_sphere(vec3(hit_pos_plus.x, hit_pos.yz), radius) - sd_sphere(vec3(hit_pos_minus.x, hit_pos.yz), radius),
-//	//				sd_sphere(vec3(hit_pos.x, hit_pos_plus.y, hit_pos.z), radius) - sd_sphere(vec3(hit_pos.x, hit_pos_minus.y, hit_pos.z), radius),
-//	//				sd_sphere(vec3(hit_pos.xy, hit_pos_plus.z), radius) - sd_sphere(vec3(hit_pos.xy, hit_pos_minus.z), radius));
-//	// ----- Example SDF Sphere ----- END
-//}
-
 struct ray_march_result
 {
 	bool hit;
 	vec3 pos_eye, normal_eye;
 	vec3 debug_color;
 };
-
-//THESIS TODO: back an forth transformations between eye and glyph local space should be simplified if possible, e.g. when the glyph scale is already in eye space. 
-//bool ray_march_3D_glyph_eye(in uint debug_info, in int closestID, in vec3 glyph_pos_eye, in vec3 start_pos_eye, inout ray_march_result rmr)
-//{
-//	//transform eye_space direction into glyph_space
-//	vec3 ray_dir_glyph = normalize((get_inverse_modelview_matrix() * vec4(start_pos_eye, 0.0)).xyz);
-//	vec3 ray_pos_glyph = (get_inverse_modelview_matrix() * vec4((start_pos_eye - glyph_pos_eye), 1.0)).xyz;
-//	float dist = 100.0;
-//	int i = 0;
-//	while(dist > EPSILON && i < MAX_RM_ITERATIONS)
-//	{
-//		dist = GLYPH_SDF_DEFINITION;
-//		if(dist < EPSILON)
-//		{
-//			rmr.normal_eye = normalize(get_normal_matrix() * calculate_SDF_normal_glyph(ray_pos_glyph));
-//			rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph, 1.0)).xyz + glyph_pos_eye;
-//			return true;	
-//		}
-//		ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
-//		i++;
-//	}
-//	return false;
-//}
 
 vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result rmr, in float tube_radius, inout float depth, in vec3 glyph_color, in float windowedSize) {	
 	
