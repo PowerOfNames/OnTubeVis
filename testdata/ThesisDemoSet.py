@@ -22,20 +22,22 @@ def generate_time_points(count, start=0, end=60):
 def generate_positions(length, axis):
     # Axis-specific tensor generation
     if axis == "x":
-        return [[i/10.0, 0.0, 0.0] for i in range(length)]
+        return [[i, 0.0, 0.0] for i in range(length)]
     elif axis == "y":
-        return [[0.0, i/10.0, 0.0] for i in range(length)]
+        return [[0.0, i, 0.0] for i in range(length)]
     elif axis == "z":
-        return [[0.0, 0.0, i/10.0] for i in range(length)]
+        return [[0.0, 0.0, i] for i in range(length)]
     else:
         raise ValueError("Invalid axis. Choose 'x', 'y', or 'z'.")
 
 def generate_tensors(length, axis):
     # Axis-specific tensor generation
     if axis == "x":
-        return [[2.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5] for _ in range(length)]
-    elif axis == "y":
+        #return [[2.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5] for _ in range(length)]
         return [[0.5, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.5] for _ in range(length)]
+    elif axis == "y":
+        #return [[0.5, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.5] for _ in range(length)]
+        return [[2.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5] for _ in range(length)]
     elif axis == "z":
         return [[0.5, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 2.0] for _ in range(length)]
     else:

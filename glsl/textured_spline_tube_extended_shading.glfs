@@ -2,8 +2,8 @@
 #define M_PI 3.14159265359
 
 //THESIS:
-#define EPSILON 0.005
-#define MAX_RM_ITERATIONS 10
+#define EPSILON 0.0005
+#define MAX_RM_ITERATIONS 20
 
 #define DEBUG_SEGMENTS 0
 
@@ -1640,7 +1640,7 @@ void main()
 					vec3 ray_pos_glyph = pos_tube - center_frame_center_tube;			
 					//vec3 ray_pos_glyph = (get_inverse_modelview_matrix() * vec4((pos_eye - center_frame_center_tube), 1.0)).xyz;					
 					rmr.hit = false;
-					float dist = 100.0;
+					float dist = 1000.0;
 					int i = 0;
 					while(i < MAX_RM_ITERATIONS)
 					{

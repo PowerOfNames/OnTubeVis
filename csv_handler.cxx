@@ -926,7 +926,7 @@ cgv::base::object_registration_2<
 		{ VisualAttrib::POSITION, {
 			"Position", attrib_transform<float>::vec3_to_vec3(
 				[](csv_handler<float>::Vec3& out, const csv_handler<float>::Vec3& in) {
-					out = 40.0f * in; //THESIS TODO: 40, because the radius seems to be 0.025 -> we set that to 1.0 for now, which is 40x
+					out = in; //THESIS TODO: 40, because the radius seems to be 0.025 -> we set that to 1.0 for now, which is 40x
 				}
 			)
 		}},
@@ -934,7 +934,7 @@ cgv::base::object_registration_2<
 			//THESID TODO: Tube radius seems to be 0.025, rescale to 1.0 for now, so the hardcoded 1.0 inside the shader matches
 			"_radius", attrib_transform<float>::real_to_real(
 				[](float& out, const float& in) {
-					out = in / in;
+					out = in;
 				}
 			)
 		 }} }
