@@ -23,6 +23,7 @@ enum GlyphType {
 	//THESIS:
 	//3D
 	GT_3D_SPHERE,
+	GT_3D_CONE_VECTOR,
 	GT_3D_ELLIPSOID_3x3_TENSOR,
 	GT_FIRST_3D = GT_3D_SPHERE
 };
@@ -560,6 +561,36 @@ public:
 	}
 };
 
+class cone_vector_glyph : public glyph_shape {
+public:
+	virtual cone_vector_glyph* copy() const {
+		return new cone_vector_glyph(*this);
+	}
+
+	virtual GlyphType type() const {
+		return GT_3D_ELLIPSOID_3x3_TENSOR;
+	}
+
+	virtual std::string name() const {
+		return "cone";
+	}
+
+	virtual const attribute_list& supported_attributes() const {
+		static const attribute_list attributes = {
+			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "color", GAT_COLOR, GH_BLOCK_START },
+			{ "length", GAT_SIZE },
+			{ "pitch", GAT_ANGLE },
+			{ "yaw", GAT_ANGLE }
+		};
+		return attributes;
+	}
+
+	virtual float get_size(const std::vector<float>& param_values) const {		
+		return 2.0f * param_values[1];
+	}
+};
+
 class ellipsoid3x3tensor_glyph : public glyph_shape {
 public:
 	virtual ellipsoid3x3tensor_glyph* copy() const {
@@ -581,9 +612,9 @@ public:
 			{ "radius1", GAT_SIZE },
 			{ "radius2", GAT_SIZE },
 			{ "radius3", GAT_SIZE },
-			{ "angle1", GAT_ANGLE },
-			{ "angle2", GAT_ANGLE },
-			{ "angle3", GAT_ANGLE }
+			{ "pitch", GAT_ANGLE },
+			{ "yaw", GAT_ANGLE },
+			{ "roll", GAT_ANGLE }
 		};
 		return attributes;
 	}
@@ -618,7 +649,8 @@ struct glyph_type_registry {
 			//THESIS:
 			//3D
 			{ n3D[0], GT_3D_SPHERE},
-			{ n3D[1], GT_3D_ELLIPSOID_3x3_TENSOR }
+			{ n3D[1], GT_3D_CONE_VECTOR},
+			{ n3D[2], GT_3D_ELLIPSOID_3x3_TENSOR }
 		};
 
 		auto it = mapping.find(name);
@@ -642,6 +674,7 @@ struct glyph_type_registry {
 			"line_plot",
 			"temporal_heat_map",
 			"sphere",
+			"cone_vector",
 			"ellipsoid_3x3_tensor"
 		};
 
@@ -663,6 +696,7 @@ struct glyph_type_registry {
 			"Line Plot",
 			"Temporal Heat Map",
 			"Sphere",
+			"Cone Vector",
 			"Ellipsoid Tensor3x3"
 		};
 
@@ -739,6 +773,7 @@ struct glyph_type_registry {
 	static std::vector<std::string> names3D() {
 		static const std::vector<std::string> n = {
 			"sphere",
+			"cone vector",
 			"ellipsoid3x3tensor"
 		};
 
@@ -747,6 +782,7 @@ struct glyph_type_registry {
 	static std::vector<std::string> display_names3D() {
 		static const std::vector<std::string> n3D = {
 			"Sphere",
+			"Cone Vector",
 			"Ellipsoid Tensor3x3"
 		};
 
@@ -785,6 +821,7 @@ struct glyph_shape_factory {
 		//THESIS:
 		//3D
 		case GT_3D_SPHERE: shape_ptr = new sphere_glyph(); break;
+		case GT_3D_CONE_VECTOR: shape_ptr = new cone_vector_glyph(); break;
 		case GT_3D_ELLIPSOID_3x3_TENSOR: shape_ptr = new ellipsoid3x3tensor_glyph(); break;
 		default: shape_ptr = new circle_glyph(); break;
 		}
