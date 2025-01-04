@@ -95,7 +95,13 @@ uniform float framebuf_width;
 uniform float framebuf_height;
 
 //THESIS:
-//3D parameters
+// glyph ray marching parameters
+struct glyph_ray_marching_parameters {
+	uint max_iterations;
+	float hit_epsilon;
+	vec2 tan_bitan_thresholds; //x being tan, y being bitan
+};
+uniform glyph_ray_marching_parameters glyph_rm;
 uniform float uv_displacement_factor;
 
 // attribute mapping parameters
@@ -1479,16 +1485,23 @@ vec4 cheapSmoothStep(vec4 colorStart, vec4 colorEnd, float x, float bias) {
 struct ray_march_result
 {
 	bool hit;
+	bool isNext;
+	bool isPrev;
 	vec3 pos_eye, normal_eye;
 	vec3 debug_color;
 };
 
-vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result rmr, in float tube_radius, inout float depth, in vec3 glyph_color, in float windowedSize) {	
-	
+vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result rmr, in float tube_radius, inout float depth, in vec3 glyph_color, in float windowedSize)
+{
 	if(abs(uv.y) <= windowedSize)
 	{		
 		if(rmr.hit)
 		{
+			if(rmr.isNext)
+				return vec4(glyph_color * 0.5, 1.0);
+
+			if(rmr.isPrev)
+				return vec4(glyph_color * 0.25, 1.0);
 			//THESIS TODO: 
 			//vec4 hit_pos_clip = get_projection_matrix() * vec4(rmr.pos_eye, 1.0);
 			//depth = ((hit_pos_clip.z / hit_pos_clip.w) + 1.0) / 2.0;
@@ -1496,9 +1509,10 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 		}
 
 		//THESIS TODO: render tube backside?
-		return vec4(1.0, 1.0, 1.0, 1.0);		
+		//return vec4(1.0, 0.5, 1.0, 1.0);	
+		return vec4(rmr.debug_color, 1.0);
 	}
-	return vec4(rmr.debug_color, 1.0);	
+	return vec4(rmr.debug_color, 1.0);
 }
 
 void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
@@ -1544,6 +1558,20 @@ vec3 hash31(float p)
    return fract((p3.xxy+p3.yzz)*p3.zyx); 
 }
 
+//Calculates the dotproduct between the projection of a vector onto the plane spanned by two unit vectors #8up and right), and the second unit vector (right)
+float CalcVectorPlaneProjDot(in vec3 vector, in vec3 planeUp, in vec3 planeRight)
+{
+	vec3 projection = vector - planeUp * dot(vector, planeUp);
+	vec3 projNormalized = normalize(projection);
+	return dot(projNormalized, planeRight);
+	//return acos(clamp(c, -1, 1));
+}
+
+//Calculates the glyph position in tube space
+vec3 CalcGlyphCenterPosTube()
+{
+	return vec3(1.0);
+}
 
 void main()
 {
@@ -1616,13 +1644,15 @@ void main()
 				
 				//vec3 pos = (get_inverse_modelview_matrix() * vec4(glyph, 1.0)).xyz;
 				ray_march_result rmr;
+				rmr.isPrev = false;
+				rmr.isNext = false;
 		#if GLYPH_TYPE_IS_3D == 1
 				{
 					// ----- Manual radius calculation -----
 					// TODO: for steep angles (bitangents near parallel to screen plane) we dont want to get the 3D glyphs but keep 2D to reduce artifacts
 					// TODO: only perfomr these calculations without "windowed" size
 					//Tube radius
-					//bitangent_eye = cross(normal_eye, tangent_eye);
+					bitangent_eye = normalize(cross(normal_eye, tangent_eye));
 					//vec4 bitangent_clip = get_projection_matrix() * vec4(bitangent_eye, 0.0);
 					// TODO: make this depth dependent -> farther away requires smaller step size
 					//float uv_s_direction = glyphuv.s < 0.5 ? -1.0 : 1.0;
@@ -1640,7 +1670,68 @@ void main()
 					//				but all these back-and-forth transformations are expensive
 					vec3 pos_tube = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
 					vec3 tangent_tube = normalize(get_inverse_normal_matrix() * tangent_eye);
-					vec3 center_frame_pos_tube = pos_tube + closest.d * (closest_prev ? -tangent_tube : tangent_tube); // from the current pos at the tubes surface, move in tangent direction by glyph_uv.s
+					
+					vec3 center_frame_pos_tube;
+					float dotPosTang_eye = dot(tangent_eye, normalize(pos_eye));
+					float dotPosBiTang_eye = dot(bitangent_eye, normalize(pos_eye));
+					
+					//THESIS TODO: make the threshold calculated dynamically somehow, if possible.
+					float bitangent_threshold = 0.2;
+					float tangent_threshold = 0.5;
+					//	If the angle between the view vector and the tangent are above a threshold AND the the view vector is looking along the trajectory,
+					//	check the next glyph instead, as the view ray then traverses
+					//	that as well, without a chance of hitting the first glyph
+									
+					float dotPos_Tang = CalcVectorPlaneProjDot(normalize(pos_eye), normal_eye, tangent_eye);
+					// dot > 0 -> looking in Tangent direction -> compute NEXT glyph
+					if(dotPos_Tang > 0.0 )
+					{
+						//Change 0.0 to %dotPos_Tang
+						//Range of dot -> -1 ... 1, where -1 means opposite direction and parallel to tangent, 0 means perpendicular, 1 same dir and parallel.
+						//CAUTION:	Do we need to consider the depth as well? (instead of nonlinear depth, prob. use unnormalized pos_eye)
+						//			If one glyph spans the whole viewport, the left most pixel corresponds to 45°, or Pi/4, but we do not
+						//			neccessarily want to check the neighboring glyphs
+						// 0 +- glyph_rm.tan_bitan_thresholds.x, render glyph of current.
+						// > 0 + glyph_rm.tan_bitan_thresholds.x, try render glyph of next
+
+						//For the check, we need to either bring glyphuv.s in -1 to 1 range, or treat it differently. 
+						//	glyphuv range (for bitan pointing up): lBorder=(prev.s-current.s)/2 to rBorder=(next.s-current.s)/2, with abs(lBorder) not always = abs(rBorder)
+						// To reduce glyphs buffer lookups, only fetch the next glyph when we actually need to render it -> use closest.dp and dn to get the range of prev.s .. next.s
+						if(remap(glyphuv.s, <= glyph_rm.tan_bitan_thresholds.x * (closest.dp+closest.dn)*length_scale/2.0)
+						{
+							rmr.debug_color = vec3(1.0, 0.0, 0.0);
+							int nextGlyphID = closest.id + 1 == glyphs0.length() ? closest.id : closest.id + 1;
+							glyph_desc0 nextGlyph = glyphs0[nextGlyphID];
+							rmr.isNext = true;
+							center_frame_pos_tube = pos_tube + (nextGlyph.s-glyph.s) * (closest_prev ? -tangent_tube : tangent_tube);						
+							glyph = nextGlyph;
+						}
+						else
+						{
+							rmr.debug_color = vec3(1.0, 0.0, 1.0);
+
+							center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
+						}
+					}
+					else // looking opposite of Tangent direction -> compute PREV glyph
+					{
+						//This will only need
+						if(glyphuv.s >= glyph_rm.tan_bitan_thresholds.y * -(closest.dp+closest.dn)*length_scale/2.0)
+						{
+							rmr.debug_color = vec3(0.0, 1.0, 0.0);
+							int prevGlyphID = closest.id - 1 == -1 ? closest.id : closest.id - 1;
+							glyph_desc0 prevGlyph = glyphs0[prevGlyphID];
+							rmr.isPrev = true;
+							center_frame_pos_tube = pos_tube + (glyph.s-prevGlyph.s) * (closest_prev ? -tangent_tube : tangent_tube);						
+							glyph = prevGlyph;
+						}
+						else
+						{
+							rmr.debug_color = vec3(0.0, 1.0, 1.0);
+							center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
+						}
+					}
+					
 					vec3 center_frame_pos_eye = (get_modelview_matrix() * vec4(center_frame_pos_tube, 1.0)).xyz;
 
 					vec4 center_frame_pos_clip = get_projection_matrix() * vec4(center_frame_pos_eye, 1.0);
@@ -1658,14 +1749,13 @@ void main()
 					rmr.hit = false;
 					float dist = 1000.0;
 					int i = 0;
-					while(i < MAX_RM_ITERATIONS)
+					while(i < glyph_rm.max_iterations)
 					{
 						dist = GLYPH_SDF_DEFINITION;
-						if(dist < EPSILON)
+						if(dist < glyph_rm.hit_epsilon)
 						{
 							rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
 							rmr.hit = true;
-							rmr.debug_color = vec3(float(i) / MAX_RM_ITERATIONS, 0.0, 0.0);
 							break;
 						}
 						ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
@@ -1678,8 +1768,7 @@ void main()
 						vec3 hit_pos_minus = ray_pos_glyph - normal_calc_delta;
 						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_SURFACE_GRAD_DEFINITION);
 						normal_eye = rmr.normal_eye;
-					}				
-					rmr.debug_color = get_inverse_normal_matrix() * normal_eye;
+					}
 					// ----- Calculation of the Glyph-Position in eye-space ----- END
 				}
 		#endif

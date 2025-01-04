@@ -123,6 +123,10 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	voxel_grid_resolution = static_cast<cgv::type::DummyEnum>(128u);
 #endif 1805
 
+	glyph_rm.max_iterations = 30;
+	glyph_rm.hit_epsilon = 0.0005;
+	glyph_rm.tan_bitan_thresholds = vec2(0.2, 0.5);
+
 	//TODO THESIS
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
 	shaders.add("tube_shading_extended", "textured_spline_tube_extended_shading.glpr");
@@ -2166,6 +2170,20 @@ void on_tube_vis::create_gui(void)
 		}
 	}
 
+	//THESIS:
+	add_decorator("", "separator");
+
+	if (begin_tree_node("Glyph Ray Marching", glyph_rm, false)) {
+		align("\a");
+		add_member_control(this, "Max Iterations", glyph_rm.max_iterations, "value_slider", "min=0;max=50;step=1;ticks=true");
+		add_member_control(this, "Hit Epsilon", glyph_rm.hit_epsilon, "value_slider", "min=0.0001;max=0.1;step=0.0001;ticks=true");
+		add_member_control(this, "Tangent Threshold", glyph_rm.tan_bitan_thresholds[0], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
+		add_member_control(this, "Bitangent Threshold", glyph_rm.tan_bitan_thresholds[1], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
+		
+		align("\b");
+		end_tree_node(glyph_rm);
+	}
+
 	add_decorator("", "separator");
 
 	if(begin_tree_node("Grid", grids, false)) {
@@ -2806,6 +2824,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			prog.set_uniform(ctx, base_name + "thickness", grids[i].thickness);
 			prog.set_uniform(ctx, base_name + "blend_factor", grids[i].blend_factor);
 		}
+
+		//THESIS:
+		// set glyph ray marching parameters
+		prog.set_uniform(ctx, "glyph_rm.max_iterations", glyph_rm.max_iterations);
+		prog.set_uniform(ctx, "glyph_rm.hit_epsilon", glyph_rm.hit_epsilon);
+		prog.set_uniform(ctx, "glyph_rm.tan_bitan_thresholds", glyph_rm.tan_bitan_thresholds);
 
 		// set attribute mapping parameters
 		const auto &glyph_layers_config = render.visualizations.front().config;

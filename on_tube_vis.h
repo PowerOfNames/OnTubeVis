@@ -235,6 +235,14 @@ protected:
 	std::vector<grid_parameters> grids;
 	bool enable_fuzzy_grid;
 
+	//THESIS:
+	struct glyph_ray_marching_parameters {
+		uint32_t max_iterations;
+		float hit_epsilon;
+		vec2 tan_bitan_thresholds;
+	};
+	glyph_ray_marching_parameters glyph_rm;
+
 	/// shader defines for the deferred shading pass
 	shader_define_map tube_shading_defines;
 
