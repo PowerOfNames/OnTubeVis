@@ -117,6 +117,9 @@ namespace cgv {
 				shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
 			}
 
+			//THESIS: (Danke David)
+			shader_code::set_define(defines, "GLYPH_TYPE_IS_3D", rs.glyph_dimension, rs.GD_2D);
+
 			for (const auto& define : additional_defines)
 				defines.insert(define);
 		}

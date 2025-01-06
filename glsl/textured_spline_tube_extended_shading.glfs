@@ -1559,9 +1559,14 @@ vec3 hash31(float p)
 }
 
 //Calculates the dotproduct between the projection of a vector onto the plane spanned by two unit vectors #8up and right), and the second unit vector (right)
-float CalcVectorPlaneProjDot(in vec3 vector, in vec3 planeUp, in vec3 planeRight)
+float CalcVectorPlaneProjDot(in vec3 vector, in vec3 planeUp, in vec3 planeRight, in float earlyOutThreshold)
 {
-	vec3 projection = vector - planeUp * dot(vector, planeUp);
+	float dotVecUp = dot(vector, planeUp);
+	//Early out if looking straight down (near parallel to normal)
+	if(abs(dotVecUp) >= earlyOutThreshold)
+		return 0.0;
+
+	vec3 projection = vector - planeUp * dotVecUp;
 	vec3 projNormalized = normalize(projection);
 	return dot(projNormalized, planeRight);
 	//return acos(clamp(c, -1, 1));
@@ -1599,8 +1604,8 @@ void main()
 
 	uvec4 pos_eye_radius = texture(position_tex, fb_uv);
 	vec3 pos_eye = vec3(uintBitsToFloat(pos_eye_radius.x), uintBitsToFloat(pos_eye_radius.y), uintBitsToFloat(pos_eye_radius.z));
-	//float tube_radius = uintBitsToFloat(pos_eye_radius.w);
-	float tube_radius = 0.25;
+	float tube_radius = uintBitsToFloat(pos_eye_radius.w);
+	//float tube_radius = 0.25;
 
 	vec3 normal_eye = texture(normal_tex, fb_uv).rgb;
 	vec3 tangent_eye = texture(tangent_tex, fb_uv).xyz;
@@ -1681,56 +1686,62 @@ void main()
 					//	If the angle between the view vector and the tangent are above a threshold AND the the view vector is looking along the trajectory,
 					//	check the next glyph instead, as the view ray then traverses
 					//	that as well, without a chance of hitting the first glyph
-									
-					float dotPos_Tang = CalcVectorPlaneProjDot(normalize(pos_eye), normal_eye, tangent_eye);
-					// dot > 0 -> looking in Tangent direction -> compute NEXT glyph
-					if(dotPos_Tang > 0.0 )
-					{
-						//Change 0.0 to %dotPos_Tang
-						//Range of dot -> -1 ... 1, where -1 means opposite direction and parallel to tangent, 0 means perpendicular, 1 same dir and parallel.
-						//CAUTION:	Do we need to consider the depth as well? (instead of nonlinear depth, prob. use unnormalized pos_eye)
-						//			If one glyph spans the whole viewport, the left most pixel corresponds to 45°, or Pi/4, but we do not
-						//			neccessarily want to check the neighboring glyphs
-						// 0 +- glyph_rm.tan_bitan_thresholds.x, render glyph of current.
-						// > 0 + glyph_rm.tan_bitan_thresholds.x, try render glyph of next
+					//vec3 normal_tube = normalize(get_inverse_normal_matrix() * normal_eye);	
+					float dotPos_Tang = CalcVectorPlaneProjDot(normalize(pos_eye), normal_eye, tangent_eye, glyph_rm.tan_bitan_thresholds.x);
 
-						//For the check, we need to either bring glyphuv.s in -1 to 1 range, or treat it differently. 
-						//	glyphuv range (for bitan pointing up): lBorder=(prev.s-current.s)/2 to rBorder=(next.s-current.s)/2, with abs(lBorder) not always = abs(rBorder)
-						// To reduce glyphs buffer lookups, only fetch the next glyph when we actually need to render it -> use closest.dp and dn to get the range of prev.s .. next.s
-						if(remap(glyphuv.s, <= glyph_rm.tan_bitan_thresholds.x * (closest.dp+closest.dn)*length_scale/2.0)
-						{
-							rmr.debug_color = vec3(1.0, 0.0, 0.0);
-							int nextGlyphID = closest.id + 1 == glyphs0.length() ? closest.id : closest.id + 1;
-							glyph_desc0 nextGlyph = glyphs0[nextGlyphID];
-							rmr.isNext = true;
-							center_frame_pos_tube = pos_tube + (nextGlyph.s-glyph.s) * (closest_prev ? -tangent_tube : tangent_tube);						
-							glyph = nextGlyph;
-						}
-						else
-						{
-							rmr.debug_color = vec3(1.0, 0.0, 1.0);
+					center_frame_pos_tube = pos_tube + closest.d * (closest_prev ? -tangent_tube : tangent_tube);
 
-							center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
-						}
-					}
-					else // looking opposite of Tangent direction -> compute PREV glyph
-					{
-						//This will only need
-						if(glyphuv.s >= glyph_rm.tan_bitan_thresholds.y * -(closest.dp+closest.dn)*length_scale/2.0)
-						{
-							rmr.debug_color = vec3(0.0, 1.0, 0.0);
-							int prevGlyphID = closest.id - 1 == -1 ? closest.id : closest.id - 1;
-							glyph_desc0 prevGlyph = glyphs0[prevGlyphID];
-							rmr.isPrev = true;
-							center_frame_pos_tube = pos_tube + (glyph.s-prevGlyph.s) * (closest_prev ? -tangent_tube : tangent_tube);						
-							glyph = prevGlyph;
-						}
-						else
-						{
-							rmr.debug_color = vec3(0.0, 1.0, 1.0);
-							center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
-						}
-					}
+//					if(abs(dotPos_Tang) >= glyph_rm.tan_bitan_thresholds.x)
+//						rmr.debug_color = vec3(1.0, 0.0, 0.0);
+					
+					
+					rmr.debug_color = vec3(tube_radius, 0.0, 0.0);
+					
+//					if(abs(dotPos_Tang) < glyph_rm.tan_bitan_thresholds.x)
+//					{
+//						center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
+////						if(glyphuv.s >= 0.0)
+////						{
+////							if(remap(glyphuv.s, vec4(0.0, (closest.dp+closest.dn)*length_scale/2.0, 0.0, 1.0)) >= dotPos_Tang * glyph_rm.tan_bitan_thresholds.x)
+////							{
+////								rmr.debug_color = vec3(1.0, 0.0, 0.0);
+////								int nextGlyphID = closest.id + 1 == glyphs0.length() ? closest.id : closest.id + 1;
+////								glyph_desc0 nextGlyph = glyphs0[nextGlyphID];
+////								rmr.isNext = true;
+////								center_frame_pos_tube = pos_tube + (nextGlyph.s-glyph.s) * (closest_prev ? -tangent_tube : tangent_tube);						
+////								glyph = nextGlyph;
+////							}
+////							else
+////							{
+////								rmr.debug_color = vec3(1.0, 0.0, 1.0);
+////
+////								center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
+////							}
+////						}
+////						else
+////						{
+////
+////						}
+//						
+//					}
+//					else // looking opposite of Tangent direction -> compute PREV glyph
+//					{
+//						//This will only need
+//						if(glyphuv.s >= glyph_rm.tan_bitan_thresholds.y * -(closest.dp+closest.dn)*length_scale/2.0)
+//						{
+//							rmr.debug_color = vec3(0.0, 1.0, 0.0);
+//							int prevGlyphID = closest.id - 1 == -1 ? closest.id : closest.id - 1;
+//							glyph_desc0 prevGlyph = glyphs0[prevGlyphID];
+//							rmr.isPrev = true;
+//							center_frame_pos_tube = pos_tube + (glyph.s-prevGlyph.s) * (closest_prev ? -tangent_tube : tangent_tube);						
+//							glyph = prevGlyph;
+//						}
+//						else
+//						{
+//							rmr.debug_color = vec3(0.0, 1.0, 1.0);
+//							center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
+//						}
+//					}
 					
 					vec3 center_frame_pos_eye = (get_modelview_matrix() * vec4(center_frame_pos_tube, 1.0)).xyz;
 
