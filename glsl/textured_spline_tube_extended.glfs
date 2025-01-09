@@ -7,6 +7,9 @@
 #define USE_CUBIC_TANGENTS 1
 #define USE_VIEW_SPACE_POSITION 1
 
+//THESIS:
+#define GLYPH_TYPE_IS_3D 0
+
 #if USE_CONSERVATIVE_DEPTH == 1
 #extension GL_ARB_conservative_depth : enable
 #endif
@@ -132,6 +135,10 @@ layout (location = 1) out uvec4 frag_position; //pos plus segment radius at cent
 layout (location = 2) out vec3 frag_normal;
 layout (location = 3) out vec3 frag_tangent;
 
+//THESIS
+#if GLYPH_TYPE_IS_3D == 1
+	layout(location = 4) out vec3 glyph_center;
+#endif
 
 float eval_cubic_bezier(float t, vec4 cp) {
 	const vec4 monomials = vec4(1.0, t, t*t, t*t*t);
@@ -906,6 +913,10 @@ void main()
 	frag_position = uvec4(floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(1.0), floatBitsToUint(1.0));
 	frag_normal = vec3(0.0, 0.0, 1.0);
 	frag_tangent = vec3(1.0, 0.0, 0.0);
+
+	#if GLYPH_TYPE_IS_3D == 1
+		glyph_center = vec3(0.0, 0.0, 0.0);
+	#endif
 	return;
 #else
 
@@ -944,6 +955,10 @@ void main()
 		frag_position = uvec4(floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(1.0), floatBitsToUint(1.0));
 		frag_normal = vec3(0.0, 0.0, 1.0);
 		frag_tangent = vec3(1.0, 0.0, 0.0);
+
+		#if GLYPH_TYPE_IS_3D == 1
+			glyph_center = vec3(0.0, 0.0, 0.0);
+		#endif
 #else
 		discard;
 #endif
@@ -987,6 +1002,10 @@ void main()
 		// by instead expanding the position texture from RGB into a RGB+A texture
 		frag_normal = hit.normal;
 		frag_tangent = tangent;
+
+		#if GLYPH_TYPE_IS_3D == 1
+			glyph_center = qtube.h.pos;
+		#endif
 	}
 #endif
 }

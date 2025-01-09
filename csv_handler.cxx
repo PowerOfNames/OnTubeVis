@@ -553,6 +553,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 						//Really not the best way to do this (Ideally you would not separate the values into individual floats
 						//But just pass two vectors instead (containing 3 radii and three angles) But the backend is not make for this currently
 						//And I lack the time I would need to invest to make this work
+						//TODO: This is hardcoded stuff, which is technically not good.
 						if (attrib.desc.name == "radius1")
 						{
 							a.template get_data<real>().append(std::move(eigenvalues[0]), (real)t_mod);

@@ -240,6 +240,9 @@ protected:
 		uint32_t max_iterations;
 		float hit_epsilon;
 		vec2 tan_bitan_thresholds;
+
+		bool handle_neighbour_tex_clipping;
+		uint32_t res_ortho_hit_test;
 	};
 	glyph_ray_marching_parameters glyph_rm;
 

@@ -535,7 +535,7 @@ struct demo : public traj_format_handler<float>
 				cgv::math::fvec<float, 3> eigenvalues;
 				cgv::math::fvec<float, 3> permutationVector;
 				JacobiEigen::JacobiEigen(matCopy, eigenvectors, eigenvalues, permutationVector);
-				JacobiEigen::PrintMatrix(matCopy);
+				//JacobiEigen::PrintMatrix(matCopy);
 				cgv::math::fvec<float, 3> angles;
 				JacobiEigen::NormalizeEigenvectors(eigenvectors);
 				eigenvalues.normalize();

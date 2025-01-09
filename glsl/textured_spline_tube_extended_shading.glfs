@@ -57,6 +57,10 @@ layout (binding = 5) uniform sampler3D density_tex;
 #endif
 layout (binding = 6) uniform sampler2D color_maps_tex;
 
+#if GLYPH_TYPE_IS_3D == 1
+layout (binding = 7) uniform sampler2D glyph_center_tex;
+#endif
+
 // general rendering parameters
 uniform vec3 gamma3 = vec3(2.2);
 
@@ -100,6 +104,9 @@ struct glyph_ray_marching_parameters {
 	uint max_iterations;
 	float hit_epsilon;
 	vec2 tan_bitan_thresholds; //x being tan, y being bitan
+
+	bool handle_neighbour_tex_clipping;
+	uint res_ortho_hit_test;
 };
 uniform glyph_ray_marching_parameters glyph_rm;
 uniform float uv_displacement_factor;
@@ -1485,10 +1492,12 @@ vec4 cheapSmoothStep(vec4 colorStart, vec4 colorEnd, float x, float bias) {
 struct ray_march_result
 {
 	bool hit;
+	vec3 pos_eye, normal_eye;
+
+	//Debugging
+	vec3 debug_color;
 	bool isNext;
 	bool isPrev;
-	vec3 pos_eye, normal_eye;
-	vec3 debug_color;
 };
 
 vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result rmr, in float tube_radius, inout float depth, in vec3 glyph_color, in float windowedSize)
@@ -1497,11 +1506,11 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 	{		
 		if(rmr.hit)
 		{
-			if(rmr.isNext)
-				return vec4(glyph_color * 0.5, 1.0);
-
-			if(rmr.isPrev)
-				return vec4(glyph_color * 0.25, 1.0);
+//			if(rmr.isNext)
+//				return vec4(glyph_color * 0.5, 1.0);
+//
+//			if(rmr.isPrev)
+//				return vec4(glyph_color * 0.25, 1.0);
 			//THESIS TODO: 
 			//vec4 hit_pos_clip = get_projection_matrix() * vec4(rmr.pos_eye, 1.0);
 			//depth = ((hit_pos_clip.z / hit_pos_clip.w) + 1.0) / 2.0;
@@ -1605,7 +1614,6 @@ void main()
 	uvec4 pos_eye_radius = texture(position_tex, fb_uv);
 	vec3 pos_eye = vec3(uintBitsToFloat(pos_eye_radius.x), uintBitsToFloat(pos_eye_radius.y), uintBitsToFloat(pos_eye_radius.z));
 	float tube_radius = uintBitsToFloat(pos_eye_radius.w);
-	//float tube_radius = 0.25;
 
 	vec3 normal_eye = texture(normal_tex, fb_uv).rgb;
 	vec3 tangent_eye = texture(tangent_tex, fb_uv).xyz;
@@ -1647,12 +1655,16 @@ void main()
 					glyphuv.t
 				);
 				
-				//vec3 pos = (get_inverse_modelview_matrix() * vec4(glyph, 1.0)).xyz;
-				ray_march_result rmr;
-				rmr.isPrev = false;
-				rmr.isNext = false;
+			//THESIS:
 		#if GLYPH_TYPE_IS_3D == 1
 				{
+					ray_march_result rmr;
+					rmr.isPrev = false;
+					rmr.isNext = false;
+					rmr.debug_color = vec3((closest.id % 2) * 0.7, 0.0, 0.0);
+
+					vec3 glyph_center_tube = texture(glyph_center_tex, fb_uv).xyz;
+
 					// ----- Manual radius calculation -----
 					// TODO: for steep angles (bitangents near parallel to screen plane) we dont want to get the 3D glyphs but keep 2D to reduce artifacts
 					// TODO: only perfomr these calculations without "windowed" size
@@ -1669,97 +1681,137 @@ void main()
 					//tubeRadius = calcTubeRadius(normalize(get_inverse_normal_matrix() * normal_eye), normalize(get_inverse_normal_matrix() * normal_at_displacement), length(uv_displaced - fb_uv));
 					// ----- Manual radius calculation ----- END					
 
-					// ----- Calculation of the Glyph-Position in eye-space -----
-					//THESIS TODO: Make more precise (fragmented at cases where the step in tangent direction leaves the correct/current tube segment)
-					//THESIS TODO: Check if transformation is neccessary (I assumed it was, because it should increase precision (tube-space >> eye), 
-					//				but all these back-and-forth transformations are expensive
+
+					//TODO: Make more precise (fragmented at cases where the step in tangent direction leaves the correct/current tube segment)
+					//TODO: Check if transformation is neccessary (I assumed it was, because it should increase precision (tube-space >> eye), 
+					//				but all these eye->tube->eye transformations are expensive
 					vec3 pos_tube = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
 					vec3 tangent_tube = normalize(get_inverse_normal_matrix() * tangent_eye);
-					
-					vec3 center_frame_pos_tube;
-					float dotPosTang_eye = dot(tangent_eye, normalize(pos_eye));
-					float dotPosBiTang_eye = dot(bitangent_eye, normalize(pos_eye));
-					
-					//THESIS TODO: make the threshold calculated dynamically somehow, if possible.
-					float bitangent_threshold = 0.2;
-					float tangent_threshold = 0.5;
-					//	If the angle between the view vector and the tangent are above a threshold AND the the view vector is looking along the trajectory,
-					//	check the next glyph instead, as the view ray then traverses
-					//	that as well, without a chance of hitting the first glyph
-					//vec3 normal_tube = normalize(get_inverse_normal_matrix() * normal_eye);	
-					float dotPos_Tang = CalcVectorPlaneProjDot(normalize(pos_eye), normal_eye, tangent_eye, glyph_rm.tan_bitan_thresholds.x);
-
-					center_frame_pos_tube = pos_tube + closest.d * (closest_prev ? -tangent_tube : tangent_tube);
-
-//					if(abs(dotPos_Tang) >= glyph_rm.tan_bitan_thresholds.x)
-//						rmr.debug_color = vec3(1.0, 0.0, 0.0);
-					
-					
-					rmr.debug_color = vec3(tube_radius, 0.0, 0.0);
-					
-//					if(abs(dotPos_Tang) < glyph_rm.tan_bitan_thresholds.x)
-//					{
-//						center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
-////						if(glyphuv.s >= 0.0)
-////						{
-////							if(remap(glyphuv.s, vec4(0.0, (closest.dp+closest.dn)*length_scale/2.0, 0.0, 1.0)) >= dotPos_Tang * glyph_rm.tan_bitan_thresholds.x)
-////							{
-////								rmr.debug_color = vec3(1.0, 0.0, 0.0);
-////								int nextGlyphID = closest.id + 1 == glyphs0.length() ? closest.id : closest.id + 1;
-////								glyph_desc0 nextGlyph = glyphs0[nextGlyphID];
-////								rmr.isNext = true;
-////								center_frame_pos_tube = pos_tube + (nextGlyph.s-glyph.s) * (closest_prev ? -tangent_tube : tangent_tube);						
-////								glyph = nextGlyph;
-////							}
-////							else
-////							{
-////								rmr.debug_color = vec3(1.0, 0.0, 1.0);
-////
-////								center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
-////							}
-////						}
-////						else
-////						{
-////
-////						}
-//						
-//					}
-//					else // looking opposite of Tangent direction -> compute PREV glyph
-//					{
-//						//This will only need
-//						if(glyphuv.s >= glyph_rm.tan_bitan_thresholds.y * -(closest.dp+closest.dn)*length_scale/2.0)
-//						{
-//							rmr.debug_color = vec3(0.0, 1.0, 0.0);
-//							int prevGlyphID = closest.id - 1 == -1 ? closest.id : closest.id - 1;
-//							glyph_desc0 prevGlyph = glyphs0[prevGlyphID];
-//							rmr.isPrev = true;
-//							center_frame_pos_tube = pos_tube + (glyph.s-prevGlyph.s) * (closest_prev ? -tangent_tube : tangent_tube);						
-//							glyph = prevGlyph;
-//						}
-//						else
-//						{
-//							rmr.debug_color = vec3(0.0, 1.0, 1.0);
-//							center_frame_pos_tube = pos_tube + closest.dn * (closest_prev ? -tangent_tube : tangent_tube);
-//						}
-//					}
-					
+						
+					//Get to center of glyph
+					vec3 center_frame_pos_tube = pos_tube + closest.d * (closest_prev ? -tangent_tube : tangent_tube);
 					vec3 center_frame_pos_eye = (get_modelview_matrix() * vec4(center_frame_pos_tube, 1.0)).xyz;
-
 					vec4 center_frame_pos_clip = get_projection_matrix() * vec4(center_frame_pos_eye, 1.0);
 					vec3 center_frame_pos_ndc = center_frame_pos_clip.xyz / center_frame_pos_clip.w;
 					vec2 center_frame_pos_screen = vec2((center_frame_pos_ndc.x + 1.0) / 2.0 , (center_frame_pos_ndc.y + 1.0) / 2.0);
 						
 					vec3 center_frame_normal_eye = texture(normal_tex, center_frame_pos_screen).xyz;
+					//Caution: the tube radius is just an approximation because we work with the radius at pos_tube (current pixel), not the radius at the center_frame pos
+					// -> if the radii of spheres capping the cone are very different, therefore offsetting the glyph
 					vec3 center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
 					vec3 glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
 
 					vec3 ray_dir_glyph = normalize(get_inverse_normal_matrix() * pos_eye);
-					//vec3 ray_dir_glyph = normalize((get_inverse_modelview_matrix() * vec4(pos_eye, 0.0)).xyz);
-					vec3 ray_pos_glyph = pos_tube - center_frame_center_tube;			
-					//vec3 ray_pos_glyph = (get_inverse_modelview_matrix() * vec4((pos_eye - center_frame_center_tube), 1.0)).xyz;					
+					vec3 ray_pos_glyph = pos_tube - center_frame_center_tube;					
 					rmr.hit = false;
 					float dist = 1000.0;
 					int i = 0;
+					while(i < glyph_rm.max_iterations)
+					{
+						dist = GLYPH_SDF_DEFINITION;
+						if(dist < glyph_rm.hit_epsilon)
+						{
+							rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
+							rmr.hit = true;
+							break;
+						}
+						ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
+						i++;
+					}					
+					if(glyph_rm.handle_neighbour_tex_clipping && !rmr.hit)
+					{
+						//	If the angle between the view vector and the tangent are above a threshold AND the the view vector is looking along the trajectory,
+						//	check the next glyph instead, as the view ray then traverses
+						//	that as well, without a chance of hitting the first glyph
+						float dotPos_Tang = CalcVectorPlaneProjDot(normalize(pos_eye), normal_eye, tangent_eye, 1.0/*glyph_rm.tan_bitan_thresholds.x*/);
+						//TODO: Replace 0 with a value that is near the edge of the glyph with respect to the view direction, and do this before the first
+						//		Raycast -> no need to do Ray-Glyph intersection tests if the view angle is flat enough to never hit the actual glyph, but always the next
+						//IDEA: Use Prof. Gumholds Silhouettes, but not in this shader -> Create a Geometryshader for that and check if the performance is still
+						//		viable or even better (geometry shader creation, usage and composition is expensive as well to create all the billboards, but should reduce
+						//		FS cost significantly around the Ray-Casting parts
+						if(dotPos_Tang >= 0)
+						{
+							int nextGlyphID = closest.id + 1 == glyphs0.length() ? closest.id : closest.id + 1;
+							glyph_desc0 nextGlyph = glyphs0[nextGlyphID];
+
+							float ds = nextGlyph.s - glyph.s;
+							vec3 behindBorder_pos_tube = center_frame_pos_tube + ds * 1.01 * tangent_tube;
+							vec3 behindBorder_pos_eye = (get_modelview_matrix() * vec4(behindBorder_pos_tube, 1.0)).xyz;
+							vec4 behindBorder_pos_clip = get_projection_matrix() * vec4(behindBorder_pos_eye, 1.0);
+							vec3 behindBorder_pos_ndc = behindBorder_pos_clip.xyz / behindBorder_pos_clip.w;
+							vec2 behindBorder_pos_screen = vec2((behindBorder_pos_ndc.x + 1.0) / 2.0 , (behindBorder_pos_ndc.y + 1.0) / 2.0);							
+
+							vec3 nextGlpyh_tangent_eye = texture(tangent_tex, behindBorder_pos_screen).xyz;
+							vec3 nextGlyph_tangent_tube = normalize(get_inverse_normal_matrix() * nextGlpyh_tangent_eye);
+
+							//take 50%s in tangent direction of actual glyph to get to border, then 0.5*s in tangent direction of next glyph to get to center of next glyph
+							center_frame_pos_tube = center_frame_pos_tube + 0.5*ds*tangent_tube + 0.5*ds*nextGlyph_tangent_tube;
+							
+							//Do the same as before, just now for the center of the next glyph
+							center_frame_pos_eye = (get_modelview_matrix() * vec4(center_frame_pos_tube, 1.0)).xyz;
+							center_frame_pos_clip = get_projection_matrix() * vec4(center_frame_pos_eye, 1.0);
+							center_frame_pos_ndc = center_frame_pos_clip.xyz / center_frame_pos_clip.w;
+							center_frame_pos_screen = vec2((center_frame_pos_ndc.x + 1.0) / 2.0 , (center_frame_pos_ndc.y + 1.0) / 2.0);
+
+							center_frame_normal_eye = texture(normal_tex, center_frame_pos_screen).rgb;
+
+							uvec4 nextGlpyh_pos_radius = texture(position_tex, behindBorder_pos_screen);
+							tube_radius = uintBitsToFloat(nextGlpyh_pos_radius.w);
+
+							center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
+							glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
+
+							//vec3 nextGlpyh_pos_eye = vec3(uintBitsToFloat(nextGlpyh_pos_radius.x), uintBitsToFloat(nextGlpyh_pos_radius.y), uintBitsToFloat(nextGlpyh_pos_radius.z));
+
+							ray_dir_glyph = normalize(get_inverse_normal_matrix() * pos_eye);
+							ray_pos_glyph = pos_tube - center_frame_center_tube;
+
+							rmr.isNext = true;
+							glyph = nextGlyph;
+						}
+						else
+						{
+							int prevGlyphID = closest.id - 1 == -1 ? closest.id : closest.id - 1;
+							glyph_desc0 prevGlyph = glyphs0[prevGlyphID];
+
+							float ds = glyph.s - prevGlyph.s;
+							vec3 behindBorder_pos_tube = center_frame_pos_tube - ds * 1.01 * tangent_tube;
+							vec3 behindBorder_pos_eye = (get_modelview_matrix() * vec4(behindBorder_pos_tube, 1.0)).xyz;
+							vec4 behindBorder_pos_clip = get_projection_matrix() * vec4(behindBorder_pos_eye, 1.0);
+							vec3 behindBorder_pos_ndc = behindBorder_pos_clip.xyz / behindBorder_pos_clip.w;
+							vec2 behindBorder_pos_screen = vec2((behindBorder_pos_ndc.x + 1.0) / 2.0 , (behindBorder_pos_ndc.y + 1.0) / 2.0);							
+
+							vec3 prevGlpyh_tangent_eye = texture(tangent_tex, behindBorder_pos_screen).xyz;
+							vec3 prevGlyph_tangent_tube = normalize(get_inverse_normal_matrix() * prevGlpyh_tangent_eye);
+
+							//take 50%s in tangent direction of actual glyph to get to border, then 0.5*s in tangent direction of next glyph to get to center of next glyph
+							center_frame_pos_tube = center_frame_pos_tube - 0.5*ds*tangent_tube - 0.5*ds*prevGlyph_tangent_tube;
+							
+							//Do the same as before, just now for the center of the next glyph
+							center_frame_pos_eye = (get_modelview_matrix() * vec4(center_frame_pos_tube, 1.0)).xyz;
+							center_frame_pos_clip = get_projection_matrix() * vec4(center_frame_pos_eye, 1.0);
+							center_frame_pos_ndc = center_frame_pos_clip.xyz / center_frame_pos_clip.w;
+							center_frame_pos_screen = vec2((center_frame_pos_ndc.x + 1.0) / 2.0 , (center_frame_pos_ndc.y + 1.0) / 2.0);
+
+							center_frame_normal_eye = texture(normal_tex, center_frame_pos_screen).rgb;
+
+							uvec4 nextGlpyh_pos_radius = texture(position_tex, behindBorder_pos_screen);
+							tube_radius = uintBitsToFloat(nextGlpyh_pos_radius.w);
+
+							center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
+							glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
+
+							//vec3 nextGlpyh_pos_eye = vec3(uintBitsToFloat(nextGlpyh_pos_radius.x), uintBitsToFloat(nextGlpyh_pos_radius.y), uintBitsToFloat(nextGlpyh_pos_radius.z));
+
+							ray_dir_glyph = normalize(get_inverse_normal_matrix() * pos_eye);
+							ray_pos_glyph = pos_tube - center_frame_center_tube;
+
+							rmr.isPrev = true;
+							glyph = prevGlyph;
+							rmr.debug_color = vec3(rmr.debug_color.x, 1.0, 0.0);
+						}
+					}
+					i = 0;
 					while(i < glyph_rm.max_iterations)
 					{
 						dist = GLYPH_SDF_DEFINITION;
@@ -1780,27 +1832,9 @@ void main()
 						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_SURFACE_GRAD_DEFINITION);
 						normal_eye = rmr.normal_eye;
 					}
-					// ----- Calculation of the Glyph-Position in eye-space ----- END
+					rmr.debug_color = (get_inverse_modelview_matrix() * vec4(glyph_center_tube, 1.0)).xyz;
 				}
 		#endif
-				// ----- Reference for example L##N_GLYPH_DEFINITION -----
-				//				finalize_glyph(
-//					glyph.debug_info, 
-//					glyphuv, 
-//					splat_generic_glyph( -> glyph color/texturing
-//						glyph.debug_info, 
-//						sd_wedge(
-//							rotate(glyphuv, radians(clamp_remap(glyph.v[3], glyph_m_param[3]))),
-//							clamp_remap(glyph.v[1], glyph_m_param[1]), 
-//							radians(0.5 * clamp_remap(glyph.v[2], glyph_m_param[2]))
-//						),
-//						map_to_color(clamp_remap(glyph.v[0], glyph_m_param[0]), 2), 
-//						glyph_cf_param[0], 
-//						non_outline_factor
-//						), 
-//					color
-//				);"
-				// ----- Reference for example LN_GLYPH_DEFINITION ----- END
 
 				float non_outline_factor = 1;
 				L0_GLYPH_DEFINITION

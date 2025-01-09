@@ -126,6 +126,8 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	glyph_rm.max_iterations = 30;
 	glyph_rm.hit_epsilon = 0.0005;
 	glyph_rm.tan_bitan_thresholds = vec2(0.2, 0.5);
+	glyph_rm.handle_neighbour_tex_clipping = false;
+	glyph_rm.res_ortho_hit_test = 3.0;
 
 	//TODO THESIS
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
@@ -138,6 +140,8 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	fbc.add_attachment("position", "uint32[R,G,B,A]");
 	fbc.add_attachment("normal", "flt32[R,G,B]");
 	fbc.add_attachment("tangent", "flt32[R,G,B]");
+	//THESIS: fb attachment needed for 3D glyph position (center of glyph)
+	fbc.add_attachment("glyph_center", "flt32[R,G,B]");
 
 	// register overlay widgets
 	mapping_legend_ptr = register_overlay<mapping_legend>("Mapping Legend");
@@ -2180,6 +2184,9 @@ void on_tube_vis::create_gui(void)
 		add_member_control(this, "Tangent Threshold", glyph_rm.tan_bitan_thresholds[0], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
 		add_member_control(this, "Bitangent Threshold", glyph_rm.tan_bitan_thresholds[1], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
 		
+		add_member_control(this, "Handle Neighbour Texture Clipping", glyph_rm.handle_neighbour_tex_clipping, "check");
+		add_member_control(this, "Res Ortho-Hit-Test", glyph_rm.res_ortho_hit_test, "value_slider", "min=0;max=10.0;step=1.0;ticks=true");
+		
 		align("\b");
 		end_tree_node(glyph_rm);
 	}
@@ -2830,6 +2837,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.set_uniform(ctx, "glyph_rm.max_iterations", glyph_rm.max_iterations);
 		prog.set_uniform(ctx, "glyph_rm.hit_epsilon", glyph_rm.hit_epsilon);
 		prog.set_uniform(ctx, "glyph_rm.tan_bitan_thresholds", glyph_rm.tan_bitan_thresholds);
+		prog.set_uniform(ctx, "glyph_rm.handle_neighbour_tex_clipping", glyph_rm.handle_neighbour_tex_clipping);
+		prog.set_uniform(ctx, "glyph_rm.res_ortho_hit_test", glyph_rm.res_ortho_hit_test);
 
 		// set attribute mapping parameters
 		const auto &glyph_layers_config = render.visualizations.front().config;
@@ -2885,6 +2894,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		if(ao_style.enable)
 			density_tex.enable(ctx, 5);
 		color_map_mgr.ref_texture().enable(ctx, 6);
+		
+		//THESIS
+		if (render.style.is_3D())
+			fbc.enable_attachment(ctx, "glyph_center", 7);
 
 		// bind range attribute ssbos of active glyph layers
 		bool active_sbos[4] = { false, false, false, false };
@@ -2914,6 +2927,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		if(ao_style.enable)
 			density_tex.disable(ctx);
 		color_map_mgr.ref_texture().disable(ctx);
+
+		//THESIS
+		if (render.style.is_3D())
+			fbc.disable_attachment(ctx, "glyph_center");
 
 		prog.disable(ctx);
 

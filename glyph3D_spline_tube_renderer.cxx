@@ -99,6 +99,12 @@ namespace cgv {
 				shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
 				static const bool no = false;
 				shader_code::set_define(defines, "USE_RIBBONS", no, false);
+
+				//THESIS:
+				// glyph type
+				static const bool is3D = rs.is_3D();
+				shader_code::set_define(defines, "GLYPH_TYPE_IS_3D", is3D, false);
+
 			}
 			else if (rs.line_primitive == rs.LP_RIBBON_GEOMETRY) {
 				static const bool yes = true;
