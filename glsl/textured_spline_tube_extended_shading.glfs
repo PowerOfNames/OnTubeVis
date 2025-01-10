@@ -1506,11 +1506,11 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 	{		
 		if(rmr.hit)
 		{
-//			if(rmr.isNext)
-//				return vec4(glyph_color * 0.5, 1.0);
-//
-//			if(rmr.isPrev)
-//				return vec4(glyph_color * 0.25, 1.0);
+			if(rmr.isNext)
+				return vec4(glyph_color * vec3(1.0, 0.0, 0.0), 1.0);
+
+			if(rmr.isPrev)
+				return vec4(glyph_color * vec3(0.0, 1.0, 0.0), 1.0);
 			//THESIS TODO: 
 			//vec4 hit_pos_clip = get_projection_matrix() * vec4(rmr.pos_eye, 1.0);
 			//depth = ((hit_pos_clip.z / hit_pos_clip.w) + 1.0) / 2.0;
@@ -1519,9 +1519,10 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 
 		//THESIS TODO: render tube backside?
 		//return vec4(1.0, 0.5, 1.0, 1.0);	
-		return vec4(rmr.debug_color, 1.0);
+		//return vec4(rmr.debug_color, 1.0);
+		return vec4(0.0);
 	}
-	return vec4(rmr.debug_color, 1.0);
+	return vec4(0.0);
 }
 
 void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
@@ -1656,9 +1657,9 @@ void main()
 				);
 				
 			//THESIS:
+			ray_march_result rmr;
 		#if GLYPH_TYPE_IS_3D == 1
 				{
-					ray_march_result rmr;
 					rmr.isPrev = false;
 					rmr.isNext = false;
 					rmr.debug_color = vec3((closest.id % 2) * 0.7, 0.0, 0.0);
@@ -1696,28 +1697,38 @@ void main()
 					vec2 center_frame_pos_screen = vec2((center_frame_pos_ndc.x + 1.0) / 2.0 , (center_frame_pos_ndc.y + 1.0) / 2.0);
 						
 					vec3 center_frame_normal_eye = texture(normal_tex, center_frame_pos_screen).xyz;
+					uvec4 center_frame_albedo = texture(albedo_tex, center_frame_pos_screen);
+					int center_frame_hit_segment_id = int(center_frame_albedo.w);
 					//Caution: the tube radius is just an approximation because we work with the radius at pos_tube (current pixel), not the radius at the center_frame pos
 					// -> if the radii of spheres capping the cone are very different, therefore offsetting the glyph
-					vec3 center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
-					vec3 glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
+					
+					vec3 center_frame_center_tube = texture(glyph_center_tex, center_frame_pos_screen).xyz;
+					//vec3 center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
+					//vec3 glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
 
 					vec3 ray_dir_glyph = normalize(get_inverse_normal_matrix() * pos_eye);
-					vec3 ray_pos_glyph = pos_tube - center_frame_center_tube;					
+					vec3 ray_pos_glyph = pos_tube - center_frame_center_tube;		
 					rmr.hit = false;
 					float dist = 1000.0;
 					int i = 0;
-					while(i < glyph_rm.max_iterations)
+
+					//Check if screen pixel lies on tube surface and if its the same or neighbouring segment ID
+					if(center_frame_normal_eye != vec3(0.0) && abs(center_frame_hit_segment_id-segment_id) <= 1 )
 					{
-						dist = GLYPH_SDF_DEFINITION;
-						if(dist < glyph_rm.hit_epsilon)
+						while(i < glyph_rm.max_iterations)
 						{
-							rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
-							rmr.hit = true;
-							break;
-						}
-						ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
-						i++;
-					}					
+							dist = GLYPH_SDF_DEFINITION;
+							if(dist < glyph_rm.hit_epsilon)
+							{
+								rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
+								rmr.hit = true;
+								break;
+							}
+							ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
+							i++;
+						}					
+					}						
+
 					if(glyph_rm.handle_neighbour_tex_clipping && !rmr.hit)
 					{
 						//	If the angle between the view vector and the tangent are above a threshold AND the the view vector is looking along the trajectory,
@@ -1755,11 +1766,15 @@ void main()
 
 							center_frame_normal_eye = texture(normal_tex, center_frame_pos_screen).rgb;
 
+							center_frame_albedo = texture(albedo_tex, center_frame_pos_screen);
+							center_frame_hit_segment_id = int(center_frame_albedo.w);
+
 							uvec4 nextGlpyh_pos_radius = texture(position_tex, behindBorder_pos_screen);
 							tube_radius = uintBitsToFloat(nextGlpyh_pos_radius.w);
 
-							center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
-							glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
+							center_frame_center_tube = texture(glyph_center_tex, center_frame_pos_screen).xyz;
+							//center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
+							//glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
 
 							//vec3 nextGlpyh_pos_eye = vec3(uintBitsToFloat(nextGlpyh_pos_radius.x), uintBitsToFloat(nextGlpyh_pos_radius.y), uintBitsToFloat(nextGlpyh_pos_radius.z));
 
@@ -1795,11 +1810,16 @@ void main()
 
 							center_frame_normal_eye = texture(normal_tex, center_frame_pos_screen).rgb;
 
+							center_frame_albedo = texture(albedo_tex, center_frame_pos_screen);
+							center_frame_hit_segment_id = int(center_frame_albedo.w);
+
 							uvec4 nextGlpyh_pos_radius = texture(position_tex, behindBorder_pos_screen);
 							tube_radius = uintBitsToFloat(nextGlpyh_pos_radius.w);
 
-							center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
-							glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
+							center_frame_center_tube = texture(glyph_center_tex, center_frame_pos_screen).xyz;
+
+							//center_frame_center_tube = center_frame_pos_tube - normalize(get_inverse_normal_matrix() * center_frame_normal_eye) * tube_radius;
+							//glyph_pos_eye = (get_modelview_matrix() * vec4(center_frame_center_tube, 1.0)).xyz;
 
 							//vec3 nextGlpyh_pos_eye = vec3(uintBitsToFloat(nextGlpyh_pos_radius.x), uintBitsToFloat(nextGlpyh_pos_radius.y), uintBitsToFloat(nextGlpyh_pos_radius.z));
 
@@ -1812,17 +1832,21 @@ void main()
 						}
 					}
 					i = 0;
-					while(i < glyph_rm.max_iterations)
+					//Check if screen pixel lies on tube surface and if its the same or neighbouring segment ID
+					if(center_frame_normal_eye != vec3(0.0) && abs(center_frame_hit_segment_id-segment_id) <= 1 )
 					{
-						dist = GLYPH_SDF_DEFINITION;
-						if(dist < glyph_rm.hit_epsilon)
+						while(i < glyph_rm.max_iterations)
 						{
-							rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
-							rmr.hit = true;
-							break;
+							dist = GLYPH_SDF_DEFINITION;
+							if(dist < glyph_rm.hit_epsilon)
+							{
+								rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
+								rmr.hit = true;
+								break;
+							}
+							ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
+							i++;
 						}
-						ray_pos_glyph = ray_pos_glyph + ray_dir_glyph * dist;
-						i++;
 					}
 					if(rmr.hit)
 					{
@@ -1832,7 +1856,7 @@ void main()
 						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_SURFACE_GRAD_DEFINITION);
 						normal_eye = rmr.normal_eye;
 					}
-					rmr.debug_color = (get_inverse_modelview_matrix() * vec4(glyph_center_tube, 1.0)).xyz;
+					//rmr.debug_color = glyph_center_tube;
 				}
 		#endif
 

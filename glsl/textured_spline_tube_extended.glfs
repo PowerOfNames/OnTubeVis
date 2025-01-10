@@ -910,7 +910,7 @@ void main()
 	return;
 #elif MODE == 1
 	frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(0.0));
-	frag_position = uvec4(floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(1.0), floatBitsToUint(1.0));
+	frag_position = uvec4(floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(1.0), floatBitsToUint(0.0));
 	frag_normal = vec3(0.0, 0.0, 1.0);
 	frag_tangent = vec3(1.0, 0.0, 0.0);
 
@@ -952,8 +952,9 @@ void main()
 	if(hit.t == POS_INF || (hit.cap && hit.t > cap_clip_distance)) {
 #if MODE == 2
 		frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(0.0));
-		frag_position = uvec4(floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(1.0), floatBitsToUint(1.0));
-		frag_normal = vec3(0.0, 0.0, 1.0);
+		frag_position = uvec4(floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(1.0), floatBitsToUint(0.0));
+		//THESIS: Changed from 0;0;1 to 0;0;0
+		frag_normal = vec3(0.0, 0.0, 0.0);
 		frag_tangent = vec3(1.0, 0.0, 0.0);
 
 		#if GLYPH_TYPE_IS_3D == 1
@@ -1004,7 +1005,7 @@ void main()
 		frag_tangent = tangent;
 
 		#if GLYPH_TYPE_IS_3D == 1
-			glyph_center = qtube.h.pos;
+			glyph_center = (get_inverse_modelview_matrix() * vec4(hit_pos_eye, 1.0)).xyz - normalize(get_inverse_normal_matrix()*hit.normal) *hit.segment_radius;
 		#endif
 	}
 #endif
