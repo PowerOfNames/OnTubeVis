@@ -119,6 +119,10 @@ void glyph_attribute_mapping::create_glyph3D_gui(cgv::base::base* bp, cgv::gui::
 	for (size_t i = 0; i < shape_ptr->supported_attributes().size(); ++i) {
 		const glyph_attribute& attrib = shape_ptr->supported_attributes()[i];
 
+		//THESIS
+		if (attrib.modifiers == GH_COMPOSITE_TYPE)
+			continue;
+
 		bool separator_requested = false;
 		if (attrib.gui_hint == GH_BLOCK_START) {
 			separator_requested = true;
@@ -224,6 +228,10 @@ void glyph_attribute_mapping::create_glyph_shape() {
 		case GAT_SIGNED_UNIT:
 			ranges = vec4(0.0f, 1.0f, -1.0f, 1.0f);
 			break;
+		//THESIS:
+		case GAT_COMPOSITE_3:
+		case GAT_COMPOSITE_9:
+		//
 		case GAT_SIZE:
 			ranges = vec4(0.0f, 1.0f, 0.0f, 1.0f);
 			break;
@@ -288,6 +296,10 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	std::string upper_limit = "1";
 	switch(attrib.type) {
 	case GAT_SIGNED_UNIT: lower_limit = "-1"; break;
+	//THESIS:
+	case GAT_COMPOSITE_3: // for scaling
+	case GAT_COMPOSITE_9: // for scaling
+	//
 	case GAT_SIZE: upper_limit = "2"; break;
 	case GAT_ANGLE:
 	case GAT_DOUBLE_ANGLE:
@@ -301,6 +313,9 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	
 	bool is_global = attrib.modifiers & GAM_GLOBAL;
 	bool is_non_const = attrib.modifiers & GAM_NON_CONST;
+
+	//THESIS:
+	bool is_composite = attrib.modifiers & GAM_COMPOSITE_ELEMENT;
 
 	int selected_attrib_src_idx = dummy_enum_to_int(attrib_source_indices[i]);
 	int selected_color_src_idx = dummy_enum_to_int(color_source_indices[i]);
@@ -326,16 +341,19 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 			if(attrib.type == GAT_COLOR && attrib.modifiers & GAM_FORCE_MAPPABLE)
 				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "'");
 		}
-	} else {
+	}
+	else {
 		value_label = "Value";
-		p.add_decorator(label, "heading", "level=4");
-
-		add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_name_enums + "'");
-		
-		if(attrib.type == GAT_COLOR) {
-			if(selected_attrib_src_idx > -1) {
-				add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "';w=126", " ");
-				add_local_member_control(p, bp, "Reverse", reverse_colors[i].value, "check", "w=62");
+		if (!is_composite) {
+			p.add_decorator(label, "heading", "level=4");
+				
+			add_local_member_control(p, bp, "Source Attribute", attrib_source_indices[i], "dropdown", "enums='" + attrib_name_enums + "'");
+			
+			if(attrib.type == GAT_COLOR) {
+				if(selected_attrib_src_idx > -1) {
+					add_local_member_control(p, bp, "Color Map", color_source_indices[i], "dropdown", "enums='" + color_map_name_enums + "';w=126", " ");
+					add_local_member_control(p, bp, "Reverse", reverse_colors[i].value, "check", "w=62");
+				}
 			}
 		}
 	}
@@ -346,19 +364,30 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 		if(attrib.type == GAT_COLOR) {
 			if(!(attrib.modifiers & GAM_FORCE_MAPPABLE))
 				add_local_member_control(p, bp, value_label, attrib_colors[i]);
+		}
+		else if (attrib.modifiers & GAM_COMPOSITE_ELEMENT) {
+			std::string composite_display = label + "Min: " + std::to_string(attrib_mapping_values[i][0]) + ", Max: " + std::to_string(attrib_mapping_values[i][1]);
+			p.add_decorator(composite_display, "text");
 		} else {
 			add_local_member_control(p, bp, value_label, attrib_mapping_values[i][3], "value_slider", out_options_str);
-		}
+		}		
 	} else {
-		const vec2& range = visualization_variables->ref_attribute_ranges()[selected_attrib_src_idx];
-		std::string in_options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
-		
-		add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", in_options_str);
-		add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", in_options_str);
-		
-		if(attrib.type != GAT_COLOR && attrib.type != GAT_UNIT && attrib.type != GAT_SIGNED_UNIT) {
-			add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", out_options_str);
-			add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", out_options_str);
+		if (is_composite)
+		{
+
+		}
+		else
+		{
+			const vec2& range = visualization_variables->ref_attribute_ranges()[selected_attrib_src_idx];
+			std::string in_options_str = "min=" + std::to_string(range.x()) + ";max=" + std::to_string(range.y()) + ";step=0.001;ticks=true";
+
+			add_local_member_control(p, bp, "In Min", attrib_mapping_values[i][0], "value_slider", in_options_str);
+			add_local_member_control(p, bp, "In Max", attrib_mapping_values[i][1], "value_slider", in_options_str);
+
+			if (attrib.type != GAT_COLOR && attrib.type != GAT_UNIT && attrib.type != GAT_SIGNED_UNIT) {
+				add_local_member_control(p, bp, "Out Min", attrib_mapping_values[i][2], "value_slider", out_options_str);
+				add_local_member_control(p, bp, "Out Max", attrib_mapping_values[i][3], "value_slider", out_options_str);
+			}
 		}
 	}
 }

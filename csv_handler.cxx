@@ -580,7 +580,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 							continue;
 						}
 						else if (attrib.desc.name == "angle3")
-						{
+						{ 
 							a.template get_data<real>().append(std::move(angles[2]), (real)t_mod);
 							continue;
 						}

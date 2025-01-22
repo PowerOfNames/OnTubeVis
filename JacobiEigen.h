@@ -150,8 +150,8 @@ namespace JacobiEigen {
 		angles[2] = rad3 < 0.0 ? rad2 + 2 * PI : rad3;//roll
 		angles[2] /= 2 * PI;
 
-		std::printf("Yaw: %f; Pitch: %f; Roll: %f \n", angles[0], angles[1], angles[2]);
-		std::printf("Yaw: %f; Pitch: %f; Roll: %f \n", (angles[0] * 180.0) / PI, (angles[1] * 180.0) / PI, (angles[2] * 180.0) / PI);
+		//std::printf("Yaw: %f; Pitch: %f; Roll: %f \n", angles[0], angles[1], angles[2]);
+		//std::printf("Yaw: %f; Pitch: %f; Roll: %f \n", (angles[0] * 180.0) / PI, (angles[1] * 180.0) / PI, (angles[2] * 180.0) / PI);
 	}
 
 }

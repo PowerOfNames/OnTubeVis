@@ -184,7 +184,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			// generate the glyph splat function
 			std::string splat_func = shape_ptr->splat_func();
 			if(splat_func == "") {				
-				//THESIS:
 				
 				// This is a generic glyph.
 				// It directly takes all the float parameters in the signed distance function call
@@ -193,6 +192,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				if (color_parameter_strs.size() > 0)
 					color_str = color_parameter_strs[0];
 
+				//THESIS:
 				if (glyph_is_3D)
 					splat_func = "splat_generic_glyph_3D(glyph.debug_info, glyphuv, rmr, tube_radius, depth, " + color_str + ", " + glyph_windowed_size_str + ")";
 				else

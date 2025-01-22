@@ -37,7 +37,10 @@ enum GlyphAttributeType {
 	GAT_ORIENTATION = 5, // value in [0,360] giving angle in degree used specifically to orient the glyph
 	GAT_COLOR = 6, // rgb color
 	GAT_OUTLINE = 7,
-	GAT_WINDOW_SIZE = 8, // for windowed view into tube to simulate 3D glyphs
+	//THESIS
+	GAT_WINDOW_SIZE = 8, // For windowed view into tube to simulate 3D glyphs
+	GAT_COMPOSITE_3 = 9, // For Vector manipulation (demands pitch, yaw and length)
+	GAT_COMPOSITE_9 = 10,// For Tensor manipulation (3x3) (demands 3 radii + pitch, yaw, roll)
 };
 
 enum GlyphAttributeModifier {
@@ -45,12 +48,16 @@ enum GlyphAttributeModifier {
 	GAM_GLOBAL = 1, // global attributes are always constant (overrides non-const)
 	GAM_NON_CONST = 2, // cannot be set to constant value
 	GAM_FORCE_MAPPABLE = 4,
+	//THESIS:
+	GAM_COMPOSITE_ELEMENT = 8,
 };
 
 enum GuiHint {
 	GH_NONE = 0,
 	GH_GLOBAL_BLOCK_START = 1,
 	GH_BLOCK_START = 2,
+	//THESIS:
+	GH_COMPOSITE_TYPE = 3, //part of a matrix or vector -> should not be modifieable via UI
 };
 
 struct glyph_attribute {
@@ -579,9 +586,11 @@ public:
 		static const attribute_list attributes = {
 			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "length", GAT_SIZE },
-			{ "pitch", GAT_ANGLE },
-			{ "yaw", GAT_ANGLE }
+			{ "Vector", GAT_COMPOSITE_3 },
+			{ "length", GAT_SIZE, GAM_COMPOSITE_ELEMENT },
+			{ "pitch", GAT_ANGLE, GAM_COMPOSITE_ELEMENT },
+			{ "yaw", GAT_ANGLE, GAM_COMPOSITE_ELEMENT },
+			{ "scale", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START }
 		};
 		return attributes;
 	}
