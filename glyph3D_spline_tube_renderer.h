@@ -61,6 +61,12 @@ namespace cgv { // @<
 				GD_3D = 1
 			} glyph_dimension;
 
+			enum GlyphMethod
+			{
+				GM_TUBE_SURFACE_PIPELINE = 0,
+				GM_BILLBOARD_PIPELINE = 1
+			} glyph_method;
+
 			/// whether to use conservative depth extension to re-enable early depth testing
 			bool use_conservative_depth;
 			/// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
@@ -139,6 +145,17 @@ namespace cgv { // @<
 			inline bool is_3D(void) const {
 				return glyph_dimension == 1;
 			}
+
+
+			//THESIS2:
+			/// check wether chosen glyph medhod is textured
+			inline bool is_tube_surface_pipeline(void) const {
+				return glyph_method == 0;
+			}
+			/// check wether glyph method is billboard
+			inline bool is_billboard_pipeline(void) const {
+				return glyph_method == 1;
+			}
 		};
 
 		/// renderer that supports textured cubic hermite spline tubes
@@ -163,7 +180,11 @@ namespace cgv { // @<
 			/// keep track of which line primitive was active the last time the renderer drew something
 			glyph3D_spline_tube_render_style::LinePrimitive last_active_line_primitive;
 
+			//THESIS:
 			glyph3D_spline_tube_render_style::GlyphDimension last_set_glyph_dimension;
+
+			//THESIS2:
+			glyph3D_spline_tube_render_style::GlyphMethod last_active_glyph_method;
 
 			/// overload to allow instantiation of box_renderer
 			render_style* create_render_style() const;

@@ -143,7 +143,10 @@ public:
 	inline void SetGlyphDimensionTo2D(bool state) { is_2D = state; }
 	inline bool IsGlyphDimension2D() { return is_2D; }
 
+	inline void SetGlyphMethodToTubeSurface(bool state) { is_tube_surface = state; }
+	inline bool IsGlyphMethodTubeSurface() { return is_tube_surface; }
+
 	private:
 		bool is_2D = true;
-
+		bool is_tube_surface = true;
 };

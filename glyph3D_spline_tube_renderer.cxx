@@ -27,6 +27,7 @@ namespace cgv {
 			attrib_mode = AM_ALL;
 			line_primitive = LP_TUBE_RUSSIG;
 			glyph_dimension = GD_2D;
+			glyph_method = GM_TUBE_SURFACE_PIPELINE;
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
@@ -97,6 +98,8 @@ namespace cgv {
 				shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
 				shader_code::set_define(defines, "USE_VIEW_SPACE_POSITION", rs.use_view_space_position, true);
 				shader_code::set_define(defines, "PRIMITIVE_INTERSECTOR", rs.line_primitive, rs.LP_TUBE_RUSSIG);
+				//THESIS2:
+				shader_code::set_define(defines, "BACKSIDE_DEPTH", rs.glyph_method, rs.GM_TUBE_SURFACE_PIPELINE);
 				static const bool no = false;
 				shader_code::set_define(defines, "USE_RIBBONS", no, false);
 
@@ -134,6 +137,7 @@ namespace cgv {
 			const glyph3D_spline_tube_render_style& rs = get_style<glyph3D_spline_tube_render_style>();
 			last_active_line_primitive = rs.line_primitive;
 			last_set_glyph_dimension = rs.glyph_dimension;
+			last_active_glyph_method = rs.glyph_method;
 
 			//THESIS:
 			if (rs.is_2D())
@@ -148,7 +152,15 @@ namespace cgv {
 			{
 				//TODO THESIS:
 				if (rs.is_tube())
-					return prog.build_program(ctx, "textured_spline_tube_extended.glpr", true, defines);
+				{
+					bool success = prog.build_program(ctx, "textured_spline_tube_extended.glpr", true, defines);
+					//TODO: THESIS2 -> potentially not needed, depends on the GlyphRenderer implementation.
+					//if (rs.glyph_method == rs.GM_TEXTURE_PIPELINE)
+					//	success = prog.build_program(ctx, "glyph_silhouette_render.glpr", true, defines);
+
+					return success;
+				}
+				//Not implemented in Thesis
 				else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
 					return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
 				else
@@ -159,6 +171,12 @@ namespace cgv {
 		{
 			const glyph3D_spline_tube_render_style& rs = get_style<glyph3D_spline_tube_render_style>();
 			if (last_active_line_primitive != rs.line_primitive) {
+				clear(ctx);
+				init(ctx);
+			}
+
+			//THESIS2: needed?
+			if (last_active_glyph_method != rs.glyph_method) {
 				clear(ctx);
 				init(ctx);
 			}
@@ -232,6 +250,15 @@ namespace cgv {
 			return enum_reflection_traits<cgv::render::glyph3D_spline_tube_render_style::LinePrimitive>("LP_TUBE_RUSSIG,LP_TUBE_PHANTOM,LP_RIBBON_RAYCASTED,LP_RIBBON_GEOMETRY");
 		}
 
+		//THESIS:
+		enum_reflection_traits<cgv::render::glyph3D_spline_tube_render_style::GlyphDimension> get_reflection_traits(const cgv::render::glyph3D_spline_tube_render_style::GlyphDimension&) {
+			return enum_reflection_traits<cgv::render::glyph3D_spline_tube_render_style::GlyphDimension>("GD_2D,GD_3D");
+		}
+
+		//THESIS2
+		enum_reflection_traits<cgv::render::glyph3D_spline_tube_render_style::GlyphMethod> get_reflection_traits(const cgv::render::glyph3D_spline_tube_render_style::GlyphMethod&) {
+			return enum_reflection_traits<cgv::render::glyph3D_spline_tube_render_style::GlyphMethod>("GM_TUBE_SURFACE_PIPELINE,GM_BILLBOARD_PIPELINE");
+		}
 	}
 }
 

@@ -387,8 +387,36 @@ protected:
 	void update_glyph_dimension_toggle()
 	{
 		ui_state.dim_toggle.button->set("label", get_glyph_dimension_toggle_label());
+		//THESIS2 TODO: disable/enable based on dimension (or even hide and show
+		//ui_state.tb_toggle.button->("")
 	}
 
+	//THESIS2:
+	// THESIS:
+	void toggle_glyph_method()
+	{
+		if (render.style.is_tube_surface_pipeline())
+			render.style.glyph_method = glyph3D_spline_tube_render_style::GM_BILLBOARD_PIPELINE;
+		else if (render.style.is_billboard_pipeline())
+			render.style.glyph_method = glyph3D_spline_tube_render_style::GM_TUBE_SURFACE_PIPELINE;
+
+		render.visualizations.front().manager.SetGlyphMethodToTubeSurface(render.style.is_tube_surface_pipeline() ? true : false);
+		ui_state.tb_toggle.current_glyph_method = render.style.glyph_method;
+
+		ui_state.tb_toggle.was_toggled = true;
+		on_set(&render.style.glyph_method);
+	}
+	std::string get_glyph_method_toggle_label()
+	{
+		std::string label = "GlyphMethod: ";
+		label += render.style.is_tube_surface_pipeline() ? "TubeSurface" : "Billboard";
+		label += " (toggle)";
+		return label;
+	}
+	void update_glyph_method_toggle()
+	{
+		ui_state.tb_toggle.button->set("label", get_glyph_method_toggle_label());
+	}
 
 	bool show_bbox = false;
 	bool show_wireframe_bbox = true;
@@ -546,6 +574,15 @@ protected:
 			bool check_toggled(void) { const bool toggled = was_toggled; was_toggled = false; return toggled; }
 			cgv::gui::button_ptr button;
 		}dim_toggle;
+
+		//THESIS2:
+		struct {
+			glyph3D_spline_tube_render_style::GlyphMethod current_glyph_method = glyph3D_spline_tube_render_style::GM_TUBE_SURFACE_PIPELINE;
+			bool was_toggled = false;
+			bool check_toggled(void) { const bool toggled = was_toggled; was_toggled = false; return toggled; }
+			cgv::gui::button_ptr button;
+		}tb_toggle;
+
 	} ui_state;
 
 	bool benchmark_mode = false;

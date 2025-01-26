@@ -133,6 +133,9 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
 	shaders.add("tube_shading_extended", "textured_spline_tube_extended_shading.glpr");
 
+	//THESIS2 - Shading->compositing the deferred tube texture otgether with the glyph-renderer billboard output
+	shaders.add("tube_shading_bb", "glyphed_spline_tube_shading.glpr");
+
 	// add framebuffer attachments needed for deferred rendering
 	fbc.add_attachment("depth", "uint32[D]");
 	fbc.add_attachment("albedo", "uint32[R,G,B,A]");
@@ -1058,6 +1061,19 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		do_full_gui_update = true;
 	}
 
+	//THESIS2:
+	if (m.is(render.style.glyph_method))
+	{
+		// perform smart toggle bookkeeping
+		if (!ui_state.tb_toggle.check_toggled()) {
+			ui_state.tb_toggle.current_glyph_method = render.style.glyph_method;
+		}
+
+		update_glyph_method_toggle();
+		do_full_gui_update = true;
+	}
+	
+
 #ifdef RTX_SUPPORT
 	// ###############################
 	/* ### BEGIN: OptiX integration */ {
@@ -1152,6 +1168,13 @@ bool on_tube_vis::save_layer_configuration(const std::string& file_name) {
 	settings["line_primitve"] = line_primitive_reflection.get_enum_name(static_cast<int>(render.style.line_primitive));
 	settings["ambient_occlusion"] = ao_style.enable ? "true" : "false";
 
+	//THESIS:
+	auto glyph_dimension_reflection = cgv::reflect::get_reflection_traits(render.style.glyph_dimension);
+	settings["glyph_dimension"] = glyph_dimension_reflection.get_enum_name(static_cast<int>(render.style.glyph_dimension));
+	//THESIS2:
+	auto glyph_method_reflection = cgv::reflect::get_reflection_traits(render.style.glyph_method);
+	settings["glyph_method"] = glyph_method_reflection.get_enum_name(static_cast<int>(render.style.glyph_method));
+
 	return layer_configuration_io::write_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr, settings);
 }
 
@@ -1180,7 +1203,17 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 		apply_setting("line_primitve", "render_style.line_primitive");
 		apply_setting("ambient_occlusion", "ambient_occlusion");
 
+		//THESIS:
+		apply_setting("glyph_dimension", "render.style.glyph_dimension");
+		//THESIS2:
+		apply_setting("glyph_method", "render.style.glyph_method");
+
 		update_tube_ribbon_toggle();
+		
+		//THESIS:
+		update_glyph_dimension_toggle();
+		//THESIS2:
+		update_glyph_method_toggle();
 		
 		return true;
 	}
@@ -1359,6 +1392,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
 	//THESIS:
 	shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
+	//THESIS2:
+	shaders.reload(ctx, "tube_shading_bb", tube_shading_defines);
 
 
 	// init shared attribute array manager
@@ -1970,6 +2005,7 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 		switch(debug.render_mode) {
 		case DRM_NONE:
+			//THESIS2 TODO: insert Billboard rendering here via plane maybe, also use debug.geometry.glpyhs.render(ctx, 0, glyph_idx_count); for rendering of billboards
 			draw_trajectories(ctx);
 			break;
 		case DRM_NODES:
@@ -2156,14 +2192,19 @@ void on_tube_vis::create_gui(void)
 			align("%y-=8");
 			add_decorator("", "separator", "", "\n%y-=8");
 			/* Quick glyphType 2D/3D toggle */ {
-				std::string label = "Current GlyphType: ";
-				label += render.style.is_2D() ? "2D" : "3D";
-				label += " (toggle)";
 				ui_state.dim_toggle.button = add_button(get_glyph_dimension_toggle_label());
 				if (ui_state.dim_toggle.button)
 					connect_copy(
 						ui_state.dim_toggle.button->click,
 						cgv::signal::rebind(this, &on_tube_vis::toggle_glyph_dimension)
+					);
+			}
+			/* Quick glyph method tubeSurface/billboard toggle */ {
+				ui_state.tb_toggle.button = add_button(get_glyph_method_toggle_label());
+				if (ui_state.tb_toggle.button)
+					connect_copy(
+						ui_state.tb_toggle.button->click,
+						cgv::signal::rebind(this, &on_tube_vis::toggle_glyph_method)
 					);
 			}
 			connect_copy(add_button("Compile Attributes")->click, cgv::signal::rebind(this, &on_tube_vis::compile_glyph_attribs));

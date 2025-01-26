@@ -4,6 +4,11 @@
 #define USE_CUBIC_TANGENTS 1
 #define USE_VIEW_SPACE_POSITION 1
 
+//THESIS2:
+/* 0: TEXTURED_PIPELINE		needs to return frontside intersection (standard)
+   1: BILLBOARD_PIPELINE	needs to return backside intersection */
+#define BACKSIDE_DEPTH 0
+
 /* 0: BOX
    1: APPROXIMATE_BILLBOARD
    2: EXACT_POLYGON
