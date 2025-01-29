@@ -15,6 +15,12 @@
    1: BILLBOARD_PIPELINE	needs to return correct normal for backside intersection */
 #define BACKSIDE_DEPTH 0
 
+#if BACKSIDE_DEPTH == 0
+	#define BACKSIDE false
+#else
+	#define BACKSIDE true
+#endif
+
 #if USE_CONSERVATIVE_DEPTH == 1
 #extension GL_ARB_conservative_depth : enable
 #endif
@@ -563,7 +569,12 @@ float qSplineD3Eval(float t, float polyB_C[N1])
 		const float a = 2.0f * rdr*cdd + cxd*cxd - ddd*r2 + rci.dp*cdz2;
 
 		const float discr = b*b - a*c;
-		rci.s   = (b - (discr > 0 ? sqrt(discr) : 0)) / c;
+		//THESIS2:
+	//#if BACKSIDE_DEPTH == 0
+		rci.s   = (b - (discr > 0 ? sqrt(discr) : 0)) / c; //near
+//	#else	
+//		rci.s   = (b + (discr > 0 ? sqrt(discr) : 0)) / c; //far
+//	#endif
 		rci.dt  = (rci.s*rci.cd.z - cdd) / ddd;
 		rci.dc  = rci.s*rci.s + rci.dp;
 		rci.sp  = cdd / rci.cd.z;
@@ -715,6 +726,8 @@ Hit EvalSplineISect(
 			bool hit1 = t1 > 0.0 && r1 > 0.0;
 			bool hit2 = t2 > 0.0 && r2 > 0.0;
 			
+			//THESIS2:
+		#if BACKSIDE_DEPTH == 0
 			if(hit1) {
 				if(t1 < t2 || !hit2) {
 				//THESIS
@@ -733,6 +746,23 @@ Hit EvalSplineISect(
 				hit.t = t2;
 				hit.l = min(l2, x2[3]);
 			}
+		#else
+			if(hit1) {
+				if(t1 < t2 && hit2) {
+					hit.segment_radius = r2;
+					hit.t = t2;
+					hit.l = min(l2, x2[3]);
+				} else {
+					hit.segment_radius = r1;
+					hit.t = t1;
+					hit.l = min(l1, x2[3]);
+				}
+			} else {
+				hit.segment_radius = r2;
+				hit.t = t2;
+				hit.l = min(l2, x2[3]);
+			}
+		#endif
 
 			hit.cap = hit.l <= 0.0 || hit.l >= x2[3];
 
@@ -741,7 +771,11 @@ Hit EvalSplineISect(
 			// transform from ray space to eye space
 			hit.sp = RCC * hit.sp;
 			// calculate the intersection point of the ray with the spline tube
+		#if BACKSIDE_DEPTH == 0
 			hit.normal = normalize(hit.t*dir - hit.sp);
+		#else
+			hit.normal = normalize(hit.sp - hit.t*dir);
+		#endif
 		}
 		//endregion
 	}
@@ -782,7 +816,11 @@ Hit EvalSplineISect(
 				hit.l = rci.s + rci.c0.z;
 				hit.t = t;
 				hit.sp = RCC * qSplineEval(hit.t, curveX, curveY, curveZ);
+				#if BACKSIDE_DEPTH == 0
 				hit.normal = normalize(hit.t*dir - hit.sp);
+				#else
+				hit.normal = normalize(vec3(1.0, 0.0, 0.0));
+				#endif
 				return hit;
 			}
 

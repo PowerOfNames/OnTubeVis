@@ -107,6 +107,9 @@ namespace cgv {
 				// glyph type
 				static const bool is3D = rs.is_3D();
 				shader_code::set_define(defines, "GLYPH_TYPE_IS_3D", is3D, false);
+				//THESIS2:
+				static const bool isBB = rs.is_billboard_pipeline();
+				shader_code::set_define(defines, "BACKSIDE_DEPTH", isBB, false);
 
 			}
 			else if (rs.line_primitive == rs.LP_RIBBON_GEOMETRY) {
@@ -128,6 +131,8 @@ namespace cgv {
 
 			//THESIS: (Danke David)
 			shader_code::set_define(defines, "GLYPH_TYPE_IS_3D", rs.glyph_dimension, rs.GD_2D);
+			//THESIS2:
+			shader_code::set_define(defines, "BACKSIDE_DEPTH", rs.glyph_method, rs.GM_TUBE_SURFACE_PIPELINE);
 
 			for (const auto& define : additional_defines)
 				defines.insert(define);
@@ -155,7 +160,7 @@ namespace cgv {
 				{
 					bool success = prog.build_program(ctx, "textured_spline_tube_extended.glpr", true, defines);
 					//TODO: THESIS2 -> potentially not needed, depends on the GlyphRenderer implementation.
-					//if (rs.glyph_method == rs.GM_TEXTURE_PIPELINE)
+					//if (rs.glyph_method == rs.GM_TUBE_SURFACE_PIPELINE)
 					//	success = prog.build_program(ctx, "glyph_silhouette_render.glpr", true, defines);
 
 					return success;
