@@ -15,12 +15,6 @@
    1: BILLBOARD_PIPELINE	needs to return correct normal for backside intersection */
 #define BACKSIDE_DEPTH 0
 
-#if BACKSIDE_DEPTH == 0
-	#define BACKSIDE false
-#else
-	#define BACKSIDE true
-#endif
-
 #if USE_CONSERVATIVE_DEPTH == 1
 #extension GL_ARB_conservative_depth : enable
 #endif
@@ -84,20 +78,48 @@ struct QTube {
 	QTubeNode e;
 };
 
-struct Hit {
-	float l;
-	float t;
-	float segment_radius;
-	vec3 normal;
-	vec3 sp;
-	bool cap;
-};
+//THESIS2:
+#if BACKSIDE_DEPTH == 0
+	struct Hit {
+		float l;
+		float t;
+		float segment_radius;
+		vec3 normal;
+		vec3 sp;
+		bool cap;
+	};
+
+#else
+	struct Hit {
+		vec3 org;
+		vec3 dir;
+		float l0, l1;
+		float t0, t1;
+		float r0, r1;
+		bool h0, h1;
+		vec3 nml0, nml1;
+		vec3 sp0, sp1;
+		uint preferred_idx;
+		bool cap;
+		bool c0, c1;
+	};
+
+	//by David
+	uniform struct tube_backside_render {
+		bool cull_frontface;
+		bool use_distance_check;
+		bool clip_caps;
+		float distance_tolerance_factor;
+	} tbr;
+
+#endif
 
 uniform float radius_scale;
 uniform vec3 cyclopic_eye;
 uniform vec4 viewport;
 uniform float max_t;
 uniform float cap_clip_distance;
+
 
 struct node_data_type {
 	vec4 pos_rad;
@@ -135,6 +157,10 @@ in flat float l_offset_fs;
 in flat int segment_id_fs;
 #if USE_CUBIC_TANGENTS == 1
 in flat mat4 SM_fs; // spline matrix
+#endif
+//THESIS2: (David)
+#if BACKSIDE_DEPTH == 1
+in flat vec4 bounding_sphere_fs;
 #endif
 
 #if USE_CONSERVATIVE_DEPTH == 1
@@ -584,276 +610,581 @@ float qSplineD3Eval(float t, float polyB_C[N1])
 	}
 #endif // ifdef PRIMITIVE_RUSSIG
 
-Hit EvalSplineISect(
-	const vec3 dir, const vec3 s, const vec3 h, const vec3 t,
-	const float rs, const float rh, const float rt, const float l_max
-)
-{
-	Hit hit;
-	hit.l = 0.0;
-	hit.t = POS_INF;
-	hit.segment_radius = rh;
-	hit.normal = vec3(0.0);
-	
-	const mat3 RCC =
-		#ifdef PRIMITIVE_RUSSIG
-			calc_rcc_x(dir);
-		#elif defined(PRIMITIVE_PHANTOM)
-			calc_rcc_z(dir);
-		#endif
-	const vec3 s_rcc = s*RCC, h_rcc = h*RCC, t_rcc = t*RCC;
-
-	float curveX[N0]; SplinePointsToPolyCoeffs(s_rcc.x, h_rcc.x, t_rcc.x, curveX);
-	float curveY[N0]; SplinePointsToPolyCoeffs(s_rcc.y, h_rcc.y, t_rcc.y, curveY);
-	float curveZ[N0]; SplinePointsToPolyCoeffs(s_rcc.z, h_rcc.z, t_rcc.z, curveZ);
-	float rcurve[N0]; SplinePointsToPolyCoeffs(rs, rh, rt, rcurve);
-	
-#ifdef PRIMITIVE_RUSSIG
-	float polyB_C[N1];
-		
-	Pow2(rcurve, polyB_C);
-
-	{ float c[N1];
-	  Pow2(curveY, c);
-	  Sub(polyB_C, c, polyB_C); }
-	{ float c[N1];
-	  Pow2(curveZ, c);
-	  Sub(polyB_C, c, polyB_C); }
-	
-	float l1 = 0.0;
-	float l2 = 0.0;
-	
-	vec4 roots = vec4(-1.0);
-	
-	float x2[4];
-	int m2[4];
-	
-	vec2 r = SolveQuadratic(polyB_C[4] * 12.0, polyB_C[3] * 6.0, polyB_C[2] * 2.0);
-	
-	x2[0] = 0.0;
-	x2[1] = r.x;
-	x2[2] = r.y;
-	x2[3] = min(l_max, 1.0);
-
-	m2[0] = 1;
-	m2[1] = (x2[1] <= x2[0] || x2[1] >= x2[3]) ? 0 : 1;
-	m2[2] = (x2[2] <= x2[0] || x2[2] >= x2[3]) ? 0 : 1;
-	m2[3] = 1;
-
-	float x3[5];
-	int m3[5];
-	FindRootsD1(polyB_C, x2, m2, x3, m3);
-
-	float x4[6];
-	int m4[6];
-	
-	{		
-		FindRootsD0(polyB_C, x3, m3, x4, m4);
-
-		int rootType = 0;
-		int rn = 0;
-		
-		if(EvalPolyD0(0.0, polyB_C) >= 0.0) {
-								  roots.x =  0; rn = 1; rootType = 15;
-		}
-		
-		if(m4[1] == 1) {
-			if(rn == 0) 		{ roots.x = x4[1]; rn = 1; rootType = 15;						}
-			else				{ roots.y = x4[1]; rn = 2; rootType = 10; 						}	
-		} else if(rootType == 15) {
-			rootType = 0;
-		}
-		
-		if(m4[2] == 1) {
-			if     (rn == 0) 	{ roots.x = x4[2]; rn = 1; rootType = 15;						}
-			else if(rn == 1)	{ roots.y = x4[2]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
-			else 				{ roots.z = x4[2]; rn = 3; rootType = 20; 						}	
-		} else if(rootType == 15) {
-			rootType = 0;
-		}
-		
-		if(m4[3] == 1) {
-			if     (rn == 0) 	{ roots.x = x4[3]; rn = 1; rootType = 15;						}
-			else if(rn == 1)	{ roots.y = x4[3]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
-			else if(rn == 2)	{ roots.z = x4[3]; rn = 3; rootType = 20; 						}	
-			else 				{ roots.w = x4[3]; rn = 4; rootType = 20; 						}	
-		} else if(rootType == 15) {
-			rootType = 0;
-		}
-		
-		if(m4[4] == 1) {
-			if     (rn == 0) 	{ roots.x = x4[4]; rn = 1; rootType = 15;						}
-			else if(rn == 1)	{ roots.y = x4[4]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
-			else if(rn == 2)	{ roots.z = x4[4]; rn = 3; rootType = 20; 						}	
-			else 				{ roots.w = x4[4]; rn = 4; rootType = 20; 						}	
-		} else if(rootType == 15) {
-			rootType = 0;
-		}
-		
-		if(EvalPolyD0(x2[3], polyB_C) > 0.0) {
-			if     (rn == 1)	{ roots.y =   1.0; rn = 1; rootType = rootType == 0 ? 30 : 10;	}
-			else				{ roots.w =   1.0; rn = 2; rootType = 20; 						}	
-		}
-		
-		if(rootType == 10 || rootType == 15) rootType = 30;
-
-		//region finalize
-		if(rootType > 0) {
-			if(rootType == 30) {
-				float rootD3 = binRootFinder_Eval(roots.x, roots.y, qSplineD3);
-				
-				vec2 rootsD2;
-				rootsD2.x = binRootFinder_Eval(rootD3, roots.x, qSplineD2);
-				rootsD2.y = binRootFinder_Eval(rootD3, roots.y, qSplineD2);
-				
-				l1 = binRootFinder_Eval(roots.x, rootsD2.x, qSplineD1);
-				l2 = binRootFinder_Eval(rootsD2.y, roots.y, qSplineD1);
-			} else {
-				l1 = binRootFinder_Eval(roots.x, roots.y, qSplineD1);
-				
-				if(rootType == 20)
-					l2 = binRootFinder_Eval(roots.z, roots.w, qSplineD1);
-				else
-					l2 = l1;
-			}
-			
-			float t1 = qSplineIDistEval(l1, curveX, polyB_C);
-			float t2 = qSplineIDistEval(l2, curveX, polyB_C);
-			
-			float r1 = EvalPolyD0(l1, rcurve);
-			float r2 = EvalPolyD0(l2, rcurve);
-			
-			bool hit1 = t1 > 0.0 && r1 > 0.0;
-			bool hit2 = t2 > 0.0 && r2 > 0.0;
-			
-			//THESIS2:
-		#if BACKSIDE_DEPTH == 0
-			if(hit1) {
-				if(t1 < t2 || !hit2) {
-				//THESIS
-					hit.segment_radius = r1;
-					hit.t = t1;
-					hit.l = min(l1, x2[3]);
-				} else {
-				//THESIS
-					hit.segment_radius = r2;
-					hit.t = t2;
-					hit.l = min(l2, x2[3]);
-				}
-			} else {
-			//THESIS
-				hit.segment_radius = r2;
-				hit.t = t2;
-				hit.l = min(l2, x2[3]);
-			}
-		#else
-			if(hit1) {
-				if(t1 < t2 && hit2) {
-					hit.segment_radius = r2;
-					hit.t = t2;
-					hit.l = min(l2, x2[3]);
-				} else {
-					hit.segment_radius = r1;
-					hit.t = t1;
-					hit.l = min(l1, x2[3]);
-				}
-			} else {
-				hit.segment_radius = r2;
-				hit.t = t2;
-				hit.l = min(l2, x2[3]);
-			}
-		#endif
-
-			hit.cap = hit.l <= 0.0 || hit.l >= x2[3];
-
-			// get the position on the spline at l
-			hit.sp = qSplineEval(hit.l, curveX, curveY, curveZ);
-			// transform from ray space to eye space
-			hit.sp = RCC * hit.sp;
-			// calculate the intersection point of the ray with the spline tube
-		#if BACKSIDE_DEPTH == 0
-			hit.normal = normalize(hit.t*dir - hit.sp);
-		#else
-			hit.normal = normalize(hit.sp - hit.t*dir);
-		#endif
-		}
-		//endregion
-	}
-#else
-	/*RayConeIntersection rci;
-	rci.c0 = s_rcc;
-	rci.cd = t_rcc-s_rcc;
-	if (RayConeIntersect(rci, rs, 0))
-	{
-		hit.t = rci.s + rci.c0.z;
-		hit.l = rci.dt;
-		hit.cap = hit.l == 0.0 || hit.l == 1.0;
-		hit.sp = RCC * (rci.c0 + hit.l*rci.cd);
-		hit.normal = normalize(hit.t*dir - hit.sp);
-	}*/
-	// determine which curve end to start iterating from
-	float tstart = dot(t-s, dir) > .0f ? .0f : 1.f;
-
-	// also attempt from the other end in case iteration from selected one fails
-	for (int end=0; end<2; end++)
-	{
-		float t    = tstart;
-		float told = .0f;
-		float dt1  = .0f;
-		float dt2  = .0f;
-
-		RayConeIntersection rci;
-		for (int i=0; i<MAX_ITERATIONS; i++)
-		{
-			rci.c0 = qSplineEval(t, curveX, curveY, curveZ);
-			rci.cd = qSplineTangent(t, curveX, curveY, curveZ);
-			const bool phantom = !RayConeIntersect(rci, EvalPolyD0(t, rcurve), EvalPolyD1(t, rcurve));
-
-			// check convergence
-			if (   !phantom && abs(rci.dt) < TOLERANCE
-				&& t > .0f && t < 1.f) // <-- seems necessary to prevent segment transition artifacts (ToDo: investigate!)
-			{
-				hit.l = rci.s + rci.c0.z;
-				hit.t = t;
-				hit.sp = RCC * qSplineEval(hit.t, curveX, curveY, curveZ);
-				#if BACKSIDE_DEPTH == 0
-				hit.normal = normalize(hit.t*dir - hit.sp);
-				#else
-				hit.normal = normalize(vec3(1.0, 0.0, 0.0));
-				#endif
-				return hit;
-			}
-
-			rci.dt = min(rci.dt,  .5f);
-			rci.dt = max(rci.dt, -.5f);
-
-			dt1 = dt2;
-			dt2 = rci.dt;
-
-			// regula falsi
-			if (dt1 * dt2 < .0f) {
-				// "we use the simplest possible approach by switching
-				//  to the bisection every 4th iteration:"
-				told = t;
-				t = ((i&3) == 0) ? (.5f*(told+t)) : ((dt2*told - dt1*t) / (dt2-dt1));
-			}
-			else {
-				told = t;
-				t += rci.dt;
-			}
-
-			if (t < .0f || t > 1.f)
-				break;
-		}
-
-		// re-attempt iteration from the direction of the other end
-		tstart = 1.f - tstart;
-	}
-#endif // ifdef PRIMITIVE_RUSSIG
-
-	return hit;
+//THESIS2: Principle by David Groß: Use SDF of QTube to decide which hit to use when searching for the backside
+float dot2(vec3 v) {
+	return dot(v, v);
 }
 
+// https://www.shadertoy.com/view/ldj3Wh
+float qTube_signed_distance(const vec3 pos, const vec3 qa, const vec3 qb, const vec3 qc) {
+	vec3 a = qb - qa;
+	vec3 b = qa - 2.0 * qb + qc;
+	vec3 c = a * 2.0;
+	vec3 d = qa - pos;
+
+	float kk = 1.0f / dot(b, b);
+	float kx = kk * dot(a, b);
+	float ky = kk * (2.0f*dot(a, a) + dot(d, b)) / 3.0f;
+	float kz = kk * dot(d, a);
+
+	vec2 res;
+
+	float p = ky - kx * kx;
+	float p3 = p * p*p;
+	float q = kx * (2.0*kx*kx - 3.0*ky) + kz;
+	float h = q * q + 4.0*p3;
+
+	if(h >= 0.0) {
+		h = sqrt(h);
+		vec2 x = (vec2(h, -h) - q) / 2.0;
+		vec2 uv = sign(x)*pow(abs(x), vec2(1.0 / 3.0));
+		float t = clamp(uv.x + uv.y - kx, 0.0, 1.0);
+
+		// 1 root
+		res = vec2(dot2(d + (c + b * t)*t), t);
+	} else {
+		float z = sqrt(-p);
+		float v = acos(q / (p*z*2.0)) / 3.0;
+		float m = cos(v);
+		float n = sin(v)*1.732050808;
+		vec3 t = clamp(vec3(m + m, -n - m, n - m) * z - kx, 0.0f, 1.0);
+
+		// 3 roots, but only need two
+		float dis = dot2(d + (c + b * t.x)*t.x);
+		res = vec2(dis, t.x);
+
+		dis = dot2(d + (c + b * t.y)*t.y);
+		if(dis < res.x) res = vec2(dis, t.y);
+	}
+
+	res.x = sqrt(res.x);
+
+	//float rc[3];
+	//control_points_to_poly_coeffs(this->a.rad, this->b.rad, this->c.rad, rc);
+	//float radius = eval_poly_d0(res.y(), rc);
+
+	return res.x;// - radius;
+}
+
+#if BACKSIDE_DEPTH == 0
+	Hit EvalSplineISect(
+		const vec3 dir, const vec3 s, const vec3 h, const vec3 t,
+		const float rs, const float rh, const float rt, const float l_max
+	)
+	{
+		Hit hit;
+		hit.l = 0.0;
+		hit.t = POS_INF;
+		hit.segment_radius = rh;
+		hit.normal = vec3(0.0);
+	
+		const mat3 RCC =
+			#ifdef PRIMITIVE_RUSSIG
+				calc_rcc_x(dir);
+			#elif defined(PRIMITIVE_PHANTOM)
+				calc_rcc_z(dir);
+			#endif
+		const vec3 s_rcc = s*RCC, h_rcc = h*RCC, t_rcc = t*RCC;
+
+		float curveX[N0]; SplinePointsToPolyCoeffs(s_rcc.x, h_rcc.x, t_rcc.x, curveX);
+		float curveY[N0]; SplinePointsToPolyCoeffs(s_rcc.y, h_rcc.y, t_rcc.y, curveY);
+		float curveZ[N0]; SplinePointsToPolyCoeffs(s_rcc.z, h_rcc.z, t_rcc.z, curveZ);
+		float rcurve[N0]; SplinePointsToPolyCoeffs(rs, rh, rt, rcurve);
+	
+	#ifdef PRIMITIVE_RUSSIG
+		float polyB_C[N1];
+		
+		Pow2(rcurve, polyB_C);
+
+		{ float c[N1];
+		  Pow2(curveY, c);
+		  Sub(polyB_C, c, polyB_C); }
+		{ float c[N1];
+		  Pow2(curveZ, c);
+		  Sub(polyB_C, c, polyB_C); }
+	
+		float l1 = 0.0;
+		float l2 = 0.0;
+	
+		vec4 roots = vec4(-1.0);
+	
+		float x2[4];
+		int m2[4];
+	
+		vec2 r = SolveQuadratic(polyB_C[4] * 12.0, polyB_C[3] * 6.0, polyB_C[2] * 2.0);
+	
+		x2[0] = 0.0;
+		x2[1] = r.x;
+		x2[2] = r.y;
+		x2[3] = min(l_max, 1.0);
+
+		m2[0] = 1;
+		m2[1] = (x2[1] <= x2[0] || x2[1] >= x2[3]) ? 0 : 1;
+		m2[2] = (x2[2] <= x2[0] || x2[2] >= x2[3]) ? 0 : 1;
+		m2[3] = 1;
+
+		float x3[5];
+		int m3[5];
+		FindRootsD1(polyB_C, x2, m2, x3, m3);
+
+		float x4[6];
+		int m4[6];
+	
+		{		
+			FindRootsD0(polyB_C, x3, m3, x4, m4);
+
+			int rootType = 0;
+			int rn = 0;
+		
+			if(EvalPolyD0(0.0, polyB_C) >= 0.0) {
+									  roots.x =  0; rn = 1; rootType = 15;
+			}
+		
+			if(m4[1] == 1) {
+				if(rn == 0) 		{ roots.x = x4[1]; rn = 1; rootType = 15;						}
+				else				{ roots.y = x4[1]; rn = 2; rootType = 10; 						}	
+			} else if(rootType == 15) {
+				rootType = 0;
+			}
+		
+			if(m4[2] == 1) {
+				if     (rn == 0) 	{ roots.x = x4[2]; rn = 1; rootType = 15;						}
+				else if(rn == 1)	{ roots.y = x4[2]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
+				else 				{ roots.z = x4[2]; rn = 3; rootType = 20; 						}	
+			} else if(rootType == 15) {
+				rootType = 0;
+			}
+		
+			if(m4[3] == 1) {
+				if     (rn == 0) 	{ roots.x = x4[3]; rn = 1; rootType = 15;						}
+				else if(rn == 1)	{ roots.y = x4[3]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
+				else if(rn == 2)	{ roots.z = x4[3]; rn = 3; rootType = 20; 						}	
+				else 				{ roots.w = x4[3]; rn = 4; rootType = 20; 						}	
+			} else if(rootType == 15) {
+				rootType = 0;
+			}
+		
+			if(m4[4] == 1) {
+				if     (rn == 0) 	{ roots.x = x4[4]; rn = 1; rootType = 15;						}
+				else if(rn == 1)	{ roots.y = x4[4]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
+				else if(rn == 2)	{ roots.z = x4[4]; rn = 3; rootType = 20; 						}	
+				else 				{ roots.w = x4[4]; rn = 4; rootType = 20; 						}	
+			} else if(rootType == 15) {
+				rootType = 0;
+			}
+		
+			if(EvalPolyD0(x2[3], polyB_C) > 0.0) {
+				if     (rn == 1)	{ roots.y =   1.0; rn = 1; rootType = rootType == 0 ? 30 : 10;	}
+				else				{ roots.w =   1.0; rn = 2; rootType = 20; 						}	
+			}
+		
+			if(rootType == 10 || rootType == 15) rootType = 30;
+
+			//region finalize
+			if(rootType > 0) {
+				if(rootType == 30) {
+					float rootD3 = binRootFinder_Eval(roots.x, roots.y, qSplineD3);
+				
+					vec2 rootsD2;
+					rootsD2.x = binRootFinder_Eval(rootD3, roots.x, qSplineD2);
+					rootsD2.y = binRootFinder_Eval(rootD3, roots.y, qSplineD2);
+				
+					l1 = binRootFinder_Eval(roots.x, rootsD2.x, qSplineD1);
+					l2 = binRootFinder_Eval(rootsD2.y, roots.y, qSplineD1);
+				} else {
+					l1 = binRootFinder_Eval(roots.x, roots.y, qSplineD1);
+				
+					if(rootType == 20)
+						l2 = binRootFinder_Eval(roots.z, roots.w, qSplineD1);
+					else
+						l2 = l1;
+				}
+			
+				float t1 = qSplineIDistEval(l1, curveX, polyB_C);
+				float t2 = qSplineIDistEval(l2, curveX, polyB_C);
+			
+				float r1 = EvalPolyD0(l1, rcurve);
+				float r2 = EvalPolyD0(l2, rcurve);
+			
+				bool hit1 = t1 > 0.0 && r1 > 0.0;
+				bool hit2 = t2 > 0.0 && r2 > 0.0;
+			
+				//THESIS2:
+			#if BACKSIDE_DEPTH == 0
+				if(hit1) {
+					if(t1 < t2 || !hit2) {
+					//THESIS
+						hit.segment_radius = r1;
+						hit.t = t1;
+						hit.l = min(l1, x2[3]);
+					} else {
+					//THESIS
+						hit.segment_radius = r2;
+						hit.t = t2;
+						hit.l = min(l2, x2[3]);
+					}
+				} else {
+				//THESIS
+					hit.segment_radius = r2;
+					hit.t = t2;
+					hit.l = min(l2, x2[3]);
+				}
+			#else
+				if(hit1) {
+					if(t1 < t2 && hit2) {
+						hit.segment_radius = r2;
+						hit.t = t2;
+						hit.l = min(l2, x2[3]);
+					} else {
+						hit.segment_radius = r1;
+						hit.t = t1;
+						hit.l = min(l1, x2[3]);
+					}
+				} else {
+					hit.segment_radius = r2;
+					hit.t = t2;
+					hit.l = min(l2, x2[3]);
+				}
+			#endif
+
+				hit.cap = hit.l <= 0.0 || hit.l >= x2[3];
+
+				// get the position on the spline at l
+				hit.sp = qSplineEval(hit.l, curveX, curveY, curveZ);
+				// transform from ray space to eye space
+				hit.sp = RCC * hit.sp;
+				// calculate the intersection point of the ray with the spline tube
+			#if BACKSIDE_DEPTH == 0
+				hit.normal = normalize(hit.t*dir - hit.sp);
+			#else
+				hit.normal = normalize(hit.sp - hit.t*dir);
+			#endif
+			}
+			//endregion
+		}
+	#else
+		/*RayConeIntersection rci;
+		rci.c0 = s_rcc;
+		rci.cd = t_rcc-s_rcc;
+		if (RayConeIntersect(rci, rs, 0))
+		{
+			hit.t = rci.s + rci.c0.z;
+			hit.l = rci.dt;
+			hit.cap = hit.l == 0.0 || hit.l == 1.0;
+			hit.sp = RCC * (rci.c0 + hit.l*rci.cd);
+			hit.normal = normalize(hit.t*dir - hit.sp);
+		}*/
+		// determine which curve end to start iterating from
+		float tstart = dot(t-s, dir) > .0f ? .0f : 1.f;
+
+		// also attempt from the other end in case iteration from selected one fails
+		for (int end=0; end<2; end++)
+		{
+			float t    = tstart;
+			float told = .0f;
+			float dt1  = .0f;
+			float dt2  = .0f;
+
+			RayConeIntersection rci;
+			for (int i=0; i<MAX_ITERATIONS; i++)
+			{
+				rci.c0 = qSplineEval(t, curveX, curveY, curveZ);
+				rci.cd = qSplineTangent(t, curveX, curveY, curveZ);
+				const bool phantom = !RayConeIntersect(rci, EvalPolyD0(t, rcurve), EvalPolyD1(t, rcurve));
+
+				// check convergence
+				if (   !phantom && abs(rci.dt) < TOLERANCE
+					&& t > .0f && t < 1.f) // <-- seems necessary to prevent segment transition artifacts (ToDo: investigate!)
+				{
+					hit.l = rci.s + rci.c0.z;
+					hit.t = t;
+					hit.sp = RCC * qSplineEval(hit.t, curveX, curveY, curveZ);
+					#if BACKSIDE_DEPTH == 0
+					hit.normal = normalize(hit.t*dir - hit.sp);
+					#else
+					hit.normal = normalize(vec3(1.0, 0.0, 0.0));
+					#endif
+					return hit;
+				}
+
+				rci.dt = min(rci.dt,  .5f);
+				rci.dt = max(rci.dt, -.5f);
+
+				dt1 = dt2;
+				dt2 = rci.dt;
+
+				// regula falsi
+				if (dt1 * dt2 < .0f) {
+					// "we use the simplest possible approach by switching
+					//  to the bisection every 4th iteration:"
+					told = t;
+					t = ((i&3) == 0) ? (.5f*(told+t)) : ((dt2*told - dt1*t) / (dt2-dt1));
+				}
+				else {
+					told = t;
+					t += rci.dt;
+				}
+
+				if (t < .0f || t > 1.f)
+					break;
+			}
+
+			// re-attempt iteration from the direction of the other end
+			tstart = 1.f - tstart;
+		}
+	#endif // ifdef PRIMITIVE_RUSSIG
+
+		return hit;
+	}
+
+#else
+
+//THESIS2 TODO: Remove from here, put into separate shader and call that when performing the 3D glyphing (potentially)
+//keep here if 3D+2D glyphing should be allowed at some point
+	Hit EvalSplineISect(
+		const vec3 org, const vec3 dir, vec3 s, vec3 h, vec3 t,
+		const float rs, const float rh, const float rt, const float l_max
+	)
+	{
+		Hit hit;
+		hit.org = org;
+		hit.dir = dir;
+		hit.l0 = 0.0;
+		hit.l1 = 0.0;
+		hit.t0 = POS_INF;
+		hit.t1 = POS_INF;
+		hit.nml0 = vec3(0.0);
+		hit.nml1 = vec3(0.0);
+	
+		// swap direction of spline so that s is always closer to the ray origin than t
+		/*
+		float comp = length(s - org) - length(t - org);
+		if(cull_frontface)
+			comp = -comp;
+		if(comp > 0.0) {
+			vec3 temp = s;
+			s = t;
+			t = temp;
+		}
+		*/
+
+		const mat3 RCC = calc_rcc_x(dir);
+
+		vec3 alt_s = s;
+		vec3 alt_h = h;
+		vec3 alt_t = t;
+
+		s -= org;
+		h -= org;
+		t -= org;
+		vec3 s_rcc = s*RCC, h_rcc = h*RCC, t_rcc = t*RCC;
+	
+		float curveX[N0]; SplinePointsToPolyCoeffs(s_rcc.x, h_rcc.x, t_rcc.x, curveX);
+		float curveY[N0]; SplinePointsToPolyCoeffs(s_rcc.y, h_rcc.y, t_rcc.y, curveY);
+		float curveZ[N0]; SplinePointsToPolyCoeffs(s_rcc.z, h_rcc.z, t_rcc.z, curveZ);
+		float rcurve[N0]; SplinePointsToPolyCoeffs(rs, rh, rt, rcurve);
+	
+		float polyB_C[N1];
+		
+		Pow2(rcurve, polyB_C);
+
+		{ float c[N1];
+		  Pow2(curveY, c);
+		  Sub(polyB_C, c, polyB_C); }
+		{ float c[N1];
+		  Pow2(curveZ, c);
+		  Sub(polyB_C, c, polyB_C); }
+	
+		float l1 = 0.0;
+		float l2 = 0.0;
+	
+		vec4 roots = vec4(-1.0);
+	
+		float x2[4];
+		int m2[4];
+	
+		vec2 r = SolveQuadratic(polyB_C[4] * 12.0, polyB_C[3] * 6.0, polyB_C[2] * 2.0);
+	
+		x2[0] = 0.0;
+		x2[1] = r.x;
+		x2[2] = r.y;
+		x2[3] = min(l_max, 1.0);
+
+		m2[0] = 1;
+		m2[1] = (x2[1] <= x2[0] || x2[1] >= x2[3]) ? 0 : 1;
+		m2[2] = (x2[2] <= x2[0] || x2[2] >= x2[3]) ? 0 : 1;
+		m2[3] = 1;
+
+		float x3[5];
+		int m3[5];
+		FindRootsD1(polyB_C, x2, m2, x3, m3);
+
+		float x4[6];
+		int m4[6];
+	
+		{		
+			FindRootsD0(polyB_C, x3, m3, x4, m4);
+
+			int rootType = 0;
+			int rn = 0;
+		
+			if(EvalPolyD0(0.0, polyB_C) >= 0.0) {
+									  roots.x =  0; rn = 1; rootType = 15;
+			}
+		
+			if(m4[1] == 1) {
+				if(rn == 0) 		{ roots.x = x4[1]; rn = 1; rootType = 15;						}
+				else				{ roots.y = x4[1]; rn = 2; rootType = 10; 						}	
+			} else if(rootType == 15) {
+				rootType = 0;
+			}
+		
+			if(m4[2] == 1) {
+				if     (rn == 0) 	{ roots.x = x4[2]; rn = 1; rootType = 15;						}
+				else if(rn == 1)	{ roots.y = x4[2]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
+				else 				{ roots.z = x4[2]; rn = 3; rootType = 20; 						}	
+			} else if(rootType == 15) {
+				rootType = 0;
+			}
+		
+			if(m4[3] == 1) {
+				if     (rn == 0) 	{ roots.x = x4[3]; rn = 1; rootType = 15;						}
+				else if(rn == 1)	{ roots.y = x4[3]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
+				else if(rn == 2)	{ roots.z = x4[3]; rn = 3; rootType = 20; 						}	
+				else 				{ roots.w = x4[3]; rn = 4; rootType = 20; 						}	
+			} else if(rootType == 15) {
+				rootType = 0;
+			}
+		
+			if(m4[4] == 1) {
+				if     (rn == 0) 	{ roots.x = x4[4]; rn = 1; rootType = 15;						}
+				else if(rn == 1)	{ roots.y = x4[4]; rn = 2; rootType = rootType == 0 ? 30 : 10;	}	
+				else if(rn == 2)	{ roots.z = x4[4]; rn = 3; rootType = 20; 						}	
+				else 				{ roots.w = x4[4]; rn = 4; rootType = 20; 						}	
+			} else if(rootType == 15) {
+				rootType = 0;
+			}
+		
+			if(EvalPolyD0(x2[3], polyB_C) > 0.0) {
+				if     (rn == 1)	{ roots.y =   1.0; rn = 1; rootType = rootType == 0 ? 30 : 10;	}
+				else				{ roots.w =   1.0; rn = 2; rootType = 20; 						}	
+			}
+		
+			if(rootType == 10 || rootType == 15) rootType = 30;
+
+			//region finalize
+			if(rootType > 0) {
+				if(rootType == 30) {
+					float rootD3 = binRootFinder_Eval(roots.x, roots.y, qSplineD3);
+				
+					vec2 rootsD2;
+					rootsD2.x = binRootFinder_Eval(rootD3, roots.x, qSplineD2);
+					rootsD2.y = binRootFinder_Eval(rootD3, roots.y, qSplineD2);
+				
+					l1 = binRootFinder_Eval(roots.x, rootsD2.x, qSplineD1);
+					l2 = binRootFinder_Eval(rootsD2.y, roots.y, qSplineD1);
+				} else {
+					l1 = binRootFinder_Eval(roots.x, roots.y, qSplineD1);
+				
+					if(rootType == 20)
+						l2 = binRootFinder_Eval(roots.z, roots.w, qSplineD1);
+					else
+						l2 = l1;
+				}
+			
+				float t1 = qSplineIDistEval(l1, curveX, polyB_C);
+				float t2 = qSplineIDistEval(l2, curveX, polyB_C);
+
+				float r1 = EvalPolyD0(l1, rcurve);
+				float r2 = EvalPolyD0(l2, rcurve);
+			
+				bool hit1 = t1 > 0.0 && r1 > 0.0;
+				bool hit2 = t2 > 0.0 && r2 > 0.0;
+			
+				if(tbr.use_distance_check) {
+					vec3 hp1 = org + t1 * dir;
+					vec3 hp2 = org + t2 * dir;
+					float dist_to_spline1 = qTube_signed_distance(hp1, alt_s, alt_h, alt_t);
+					float dist_to_spline2 = qTube_signed_distance(hp2, alt_s, alt_h, alt_t);
+					if(abs(dist_to_spline1 - r1) > tbr.distance_tolerance_factor * r1)
+						hit1 = false;
+					if(abs(dist_to_spline2 - r2) > tbr.distance_tolerance_factor * r2)
+						hit2 = false;
+				}
+
+				l1 = min(l1, x2[3]);
+				l2 = min(l2, x2[3]);
+
+				if(tbr.clip_caps) {
+					bool c1 = l1 <= 0.0 || l1 >= x2[3];
+					bool c2 = l2 <= 0.0 || l2 >= x2[3];
+					if(c1) {
+						hit1 = false;
+						//hit2 = false;
+						//hit.c0 = c1;
+					}
+					if(c2) {
+						//hit1 = false;
+						hit2 = false;
+						//hit.c1 = c2;
+					}
+				}
+
+				hit.preferred_idx = 0;
+
+				// store both possible hits
+				hit.t0 = t1;
+				hit.l0 = l1;
+				hit.r0 = r1;
+				hit.h0 = hit1;
+
+				hit.t1 = t2;
+				hit.l1 = l2;
+				hit.r1 = r2;
+				hit.h1 = hit2;
+
+				// select the preferred hit, which should be the nearest or furthest hit, depending on cull mode
+				if(tbr.cull_frontface) {
+					if(hit2) {
+						if(t1 < t2 || !hit1) {
+							hit.preferred_idx = 1;
+						} else {
+							hit.preferred_idx = 0;
+						}
+					} else {
+						hit.preferred_idx = 0;
+					}
+				} else {
+					//normal hit point evaluation
+					if(hit1) {
+						if(t1 < t2 || !hit2) {
+							hit.preferred_idx = 0;
+						} else {
+							hit.preferred_idx = 1;
+						}
+					} else {
+						hit.preferred_idx = 1;
+					}
+				}
+			
+				hit.cap = hit.l0 <= 0.0 || hit.l0 >= x2[3];
+
+				// get the position on the spline at l
+				hit.sp0 = qSplineEval(hit.l0, curveX, curveY, curveZ);
+				hit.sp1 = qSplineEval(hit.l1, curveX, curveY, curveZ);
+				// transform from ray space to eye space
+				hit.sp0 = RCC * hit.sp0;
+				hit.sp1 = RCC * hit.sp1;
+				// calculate the intersection point of the ray with the spline tube
+				hit.nml0 = normalize(hit.t0*dir - hit.sp0);
+				hit.nml1 = normalize(hit.t1*dir - hit.sp1);
+			}
+			//endregion
+		}
+
+		return hit;
+	}
+#endif
 
 vec3 eval_quadratic_bezier_tangent(QTube qtube, float t)
 {
@@ -979,6 +1310,8 @@ void main()
 	vec3 direction = normalize(position_fs);
 #endif
 
+//THESIS2:
+#if BACKSIDE_DEPTH == 0
 	// determine tmax threshold within this segment's parameter space
 	const float l_max_cubic = (max_t - n0_t)/(n1_t - n0_t);
 	const float l_max = l_offset_fs > 0.0 ? 2*(l_max_cubic - 0.5) : l_max_cubic + l_max_cubic;
@@ -987,12 +1320,59 @@ void main()
 		qtube.s.rad, qtube.h.rad, qtube.e.rad,
 		l_max
 	);
+	//THESIS2:
+	float hit_t = hit.t;
+	float hit_l = hit.l;
+	vec3 hit_normal = hit.normal;
+	vec3 hit_sp = hit.sp;
+
+	//TODO maybe replace 0.0 with clip_near;
+	bool clip_caps = cap_clip_distance <= 0.0;
+#else
+	//THESIS2: (David)
+	const float l_max = 1.0f;
+
+	vec3 origin = vec3(0.0);
+
+	// bounding sphere is in eye space
+	float dist_to_center = length(bounding_sphere_fs.xyz) + bounding_sphere_fs.w;
+	vec3 backside_origin = origin + (2.0 * dist_to_center) * direction;
+	//frag_reverse_ray_origin = backside_origin;
+
+	if(tbr.cull_frontface) { // reverse raycast
+		origin = backside_origin;
+		direction = -direction;
+	}
+
+	Hit hit = EvalSplineISect(origin, direction,
+		qtube.s.pos, qtube.h.pos, qtube.e.pos,
+		qtube.s.rad, qtube.h.rad, qtube.e.rad,
+		l_max
+	);
+
+	if(tbr.cull_frontface) {
+		hit.nml0 = -hit.nml0;
+		hit.nml1 = -hit.nml1;
+	}
+
+	bool hit_h = hit.preferred_idx == 0 ? hit.h0 : hit.h1;
+	float hit_t = hit.preferred_idx == 0 ? hit.t0 : hit.t1;
+	if(!hit_h)
+		hit_t = POS_INF;
+
+	//THESIS2:
+	float hit_l = hit.preferred_idx == 0 ? hit.l0 : hit.l1;
+	vec3 hit_normal = hit.preferred_idx == 0 ? hit.nml0 : hit.nml1;
+	vec3 hit_sp = hit.preferred_idx == 0 ? hit.sp0 : hit.sp1;
+	bool clip_caps = tbr.clip_caps;
+#endif
 
 #if MODE == 3
 	gl_FragDepth = 1.0;
 #endif
-
-	if(hit.t == POS_INF || (hit.cap && hit.t > cap_clip_distance)) {
+	
+	//THESIS2:
+	if(hit_t == POS_INF || !clip_caps && (hit.cap && hit_t > cap_clip_distance)) {
 #if MODE == 2
 		frag_albedo = uvec4(0xFF0000FF, floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(0.0));
 		frag_position = uvec4(floatBitsToUint(0.0), floatBitsToUint(0.0), floatBitsToUint(1.0), floatBitsToUint(0.0));
@@ -1007,8 +1387,13 @@ void main()
 		discard;
 #endif
 	} else {
-		vec3 hit_pos_eye = direction * hit.t;
-		float spline_t = hit.l * 0.5 + l_offset_fs;
+	#if BACKSIDE_DEPTH == 0
+		vec3 hit_pos_eye = direction * hit_t;
+	#else
+		vec3 hit_pos_eye = hit.org + hit_t * hit.dir;
+	#endif
+
+		float spline_t = hit_l * 0.5 + l_offset_fs;
 		// determine color - since we ignore the tangents, interpolation is just linear
 		const vec4 col = spline_t >= max_t ? vec4(0.75, 0.75, 0.75, 1) :
 		#if ATTRIB_MODE & 2
@@ -1023,7 +1408,7 @@ void main()
 
 #if USE_CUBIC_TANGENTS == 0
 		// tangent is already given in eye space
-		vec3 tangent = normalize(eval_quadratic_bezier_tangent(qtube, hit.l));
+		vec3 tangent = normalize(eval_quadratic_bezier_tangent(qtube, hit_l));
 #else
 		// tangent is given in object space
 		vec3 tangent = eval_cubic_hermite_tangent(spline_t);
@@ -1031,24 +1416,27 @@ void main()
 		tangent = normalize(get_normal_matrix() * tangent);
 #endif
 		// calculate a bitangent which is orthogonal to the plane defined by the tangent and the vector from the eye position to the hit position
-		vec3 b = normalize(cross(tangent, hit.sp-(get_modelview_matrix()*vec4(cyclopic_eye, 1)).xyz));
+		vec3 b = normalize(cross(tangent, hit_sp-(get_modelview_matrix()*vec4(cyclopic_eye, 1)).xyz));
 		// the texture coordinate around the tubes perimeter is the acos of the dot product between the normal and the bitangent
 		// normalized to [0,1]
 		// since we are only interested in the eye-facing side of the tube, acos is sufficient here
-		float v = acos(dot(b, hit.normal)) * M_INV_PI;
+		float v = acos(dot(b, hit_normal)) * M_INV_PI;
+
+		//THESIS2:
+		float hit_radius = length(hit_pos_eye - hit_sp);
 
 		//frag_albedo = vec4(uintBitsToFloat(packUnorm4x8(col)), spline_t, v, intBitsToFloat(segment_id_fs));
 		frag_albedo = uvec4(packUnorm4x8(col), floatBitsToUint(alen(spline_t)), floatBitsToUint(v), uint(segment_id_fs));
-		frag_position = uvec4(floatBitsToUint(hit_pos_eye.x), floatBitsToUint(hit_pos_eye.y), floatBitsToUint(hit_pos_eye.z), floatBitsToUint(hit.segment_radius));
+		frag_position = uvec4(floatBitsToUint(hit_pos_eye.x), floatBitsToUint(hit_pos_eye.y), floatBitsToUint(hit_pos_eye.z), floatBitsToUint(hit_radius));
 
 		//THESIS: We use the fact that the normal is in range always of length 1 to also pass on the radius of the tube.
 		// TODO: check if it would be better to omit the additional multiplication on this side, and the additional abs and normalize call on the shading side
 		// by instead expanding the position texture from RGB into a RGB+A texture
-		frag_normal = hit.normal;
+		frag_normal = hit_normal;
 		frag_tangent = tangent;
 
 		#if GLYPH_TYPE_IS_3D == 1
-			glyph_center = (get_inverse_modelview_matrix() * vec4(hit_pos_eye, 1.0)).xyz - normalize(get_inverse_normal_matrix()*hit.normal) *hit.segment_radius;
+			glyph_center = (get_inverse_modelview_matrix() * vec4(hit_pos_eye, 1.0)).xyz - normalize(get_inverse_normal_matrix()*hit_normal) * hit_radius;
 		#endif
 	}
 #endif

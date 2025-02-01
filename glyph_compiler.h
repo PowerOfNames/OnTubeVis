@@ -12,6 +12,7 @@
 
 class glyph_compiler {
 public:
+	using vec3 = cgv::vec3;
 	using vec4 = cgv::vec4;
 	using uvec2 = cgv::uvec2;
 	using mat4 = cgv::mat4;
@@ -29,12 +30,23 @@ protected:
 
 		size_t size() const { return data.size(); }
 
+		//THESIS2: HACK
+		// 2 for s and debugInfo, perGlyphSize should be calculated somewhere
+		// else properly
+		uint32_t count_of_non_attrib_values = 2;
 		size_t glyph_count() const {
-			return size() / (2 + count);
+			return size() / (count_of_non_attrib_values + count);
 		}
 
 		void add(const float& x) {
 			data.push_back(x);
+		}
+
+		//THESIS2:
+		void add(const vec3& v) {
+			data.push_back(v.x());
+			data.push_back(v.y());
+			data.push_back(v.z());
 		}
 
 		float& operator [](int idx) {
@@ -77,6 +89,259 @@ protected:
 			attribs.count = attrib_count;
 		}
 	};
+
+	// generate a glyph at every attribute sample location (interpolates attributes if more than one is mapped in this layer)
+	void compile_glyphs_front_at_samples_with_pos(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
+		// convenience shorthands
+		const size_t attrib_count = lci.attrib_count;
+		const auto& mapped_attribs = lci.mapped_attribs;
+		const auto& attribs_trajs = lci.attribs_trajs;
+		auto& ranges = lci.ranges;
+		auto& attribs = lci.attribs;
+		//THESIS2: Because we insert a vec3, that is not part of the attribs_mappings
+		attribs.count_of_non_attrib_values = 5;
+		const auto& alen = arc_length;
+
+		// create an index for each attribute
+		std::vector<unsigned> attrib_indices(attrib_count, 0);
+		// create storage for attribute and glyph parameter values
+		std::vector<traj_attribute<float>::datapoint_mag> data_points(attrib_count);
+		std::vector<float> attrib_values(attrib_count);
+		std::vector<bool> has_sample(attrib_count);
+		std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
+
+		// - compile data
+		unsigned traj_offset = 0;
+		for (unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
+			const auto& tube_traj = tube_trajs[trj];
+			//const auto *alen = render.arclen_data.data();
+			const unsigned num_segments = tube_traj.n - 1;
+			const unsigned attribs_traj_offset = (unsigned)attribs.glyph_count();
+
+			// make sure there is exactly one 'range' entry per segment
+			ranges.resize(traj_offset + num_segments); // takes care of zero-initializing each entry
+
+			float prev_glyph_size = 0.0f;
+			float last_commited_s = 0.0f;
+
+			// index for the current segment
+			unsigned seg = 0;
+
+			// reset the sample availability status
+			std::fill(has_sample.begin(), has_sample.end(), false);
+
+			// stores the minimum t over all current attribute sample points in each iteration
+			float min_t;
+			// stores the index of the attribute with the minimum t
+			unsigned min_a_idx = 0;
+
+			bool run = true;
+			for (size_t i = 0; i < attrib_indices.size(); ++i) {
+				const auto& traj_range = attribs_trajs[i]->at(trj);
+				attrib_indices[i] = traj_range.i0;
+				if (traj_range.n < 2) // single-sample trajectory, assignment doesn't make sense here
+					run &= false;
+			}
+			run &= seg < num_segments;
+
+
+
+			// following variable only needed for debugging
+			unsigned glyph_idx = 0;
+
+
+
+			while (run) {
+				//if(i > 0) // enforce monotonicity
+				//	// TODO: this fails when using the debug-size dataset
+				//	assert(a.t >= mapped_attribs[0]->signed_magnitude_at(i - 1).t);
+
+				min_t = std::numeric_limits<float>::max();
+
+				for (size_t i = 0; i < attrib_count; ++i) {
+					auto a = mapped_attribs[i]->signed_magnitude_at(attrib_indices[i]);
+					data_points[i] = a;
+					if (a.t < min_t) {
+						min_a_idx = (unsigned)i;
+						min_t = a.t;
+					}
+				}
+
+				// advance segment pointer
+				auto segtime = segment_time_get(P, tube_traj, seg);
+				while (min_t >= segtime.t1) {
+					if (seg >= num_segments - 1)
+						break;
+					segtime = segment_time_get(P, tube_traj, ++seg);
+
+					// handle overlap from previous segment
+					const unsigned global_seg = traj_offset + seg;
+					if (ranges[global_seg - 1].n > 0) {
+						// using half size of previous glyph
+						if (prev_glyph_size < 0.0f) {
+							// "glyphs" with a negative size value are possibly infinite in size and always overlap onto the next segment
+							ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+							ranges[global_seg].n = 1;
+						}
+						else {
+							if (alen[global_seg][0] < attribs.last_glyph_s() + 0.5f * prev_glyph_size) {
+								ranges[global_seg].i0 = (int)attribs.glyph_count() - 1;
+								ranges[global_seg].n = 1;
+							}
+						}
+					}
+				}
+				const unsigned global_seg = traj_offset + seg;
+
+				// commit the attribute if it falls into the current segment
+				//if((min_t >= segtime.t0 && min_t < segtime.t1)
+				//	|| (seg == num_segments - 1 && min_t <= segtime.t1)) {
+				if ((seg == num_segments - 1 || min_t >= segtime.t0) && min_t <= segtime.t1) {
+					// compute segment-relative t and arclength
+					const float t_seg = (min_t - segtime.t0) / (segtime.t1 - segtime.t0),
+						s = arclen::eval(alen[global_seg], t_seg);
+
+					for (size_t i = 0; i < attrib_count; ++i) {
+						unsigned attrib_idx = attrib_indices[i];
+
+						const auto& a_curr = data_points[i];
+						float val = a_curr.val;
+
+						// TODO: make epsilon adjustable
+						bool found_sample = abs(min_t - a_curr.t) < 0.001f;
+						has_sample[i] = found_sample;
+
+						if (!found_sample && attrib_idx > 0) {
+							// get interpolated value
+							auto a_prev = mapped_attribs[i]->signed_magnitude_at(attrib_idx - 1);
+							float t = (min_t - a_prev.t) / (a_curr.t - a_prev.t);
+							val = cgv::math::lerp(a_prev.val, val, t);
+						}
+
+						attrib_values[i] = val;
+					}
+
+					// setup parameters of potential glyph
+					for (size_t i = 0; i < layer_config.glyph_mapping_parameters.size(); ++i) {
+						const auto& triple = layer_config.glyph_mapping_parameters[i];
+						if (triple.type == 0) {
+							// constant attribute
+							glyph_params[i] = (*triple.v)[3];
+						}
+						else {
+							// mapped attribute
+							const vec4& ranges = *(triple.v);
+							// use windowing and remapping to get the value of the glyph parameter
+							glyph_params[i] = clamp_remap(attrib_values[triple.idx], ranges);
+						}
+					}
+
+					float new_glyph_size = lci.current_shape->get_size(glyph_params);
+					new_glyph_size /= length_scale;
+
+					// infer potential glyph extents
+					const float min_dist = attribs.size() > 0 ?
+						std::max(new_glyph_size, prev_glyph_size) :
+						new_glyph_size;
+
+					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
+					include_glyph |= min_dist < 0.0f;
+
+					if (include_glyph || include_hidden_glyphs) {
+						auto& cur_range = ranges[global_seg];
+						if (cur_range.n < 1) {
+							// first free attribute that falls into this segment
+							cur_range.i0 = (unsigned)attribs.glyph_count();
+							cur_range.n = 1;
+
+							// handle overlap to previous segment (this only works for a single previous segment)
+							/*if(seg > 0 && alen[global_seg - 1][15] > s - 0.5f*new_glyph_size) {
+								// if there have been no glyphs comitted to the previous segment until now, also update its start index
+								if(ranges[global_seg - 1].n == 0)
+									ranges[global_seg - 1].i0 = cur_range.i0;
+								ranges[global_seg - 1].n++;
+							}*/
+
+							// handle overlap to the previous segments
+							if (seg > 0) {
+								int prev_seg = static_cast<int>(global_seg - 1);
+								int min_global_seg = static_cast<int>(traj_offset);
+								float min_s = s - 0.5f * new_glyph_size;
+								if (min_s >= 0.0f) {
+									while (prev_seg >= min_global_seg && alen[prev_seg][15] > min_s) {
+										// if there have been no glyphs comitted to the previous segment until now, also update its start index
+										auto& prev_range = ranges[prev_seg];
+										if (prev_range.n == 0)
+											prev_range.i0 = cur_range.i0;
+										prev_range.n++;
+										prev_seg--;
+									}
+								}
+							}
+						}
+						else {
+							// one more free attribute that falls into this segment
+							cur_range.n++;
+							// for infinitely sized "glyphs" there always will have been overlap from the previous segment, so the above branch won't have been executed
+							if (global_seg > 0 && new_glyph_size < 0.0) {
+								// "glyphs" with a negative size value are possibly infinite in size and always overlap onto the previous segment
+								ranges[global_seg - 1].n++;
+							}
+						}
+						// store the new glyph
+						attribs.add(s);
+
+						const vec3 glyph_pos_tube = { 1.0, 0.5, 1.0 };
+						attribs.add(glyph_pos_tube);
+						int debug_info = include_glyph ? 0 : 1;
+						attribs.add(*reinterpret_cast<float*>(&debug_info));
+
+						std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
+					}
+
+					//store the size when this glyph is actually placed
+					if (include_glyph) {
+						prev_glyph_size = new_glyph_size;
+						last_commited_s = s;
+					}
+
+				}
+				else {
+					// If the attrib does not fall into the current segment something is out of order.
+					// We just increment the attribute index with the minimal timestamp.
+					has_sample[min_a_idx] = true;
+				}
+
+				// increment indices and check whether the indices of all attributes have reached the end
+				for (size_t i = 0; i < attrib_count; ++i) {
+					const auto& traj_range = attribs_trajs[i]->at(trj);
+					const unsigned max_attrib_index = traj_range.i0 + traj_range.n;
+					// only increment indices of attributes that have a sample at the current location (min_a.t)
+					if (has_sample[i])
+						attrib_indices[i] = std::min(max_attrib_index, ++attrib_indices[i]);
+					if (attrib_indices[i] >= max_attrib_index)
+						run &= false;
+				}
+
+				run &= seg < num_segments;
+				++glyph_idx;
+				//if(glyph_idx >= max_glyph_count)
+				//	run = false;
+			}
+
+			// update auxiliary indices
+			traj_offset += num_segments;
+		}
+
+		// fill the attribute buffer with one glyph entry if it is empty (will cause crash otherwise)
+		if (attribs.empty()) {
+			attribs.add(0.0f);
+			attribs.add({ 0.0, 0.0, 0.0 });
+			attribs.add(0.0f);
+			for (size_t i = 0; i < attrib_count; ++i)
+				attribs.add(0.0f);
+		}
+	}
 
 	// generate a glyph at every attribute sample location (interpolates attributes if more than one is mapped in this layer)
 	void compile_glyphs_front_at_samples(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
@@ -444,7 +709,7 @@ protected:
 				if((seg == num_segments - 1 || sample_t >= segtime.t0) && sample_t <= segtime.t1) {
 					// compute segment-relative t and arclength
 					const float t_seg = (sample_t - segtime.t0) / (segtime.t1 - segtime.t0),
-						s = arclen::eval(alen[global_seg], t_seg);
+									s = arclen::eval(alen[global_seg], t_seg);
 
 					// interpolate each mapped attribute value
 					for(size_t i = 0; i < attrib_count; ++i) {
@@ -840,6 +1105,10 @@ protected:
 				break;
 			case ASS_AT_SAMPLES:
 				compile_glyphs_front_at_samples(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
+				break;
+			case ASS_AT_SAMPLES_WITH_POS:			
+				compile_glyphs_front_at_samples_with_pos(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
+				break;
 			default:
 				/* DoNothing() */;
 		}

@@ -23,6 +23,8 @@ enum AttributeSamplingStrategy {
 	ASS_UNIFORM,
 	ASS_EQUIDIST,
 	ASS_AT_SAMPLES,
+	//THESIS2:
+	ASS_AT_SAMPLES_WITH_POS
 };
 
 class glyph_attribute_mapping {
@@ -40,6 +42,7 @@ protected:
 	std::shared_ptr<const visualization_variables_info> visualization_variables;
 
 	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
+	AttributeSamplingStrategy last_non_3D_sampling_strategy = sampling_strategy;
 	float sampling_step = 1.0f;
 	//THESIS:
 	float uv_displacement_factor = 1.0f;
@@ -121,12 +124,14 @@ public:
 	void set_active(bool flag) { active = flag; }
 
 	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
+	//THESIS2:
+	const AttributeSamplingStrategy get_last_non_3d_sampling_strategy() const { return last_non_3D_sampling_strategy; }
 	
 	const float get_sampling_step() const { return sampling_step; }
 	//THESIS:
 	const float get_uv_disp_factor() const { return uv_displacement_factor; }
 
-	void set_sampling_strategy(AttributeSamplingStrategy strategy) { sampling_strategy = strategy; }
+	void set_sampling_strategy(AttributeSamplingStrategy strategy);
 
 	void set_sampling_step(float step) { sampling_step = step; }
 	//THESIS:

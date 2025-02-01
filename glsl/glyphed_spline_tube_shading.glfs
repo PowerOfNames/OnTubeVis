@@ -5,6 +5,11 @@
 #define EPSILON 0.0005
 #define MAX_RM_ITERATIONS 30
 
+//THESIS2: 
+/* 0: TEXTURED_PIPELINE		needs to return frontside intersection (standard)
+   1: BILLBOARD_PIPELINE	needs to return backside intersection */
+#define BACKSIDE_DEPTH 0
+
 #define DEBUG_SEGMENTS 0
 
 #define ENABLE_AMBIENT_OCCLUSION 1
@@ -147,24 +152,6 @@ layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
 	irange ranges##I[]; \
 }; \
 
-//THESIS2:
-// attribute and range buffers for each glyph layer
-// free attributes ssbos
-// free attributes per-segment index ranges
-#define DEF_GLYPH_DESC_AND_BUFFERS_WITH_POS(I, N, B0, B1) \
-struct glyph_desc##I { \
-	float s; \
-	vec3 pos_in_tube; \
-	uint debug_info; \
-	float v[N]; \
-}; \
-layout (std430, binding=B0) readonly buffer attribs_buffer##I { \
-	glyph_desc##I glyphs##I[]; \
-}; \
-layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
-	irange ranges##I[]; \
-	}; \
-
 struct closest_glyphs_info {
 	int prev, next, id;
 	float dp, dn, d;
@@ -192,31 +179,24 @@ bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info cl
 	return false; \
 }
 
-#if GLYPH_TYPE_IS_3D == 0
-	#if L0_MAPPED_ATTRIB_COUNT > 0
-	DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT, 0, 1)
-	DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)
-	#endif
+#if L0_MAPPED_ATTRIB_COUNT > 0
+DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT, 0, 1)
+DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)
+#endif
 
-	#if L1_MAPPED_ATTRIB_COUNT > 0
-	DEF_GLYPH_DESC_AND_BUFFERS(1, L1_MAPPED_ATTRIB_COUNT, 2, 3)
-	DEF_CLOSEST_SAMPLES(1, ranges1, glyphs1)
-	#endif
+#if L1_MAPPED_ATTRIB_COUNT > 0
+DEF_GLYPH_DESC_AND_BUFFERS(1, L1_MAPPED_ATTRIB_COUNT, 2, 3)
+DEF_CLOSEST_SAMPLES(1, ranges1, glyphs1)
+#endif
 
-	#if L2_MAPPED_ATTRIB_COUNT > 0
-	DEF_GLYPH_DESC_AND_BUFFERS(2, L2_MAPPED_ATTRIB_COUNT, 4, 5)
-	DEF_CLOSEST_SAMPLES(2, ranges2, glyphs2)
-	#endif
+#if L2_MAPPED_ATTRIB_COUNT > 0
+DEF_GLYPH_DESC_AND_BUFFERS(2, L2_MAPPED_ATTRIB_COUNT, 4, 5)
+DEF_CLOSEST_SAMPLES(2, ranges2, glyphs2)
+#endif
 
-	#if L3_MAPPED_ATTRIB_COUNT > 0
-	DEF_GLYPH_DESC_AND_BUFFERS(3, L3_MAPPED_ATTRIB_COUNT, 6, 7)
-	DEF_CLOSEST_SAMPLES(3, ranges3, glyphs3)
-	#endif
-#else 
-	#if L0_MAPPED_ATTRIB_COUNT > 0
-	DEF_GLYPH_DESC_AND_BUFFERS_WITH_POS(0, L0_MAPPED_ATTRIB_COUNT, 0, 1)
-	DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)
-	#endif
+#if L3_MAPPED_ATTRIB_COUNT > 0
+DEF_GLYPH_DESC_AND_BUFFERS(3, L3_MAPPED_ATTRIB_COUNT, 6, 7)
+DEF_CLOSEST_SAMPLES(3, ranges3, glyphs3)
 #endif
 
 /*bool get_current_glyph(out glyph_desc glyph, in int seg_id, inout vec2 uv) {
@@ -1537,14 +1517,13 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 		//THESIS TODO: 
 		//vec4 hit_pos_clip = get_projection_matrix() * vec4(rmr.pos_eye, 1.0);
 		//depth = ((hit_pos_clip.z / hit_pos_clip.w) + 1.0) / 2.0;
-		//return vec4(rmr.debug_color, 1.0);
 		return vec4(glyph_color, 1.0);
 	}
 
 	//THESIS TODO: render tube backside?
 	//return vec4(1.0, 0.5, 1.0, 1.0);	
-	return vec4(rmr.debug_color, 1.0);
-	//return vec4(1.0, 1.0, 1.0, 0.0);
+	//return vec4(rmr.debug_color, 1.0);
+	return vec4(1.0, 1.0, 1.0, 0.0);
 }
 
 void finalize_glyph(in uint debug_info, in vec2 uv, in vec4 glyph_color, inout vec3 color) {
@@ -1877,8 +1856,7 @@ void main()
 						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_SURFACE_GRAD_DEFINITION);
 						normal_eye = rmr.normal_eye;
 					}
-					//rmr.debug_color = glyph.pos_in_tube;
-					rmr.debug_color = vec3(glyph.s / 100.0, 0.0, 0.0);
+					//rmr.debug_color = glyph_center_tube;
 				}
 		#endif
 

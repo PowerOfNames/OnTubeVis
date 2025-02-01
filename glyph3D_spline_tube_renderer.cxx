@@ -26,8 +26,17 @@ namespace cgv {
 			bounding_geometry = BG_ALIGNED_BOX_BILLBOARD;
 			attrib_mode = AM_ALL;
 			line_primitive = LP_TUBE_RUSSIG;
+
+			//THESIS:
 			glyph_dimension = GD_2D;
+			//THESIS2:
 			glyph_method = GM_TUBE_SURFACE_PIPELINE;
+			tube_backside_render.cull_frontface = false;
+			tube_backside_render.use_distance_check = false;
+			tube_backside_render.clip_caps = true;
+			tube_backside_render.distance_tolerance_factor = 0.00001f;
+
+
 			use_conservative_depth = false;
 			use_cubic_tangents = true;
 			use_view_space_position = true;
@@ -93,6 +102,11 @@ namespace cgv {
 
 			defines.clear();
 
+			//THESIS: (Danke David)
+			shader_code::set_define(defines, "GLYPH_TYPE_IS_3D", rs.glyph_dimension, rs.GD_2D);
+			//THESIS2:
+			shader_code::set_define(defines, "BACKSIDE_DEPTH", rs.glyph_method, rs.GM_TUBE_SURFACE_PIPELINE);
+
 			shader_code::set_define(defines, "USE_CONSERVATIVE_DEPTH", rs.use_conservative_depth, false);
 			if (rs.is_tube()) {
 				shader_code::set_define(defines, "USE_CUBIC_TANGENTS", rs.use_cubic_tangents, true);
@@ -105,12 +119,11 @@ namespace cgv {
 
 				//THESIS:
 				// glyph type
-				static const bool is3D = rs.is_3D();
+				const bool is3D = rs.is_3D();
 				shader_code::set_define(defines, "GLYPH_TYPE_IS_3D", is3D, false);
 				//THESIS2:
-				static const bool isBB = rs.is_billboard_pipeline();
-				shader_code::set_define(defines, "BACKSIDE_DEPTH", isBB, false);
-
+				const bool isBB = rs.is_billboard_pipeline();
+				shader_code::set_define(defines, "BACKSIDE_DEPTH", isBB, false);				
 			}
 			else if (rs.line_primitive == rs.LP_RIBBON_GEOMETRY) {
 				static const bool yes = true;
@@ -129,10 +142,7 @@ namespace cgv {
 				shader_code::set_define(defines, "DBG_VISUALIZE_LEAF_BBOXES", rs.rcribbon.debug.visualize_leaf_bboxes, false);
 			}
 
-			//THESIS: (Danke David)
-			shader_code::set_define(defines, "GLYPH_TYPE_IS_3D", rs.glyph_dimension, rs.GD_2D);
-			//THESIS2:
-			shader_code::set_define(defines, "BACKSIDE_DEPTH", rs.glyph_method, rs.GM_TUBE_SURFACE_PIPELINE);
+			
 
 			for (const auto& define : additional_defines)
 				defines.insert(define);
@@ -198,6 +208,14 @@ namespace cgv {
 			ref_prog().set_uniform(ctx, "viewport", viewport);
 			ref_prog().set_uniform(ctx, "cap_clip_distance", rs.cap_clip_distance);
 			ref_prog().set_uniform(ctx, "max_t", rs.max_t);
+
+			if (rs.is_billboard_pipeline())
+			{
+				ref_prog().set_uniform(ctx, "tbr.cull_frontface", rs.tube_backside_render.cull_frontface);
+				ref_prog().set_uniform(ctx, "tbr.use_distance_check", rs.tube_backside_render.use_distance_check);
+				ref_prog().set_uniform(ctx, "tbr.clip_caps", rs.tube_backside_render.clip_caps);
+				ref_prog().set_uniform(ctx, "tbr.distance_tolerance_factor", rs.tube_backside_render.distance_tolerance_factor);
+			}
 
 			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
 				ref_prog().set_uniform(ctx, "linearity_thr", rs.rcribbon.linearity_thr);
@@ -316,6 +334,25 @@ namespace cgv {
 				p->add_member_control(b, "Length Scale", rs_ptr->length_scale, "value_slider", "min=0.1;max=10;step=0.01;ticks=true;color=0xb51c1c");
 				p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
 				p->add_member_control(b, "Attribute-Less Mode", rs_ptr->attrib_mode, "dropdown", "enums='Off,No curve data,No node color,Attribute-less'");
+
+				p->add_decorator("", "separator");
+
+
+				if (rs_ptr->is_billboard_pipeline())
+				{
+					if (p->begin_tree_node("Tube Backside Parameters", rs_ptr->tube_backside_render, false)) {
+						p->align("\a");
+						p->add_member_control(b, "Cull Frontface", rs_ptr->tube_backside_render.cull_frontface, "check");
+						p->add_member_control(b, "Use Distance Checks", rs_ptr->tube_backside_render.use_distance_check, "check");
+						p->add_member_control(b, "Clip Caps", rs_ptr->tube_backside_render.clip_caps, "check");
+						p->add_member_control(b, "Distance Tolerance", rs_ptr->tube_backside_render.distance_tolerance_factor, "value_slider", "min=0;max=0.1;step=0.00001;log=true");
+						p->align("\b");
+						p->end_tree_node(rs_ptr->tube_backside_render);
+					}
+				}
+
+				p->add_decorator("", "separator");
+
 
 				p->add_gui("glyph3D_render_style", *static_cast<cgv::render::glyph3D_render_style*>(rs_ptr));
 

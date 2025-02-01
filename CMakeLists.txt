@@ -26,7 +26,7 @@ else()
 	include(FetchContent)
 	FetchContent_Declare(
 		cgv GIT_REPOSITORY https://github.com/sgumhold/cgv.git
-		GIT_TAG 197d7118381d864588df58c0348b8be1e68402e4
+		GIT_TAG fa1135d002bbead49d55f0fb7ddfae2da4a687e9
 	)
 	FetchContent_MakeAvailable(cgv)
 endif()
@@ -200,6 +200,8 @@ set (SHADERS
 	glsl/textured_spline_tube_extended.glpr
 	glsl/textured_spline_tube_extended_shading.glfs
 	glsl/textured_spline_tube_extended_shading.glpr
+	glsl/glyphed_spline_tube_shading.glfs
+	glsl/glyphed_spline_tube_shading.glpr
 )
 # - add contitional source files
 if (ENABLE_OPTIX_SUPPORT)

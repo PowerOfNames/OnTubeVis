@@ -244,7 +244,8 @@ protected:
 		bool handle_neighbour_tex_clipping;
 		uint32_t res_ortho_hit_test;
 	};
-	glyph_ray_marching_parameters glyph_rm;
+	glyph_ray_marching_parameters glyph_rm;	
+
 
 	/// shader defines for the deferred shading pass
 	shader_define_map tube_shading_defines;
@@ -367,9 +368,14 @@ protected:
 	void toggle_glyph_dimension()
 	{		
 		if (render.style.is_2D())
+		{
 			render.style.glyph_dimension = glyph3D_spline_tube_render_style::GD_3D;
+			
+		}
 		else if(render.style.is_3D())
 			render.style.glyph_dimension = glyph3D_spline_tube_render_style::GD_2D;
+
+		//ui_state.tb_toggle.button->set("active", render.style.is_3D());
 
 		render.visualizations.front().manager.SetGlyphDimensionTo2D(render.style.is_2D() ? true : false);
 		ui_state.dim_toggle.current_glyph_dimension = render.style.glyph_dimension;

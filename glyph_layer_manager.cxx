@@ -310,10 +310,18 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 			connect_copy(p.add_button("@9+", "w=20;color=0xb51c1c")->click, cgv::signal::rebind(this, &glyph_layer_manager::remove_glyph_attribute_mapping, cgv::signal::_c<size_t>(i)));
 
 			p.align("%y-=28");
-			if(is_2D)
+			//THESIS:
+			if (is_2D)
+			{
+				gam.set_sampling_strategy(gam.get_last_non_3d_sampling_strategy());
 				gam.create_glyph2D_gui(this, p);
+			}
 			else
+			{
+				//THESIS2:
+				gam.set_sampling_strategy(ASS_AT_SAMPLES_WITH_POS);
 				gam.create_glyph3D_gui(this, p);
+			}
 
 			p.align("\b");
 			p.end_tree_node(gam);

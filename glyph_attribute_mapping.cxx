@@ -57,6 +57,15 @@ ActionType glyph_attribute_mapping::action_type() {
 	return temp;
 }
 
+//THESIS2:
+void glyph_attribute_mapping::set_sampling_strategy(AttributeSamplingStrategy strategy)
+{
+	if (sampling_strategy != ASS_AT_SAMPLES_WITH_POS && strategy == ASS_AT_SAMPLES_WITH_POS)
+		last_non_3D_sampling_strategy = sampling_strategy;
+
+	sampling_strategy = strategy;
+}
+
 void glyph_attribute_mapping::set_glyph_type(GlyphType type) {
 	this->type = type;
 	create_glyph_shape();
@@ -105,7 +114,8 @@ void glyph_attribute_mapping::create_glyph3D_gui(cgv::base::base* bp, cgv::gui::
 	add_local_member_control(p, bp, "Name", name, "", "w=146", "%x+=2");
 	connect_copy(p.add_button("@1edit", "w=20")->click, cgv::signal::rebind(this, &glyph_attribute_mapping::update_name, cgv::signal::_c<cgv::base::base*>(bp)));
 
-	add_local_member_control(p, bp, "Sampling Strategy", sampling_strategy, "dropdown", "enums='Uniform Time,Equidistant,Original Samples'");
+	//THESIS2:
+	add_local_member_control(p, bp, "Sampling Strategy", sampling_strategy, "dropdown", "enums='Original Samples with Pos'");
 	add_local_member_control(p, bp, "Sampling Step", sampling_step, "value_slider", "min=0;max=10;step=0.001;ticks=true;log=true");
 	//THESIS
 	add_local_member_control(p, bp, "UV Disp Factor", uv_displacement_factor, "value_slider", "min=0;max=20;step=0.01;ticks=true;log=true");

@@ -8,7 +8,9 @@
 class hermite_spline_tube {
 public:
 	using vec3 = cgv::vec3;
+	using vec4 = cgv::vec4;
 	using box3 = cgv::box3;
+	using mat43 = cgv::math::fmat<float, 4, 3>;
 
 	struct node {
 		vec3 pos;
@@ -21,6 +23,14 @@ public:
 	node b;
 
 private:
+	const cgv::mat4 M = transpose(
+		cgv::mat4{
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			-3.0f, -2.0f, 3.0f, -1.0f,
+			2.0f, 1.0f, -2.0f, 1.0f
+		});
+
 	template<typename T>
 	void split(unsigned segment_idx, T v0, T d0, T v1, T d1, T& v0_out, T& h_out, T& v1_out) const {
 
@@ -70,5 +80,30 @@ public:
 		);
 
 		return quadratic_bezier_tube(pa, pb, pc, ra, rb, rc);
+	}
+
+	vec3 interpolate(float t) const {
+		vec4 T(1.0f, t, t * t, t * t * t);
+
+		mat43 B;
+		B.set_row(0, a.pos);
+		B.set_row(1, a.pos_tan);
+		B.set_row(2, b.pos);
+		B.set_row(3, b.pos_tan);
+
+		return T * M * B;
+	}
+
+	std::vector<vec3> sample(size_t num_segments) const {
+		num_segments = std::max(num_segments, size_t(1));
+
+		std::vector<vec3> points;
+		float step = 1.0f / static_cast<float>(num_segments);
+		for (size_t i = 0; i <= num_segments; ++i) {
+			float t = step * static_cast<float>(i);
+			points.push_back(interpolate(t));
+		}
+
+		return points;
 	}
 };

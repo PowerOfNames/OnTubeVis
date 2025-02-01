@@ -127,7 +127,7 @@ on_tube_vis::on_tube_vis() : application_plugin("OnTubeVis"), color_legend_mgr(t
 	glyph_rm.hit_epsilon = 0.0005;
 	glyph_rm.tan_bitan_thresholds = vec2(0.2, 0.5);
 	glyph_rm.handle_neighbour_tex_clipping = false;
-	glyph_rm.res_ortho_hit_test = 3.0;
+	glyph_rm.res_ortho_hit_test = 3.0;	
 
 	//TODO THESIS
 	shaders.add("tube_shading", "textured_spline_tube_shading.glpr");
@@ -1292,7 +1292,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 			const auto &dataset = traj_mgr.dataset(0);
 
 			success = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);
-
+			
 			// get context
 			const auto &ctx = *get_context();
 
@@ -2200,7 +2200,7 @@ void on_tube_vis::create_gui(void)
 					);
 			}
 			/* Quick glyph method tubeSurface/billboard toggle */ {
-				ui_state.tb_toggle.button = add_button(get_glyph_method_toggle_label());
+				ui_state.tb_toggle.button = add_button(get_glyph_method_toggle_label(), "active=" + std::string(render.style.is_2D() ? "false" : "true"));
 				if (ui_state.tb_toggle.button)
 					connect_copy(
 						ui_state.tb_toggle.button->click,
@@ -2224,13 +2224,14 @@ void on_tube_vis::create_gui(void)
 		add_member_control(this, "Hit Epsilon", glyph_rm.hit_epsilon, "value_slider", "min=0.0001;max=0.1;step=0.0001;ticks=true");
 		add_member_control(this, "Tangent Threshold", glyph_rm.tan_bitan_thresholds[0], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
 		add_member_control(this, "Bitangent Threshold", glyph_rm.tan_bitan_thresholds[1], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
-		
+
 		add_member_control(this, "Handle Neighbour Texture Clipping", glyph_rm.handle_neighbour_tex_clipping, "check");
 		add_member_control(this, "Res Ortho-Hit-Test", glyph_rm.res_ortho_hit_test, "value_slider", "min=0;max=10.0;step=1.0;ticks=true");
-		
+
 		align("\b");
 		end_tree_node(glyph_rm);
 	}
+	
 
 	add_decorator("", "separator");
 
@@ -2880,6 +2881,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.set_uniform(ctx, "glyph_rm.tan_bitan_thresholds", glyph_rm.tan_bitan_thresholds);
 		prog.set_uniform(ctx, "glyph_rm.handle_neighbour_tex_clipping", glyph_rm.handle_neighbour_tex_clipping);
 		prog.set_uniform(ctx, "glyph_rm.res_ortho_hit_test", glyph_rm.res_ortho_hit_test);
+
+
 
 		// set attribute mapping parameters
 		const auto &glyph_layers_config = render.visualizations.front().config;

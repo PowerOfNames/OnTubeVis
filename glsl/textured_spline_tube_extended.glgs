@@ -141,6 +141,9 @@ out flat int segment_id_fs;
 #if USE_CUBIC_TANGENTS == 1
 out flat mat4 SM_fs; // spline matrix
 #endif
+#if BACKSIDE_DEPTH == 1
+out flat vec4 bounding_sphere_fs;
+#endif
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 
@@ -219,8 +222,8 @@ float EvalPolyD0(float x, float c[3]) {
 
 	return x * (x * c[2] + c[1]) + c[0];
 }
-
-#if BOUNDING_GEOMETRY_TYPE<2 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
+//THESIS2: added BOUNDING_GEOMETRY_TYPE==4 to get acces to the function needed for bounding sphere calculation
+#if BOUNDING_GEOMETRY_TYPE<2 || BOUNDING_GEOMETRY_TYPE==4 || BOUNDING_GEOMETRY_TYPE==5 || BOUNDING_GEOMETRY_TYPE==6
 mat4 calculate_transformation_matrix(QTube qTube) {
 
 	vec3 x, y, z;
@@ -1133,6 +1136,20 @@ vec2 project_to_vector(vec2 a, vec2 b) {
 
 void emit_aligned_box_billboard(int segment_idx, QTube qTube) {
 
+	//THESIS2: (David)
+	#if BACKSIDE_DEPTH == 1	
+	{
+		mat4 M = calculate_transformation_matrix(qTube);
+		vec3 center = (get_modelview_matrix() * M[3]).xyz;
+		float lx = length(M[0]);
+		float ly = length(M[1]);
+		float lz = length(M[2]);
+		float radius = 0.5 * length(vec3(lx, ly, lz));
+		bounding_sphere_fs = vec4(center, radius);	
+	}
+	#endif
+
+
 	#if USE_VIEW_SPACE_POSITION > 0 || !(ATTRIB_MODE & 1)
 		const mat4 MV = get_modelview_matrix();
 	#endif
@@ -1422,6 +1439,11 @@ void main()
 #if !(ATTRIB_MODE & 2)
 	color0_fs = packUnorm4x8(vec4(n0.color.rgb, 1.0));
 	color1_fs = packUnorm4x8(vec4(n1.color.rgb, 1.0));
+#endif
+
+//THESIS2: (David)
+#if BACKSIDE_DEPTH == 1
+	bounding_sphere_fs = vec4(0.0);
 #endif
 
 	// only emit geometry if the tube at least partly passes the max_t threshold

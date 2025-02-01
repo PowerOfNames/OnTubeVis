@@ -9,10 +9,18 @@ public:
 	using vec2 = cgv::vec2;
 	using vec3 = cgv::vec3;
 	using vec4 = cgv::vec4;
+	using mat3 = cgv::mat3;
 	using mat4 = cgv::mat4;
 	using box3 = cgv::box3;
 
 private:
+
+	const mat3 M = cgv::mat3{
+		1.0f, -2.0f, 1.0f,
+		0.0f, 2.0f, -2.0f,
+		0.0f, 0.0f, 1.0f
+	};
+
 	vec3 project_to_plane(vec3 vec, vec3 n) const {
 		return vec - n * dot(vec, n) / dot(n, n);
 	}
@@ -268,5 +276,29 @@ public:
 		float radius = eval_poly_d0(res.y(), rc);
 
 		return res.x() - radius;
+	}
+
+	vec3 interpolate(float t) const {
+		vec3 T(1.0f, t, t * t);
+
+		mat3 B;
+		B.set_row(0, a.pos);
+		B.set_row(1, b.pos);
+		B.set_row(2, c.pos);
+
+		return T * M * B;
+	}
+	
+	std::vector<vec3> sample(size_t num_segments) const {
+		num_segments = std::max(num_segments, size_t(1));
+
+		std::vector<vec3> points;
+		float step = 1.0f / static_cast<float>(num_segments);
+		for (size_t i = 0; i <= num_segments; ++i) {
+			float t = step * static_cast<float>(i);
+			points.push_back(interpolate(t));
+		}
+
+		return points;
 	}
 };

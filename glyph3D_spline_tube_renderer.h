@@ -156,6 +156,15 @@ namespace cgv { // @<
 			inline bool is_billboard_pipeline(void) const {
 				return glyph_method == 1;
 			}
+
+			//THESIS2:
+			struct tube_backside_render_parameters {
+				bool cull_frontface;
+				bool use_distance_check;
+				bool clip_caps;
+				float distance_tolerance_factor;
+			};
+			tube_backside_render_parameters tube_backside_render;
 		};
 
 		/// renderer that supports textured cubic hermite spline tubes
