@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cgv/math/functions.h>
-
+#include <cgv/math/fvec.h>
+#include <cgv/math/fmat.h>
+#include <cgv/media/axis_aligned_box.h>
 
 class quadratic_bezier_tube
 {
@@ -15,11 +17,7 @@ public:
 
 private:
 
-	const mat3 M = cgv::mat3{
-		1.0f, -2.0f, 1.0f,
-		0.0f, 2.0f, -2.0f,
-		0.0f, 0.0f, 1.0f
-	};
+	static const mat3 M;
 
 	vec3 project_to_plane(vec3 vec, vec3 n) const {
 		return vec - n * dot(vec, n) / dot(n, n);
@@ -300,5 +298,5 @@ public:
 		}
 
 		return points;
-	}
+	}	
 };

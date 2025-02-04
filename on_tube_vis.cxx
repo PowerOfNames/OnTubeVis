@@ -329,6 +329,11 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 	debug.geometry.nodes.destruct(ctx);
 	debug.geometry.segments.destruct(ctx);
 
+	//THESIS2:
+	render3D.glyphs.spheres.destruct(ctx);
+	render3D.glyphs.cones.destruct(ctx);
+
+
 	shaders.clear(ctx);
 	fbc.destruct(ctx);
 	
@@ -1293,8 +1298,12 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 			success = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);
 			
+			
 			// get context
 			const auto &ctx = *get_context();
+
+			//THESIS2:
+			const size_t ds_index_buffer_base = render.data->datasets[ds_idx].irange.i0;
 
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
 				if(gc.layer_filled[layer_idx]) {
@@ -1305,6 +1314,47 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
 						assert(num_ranges == num_segs);
 					}
+
+
+					//THESIS2:
+					// Only layer 1 should contain glyph information (HACK), other layers reserved for 
+					// compositing/morphing in the future
+					//
+					// Assumption1 from paper "Hermite Spline Tubes VIS2020" -> Segment == Hermite spline
+					// Assumption2 from paper "Advanced Rendering of ... with AO and Transparency" -> min(NodeA_idx, NodeB_idx) / 2.0;
+					if (layer_idx == 0 && render.style.is_billboard_pipeline())
+					{
+						const auto& hermites = render3D.splines;
+						const auto& mat_sToT = render.arclen_data.s_to_t;						
+						const size_t size_per_glyph = attribs.count_of_non_attrib_values + attribs.count;
+						//Range_idx == segID
+						for (size_t range_idx = 0; range_idx < ranges.size(); range_idx++)
+						{
+							const auto& segment = ranges[range_idx];
+							for (size_t glyph_idx = 0; glyph_idx < segment.n; glyph_idx++)
+							{
+								// attribs range over all trajectories of all glyphs in layer
+								// example: (SegStartIdx=0 +glyphInSeg = 1) * 6 -> 6. s is at idx 0, size_per_glyph, 2*size_per_glyph...
+								//THESIS2 TODO: Check if glyphs exists two times at caps
+								const size_t attrib_idx = (segment.i0 + glyph_idx) * size_per_glyph;
+								float glyph_s = attribs.data[attrib_idx];
+								
+								//TEMP: HARDCODED (s = 0 + debug_int + 3 (x,y,z) -> radius)
+
+								float glyph_radius = 0.0f;
+								if(attribs.count > 0)
+									glyph_radius = attribs.data[attrib_idx + 5];
+
+								const uint32_t t = arclen::map(mat_sToT[range_idx], glyph_s);
+
+								//Find spline
+								//THESIS2 TODO: Check if order is correct -> hermites splines are data set independant
+								render3D.glyphs.spheres.add_position(hermites[ds_index_buffer_base + range_idx].interpolate(t));
+								render3D.glyphs.spheres.add_radius(glyph_radius);
+							}
+						}
+					}
+
 
 					// - upload
 					vertex_buffer& attribs_sbo = render.attribs_sbos[layer_idx];
@@ -1392,8 +1442,13 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	shaders.reload(ctx, "tube_shading", tube_shading_defines);
 	//THESIS:
 	shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
+
+
 	//THESIS2:
 	shaders.reload(ctx, "tube_shading_bb", tube_shading_defines);
+
+	render3D.glyphs.spheres.init(ctx);
+	render3D.glyphs.cones.init(ctx);
 
 
 	// init shared attribute array manager
@@ -2471,7 +2526,6 @@ void on_tube_vis::update_attribute_bindings(void) {
 		);
 
 		// Clear range and attribute buffers for glyph layers
-		//TODO THESIS
 		for(size_t i = 0; i < render.aindex_sbos.size(); ++i)
 			render.aindex_sbos[i].destruct(ctx);
 		for(size_t i = 0; i < render.attribs_sbos.size(); ++i)
@@ -2607,6 +2661,12 @@ void on_tube_vis::calculate_bounding_box(void) {
 		auto& radii = render.data->radii;
 		auto& indices = render.data->indices;
 
+		//THESIS2: HACK - safe the splines instead of recalculating them later every time a configuration changes
+		// (would probably not be that bad though)
+		auto& splines = render3D.splines;
+		splines.clear();
+		splines.reserve(indices.size()/2);
+
 		for(unsigned i = 0; i < indices.size(); i += 2) {
 			unsigned idx_a = indices[i + 0];
 			unsigned idx_b = indices[i + 1];
@@ -2620,6 +2680,9 @@ void on_tube_vis::calculate_bounding_box(void) {
 
 			hermite_spline_tube hst = hermite_spline_tube(p0, p1, r0, r1, vec3(t0), vec3(t1), t0.w(), t1.w());
 			bbox.add_axis_aligned_box(hst.bounding_box(true));
+			
+			//THESIS2: HACK
+			splines.emplace_back(std::move(hst));
 		}
 	}
 

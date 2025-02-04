@@ -335,9 +335,6 @@ namespace cgv {
 				p->add_member_control(b, "Cap Clip Distance", rs_ptr->cap_clip_distance, "value_slider", "min=0.0;max=100.0;step=0.01;ticks=true");
 				p->add_member_control(b, "Attribute-Less Mode", rs_ptr->attrib_mode, "dropdown", "enums='Off,No curve data,No node color,Attribute-less'");
 
-				p->add_decorator("", "separator");
-
-
 				if (rs_ptr->is_billboard_pipeline())
 				{
 					if (p->begin_tree_node("Tube Backside Parameters", rs_ptr->tube_backside_render, false)) {
@@ -350,8 +347,6 @@ namespace cgv {
 						p->end_tree_node(rs_ptr->tube_backside_render);
 					}
 				}
-
-				p->add_decorator("", "separator");
 
 
 				p->add_gui("glyph3D_render_style", *static_cast<cgv::render::glyph3D_render_style*>(rs_ptr));

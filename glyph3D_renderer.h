@@ -47,9 +47,7 @@ namespace cgv { // @<
 		class /*CGV_API*/ glyph3D_renderer : public group_renderer
 		{
 		protected:
-			//TODO THESIS
 			bool has_normals;
-			//TODO THESIS
 			bool has_texcoords;
 			bool cull_per_primitive;
 		public:

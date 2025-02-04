@@ -3,7 +3,8 @@
 #include <cgv/math/functions.h>
 
 #include "quadratic_bezier_tube.h"
-
+#include <cgv/math/fvec.h>
+#include <cgv/math/fmat.h>
 
 class hermite_spline_tube {
 public:
@@ -23,13 +24,7 @@ public:
 	node b;
 
 private:
-	const cgv::mat4 M = transpose(
-		cgv::mat4{
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			-3.0f, -2.0f, 3.0f, -1.0f,
-			2.0f, 1.0f, -2.0f, 1.0f
-		});
+	static const cgv::mat4 M;
 
 	template<typename T>
 	void split(unsigned segment_idx, T v0, T d0, T v1, T d1, T& v0_out, T& h_out, T& v1_out) const {
@@ -106,4 +101,5 @@ public:
 
 		return points;
 	}
+
 };

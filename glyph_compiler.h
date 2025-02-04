@@ -291,7 +291,14 @@ protected:
 						// store the new glyph
 						attribs.add(s);
 
+						//THESIS2: Calculate the tube_space position of the glyph
 						const vec3 glyph_pos_tube = { 1.0, 0.5, 1.0 };
+						{
+
+						}
+
+
+
 						attribs.add(glyph_pos_tube);
 						int debug_info = include_glyph ? 0 : 1;
 						attribs.add(*reinterpret_cast<float*>(&debug_info));

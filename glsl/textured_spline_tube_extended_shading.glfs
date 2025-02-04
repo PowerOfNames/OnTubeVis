@@ -154,7 +154,9 @@ layout (std430, binding=B1) readonly buffer ranges_buffer##I { \
 #define DEF_GLYPH_DESC_AND_BUFFERS_WITH_POS(I, N, B0, B1) \
 struct glyph_desc##I { \
 	float s; \
-	vec3 pos_in_tube; \
+	float x; \
+	float y; \
+	float z; \
 	uint debug_info; \
 	float v[N]; \
 }; \
@@ -1878,7 +1880,7 @@ void main()
 						normal_eye = rmr.normal_eye;
 					}
 					//rmr.debug_color = glyph.pos_in_tube;
-					rmr.debug_color = vec3(glyph.s / 100.0, 0.0, 0.0);
+					rmr.debug_color = vec3(glyph.x, glyph.y, glyph.z);
 				}
 		#endif
 

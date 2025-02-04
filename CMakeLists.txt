@@ -115,6 +115,8 @@ set(SOURCES
 	# THESIS:
 	glyph3D_renderer.cxx
 	glyph3D_spline_tube_renderer.cxx
+	quadratic_bezier_tube.cxx
+	hermite_spline_tube.cxx
 )
 # - C/C++ headers
 set(HEADERS

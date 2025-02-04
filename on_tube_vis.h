@@ -393,12 +393,9 @@ protected:
 	void update_glyph_dimension_toggle()
 	{
 		ui_state.dim_toggle.button->set("label", get_glyph_dimension_toggle_label());
-		//THESIS2 TODO: disable/enable based on dimension (or even hide and show
-		//ui_state.tb_toggle.button->("")
 	}
 
-	//THESIS2:
-	// THESIS:
+	// THESIS2:
 	void toggle_glyph_method()
 	{
 		if (render.style.is_tube_surface_pipeline())
@@ -508,6 +505,23 @@ protected:
 		double sort_time_total = 0.0;
 		unsigned num_sorts = 0;
 	} benchmark;
+
+
+	//THESIS2:
+	struct Render3DGlyphComposition
+	{
+		//Glyph renderers
+		struct {
+			cgv::render::sphere_render_data<> spheres;
+			cgv::render::cone_render_data<> cones;
+		} glyphs;
+
+		size_t glyph_count = 0;
+		std::vector<hermite_spline_tube> splines;
+
+	} render3D;
+
+
 
 	/// the different debug render modes
 	enum DebugRenderMode {
@@ -634,6 +648,7 @@ protected:
 	shader_define_map build_tube_shading_defines();
 	void on_register();
 	void create_vec3_gui(const std::string& name, vec3& value, float min = 0.0f, float max = 1.0f);
+
 
 public:
 	on_tube_vis();
