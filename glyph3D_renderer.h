@@ -1,11 +1,11 @@
 #pragma once
 
-#include "group_renderer.h"
+#include <cgv_gl/group_renderer.h>
 //TODO THESIS
 #include <cgv_reflect_types/media/illum/textured_surface_material.h>
 #include <cgv/media/illum/textured_surface_material.h>
 
-#include "gl/lib_begin.h"
+#include <cgv_gl/gl/lib_begin.h>
 
 namespace cgv { // @<
 	namespace render { // @<

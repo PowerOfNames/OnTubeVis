@@ -199,7 +199,7 @@ namespace cgv {
 			}
 		};
 
-#include "gl/lib_begin.h"
+#include <cgv_gl/gl/lib_begin.h>
 
 		/*CGV_API*/ cgv::gui::gui_creator_registration<glyph3D_render_style_gui_creator> glyph3D_rs_gc_reg("glyph3D_render_style_gui_creator");
 
