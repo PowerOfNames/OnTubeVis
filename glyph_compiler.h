@@ -59,7 +59,7 @@ protected:
 
 		float last_glyph_s() const {
 			if(size() > 0)
-				return data[size() - 1 - 1 - count];
+				return data[size() - count_of_non_attrib_values - count];
 			else
 				return 0.0f;
 		}
