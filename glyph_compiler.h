@@ -82,6 +82,7 @@ protected:
 
 		std::vector<irange> ranges;
 		glyph_attributes attribs;
+		std::vector<float> t_segs;
 
 		layer_compile_info(const glyph_shape* shape_ptr) : current_shape(shape_ptr) {}
 		void update_attribute_count() {
@@ -98,6 +99,7 @@ protected:
 		const auto& attribs_trajs = lci.attribs_trajs;
 		auto& ranges = lci.ranges;
 		auto& attribs = lci.attribs;
+		auto& t_segs = lci.t_segs;
 		//THESIS2: Because we insert a vec3, that is not part of the attribs_mappings
 		attribs.count_of_non_attrib_values = 5;
 		const auto& alen = arc_length;
@@ -296,6 +298,7 @@ protected:
 						{
 
 						}
+						t_segs.push_back(t_seg);
 
 
 
@@ -1123,6 +1126,8 @@ protected:
 		layer_filled[layer_idx] = true;
 		layer_ranges[layer_idx] = lci.ranges;
 		layer_attribs[layer_idx] = lci.attribs;
+		layer_t_segs[layer_idx] = lci.t_segs;
+
 	}
 
 	void compile_glyph_attributes_impl(const traj_dataset<float> &data_set, const arclen::parametrization &parametrization, const glyph_layer_manager::configuration &layers_config) {
@@ -1136,6 +1141,7 @@ protected:
 		layer_filled.resize(layer_count, false);
 		layer_ranges.resize(layer_count, std::vector<irange>());
 		layer_attribs.resize(layer_count, glyph_attributes());
+		layer_t_segs.resize(layer_count, {});
 
 		// build seperate range and attribs buffers for each glyph layer
 
@@ -1162,6 +1168,8 @@ public:
 	std::vector<bool> layer_filled;
 	std::vector<std::vector<irange>> layer_ranges;
 	std::vector<glyph_attributes> layer_attribs;
+	std::vector<std::vector<float>> layer_t_segs;
+
 
 	bool include_hidden_glyphs;
 	float length_scale;
@@ -1171,6 +1179,7 @@ public:
 		layer_filled.clear();
 		layer_ranges.clear();
 		layer_attribs.clear();
+		layer_t_segs.clear();
 		if(layers_config.layer_configs.size() > 0) {
 			compile_glyph_attributes_impl(data_set, parametrization, layers_config);
 			success = true;

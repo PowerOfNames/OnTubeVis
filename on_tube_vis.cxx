@@ -1304,7 +1304,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 			//THESIS2:
 			const size_t ds_index_buffer_base = render.data->datasets[ds_idx].irange.i0;
-			const auto& timestamps = render.data->timestamps;
+			//const auto& timestamps = render.data->timestamps;
 			const auto& positions_attrib = dataset.positions().attrib;
 			const auto& trajectories = dataset.trajectories(positions_attrib);
 			const auto& attrib_names = dataset.get_attribute_names();
@@ -1312,6 +1312,8 @@ bool on_tube_vis::compile_glyph_attribs (void)
 				if(gc.layer_filled[layer_idx]) {
 					const auto& ranges = gc.layer_ranges[layer_idx];
 					const auto& attribs = gc.layer_attribs[layer_idx];
+					const auto& t_segs = gc.layer_t_segs[layer_idx];
+
 					// - sanity check
 					{
 						const float num_ranges = (float)ranges.size(), num_segs = float(render.data->indices.size()) / 2;
@@ -1325,12 +1327,14 @@ bool on_tube_vis::compile_glyph_attribs (void)
 					//
 					// Assumption1 from paper "Hermite Spline Tubes VIS2020" -> Segment == Hermite spline
 					// Assumption2 from paper "Advanced Rendering of ... with AO and Transparency" -> min(NodeA_idx, NodeB_idx) / 2.0;
-					if (layer_idx == 0 && render.style.is_billboard_pipeline())
+					if (layer_idx == 0 
+						&& render.style.is_billboard_pipeline()
+						&& !t_segs.empty())
 					{
 						render3D.glyphs.spheres.clear();
 
 						const auto& hermites = render3D.splines;
-						const auto& mat_sToTs = render.arclen_data.s_to_t;					
+						//const auto& mat_sToTs = render.arclen_data.s_to_t;					
 						const size_t size_per_glyph = attribs.count_of_non_attrib_values + attribs.count;
 
 						//s=0, debug=1, radius=2 (for spheres) -> TODO: use attrib mapping for this
@@ -1347,25 +1351,26 @@ bool on_tube_vis::compile_glyph_attribs (void)
 							{
 								const uint32_t global_segment_idx = trajectory_offset + segment_idx;
 								const auto& segment = ranges[global_segment_idx];
-								const auto& mat_sToT = mat_sToTs[global_segment_idx];
+								//const auto& mat_sToT = mat_sToTs[global_segment_idx];
 
-								const auto& segment_t = segment_time_get(positions_attrib, tube, segment_idx);
+								//const auto& segment_t = segment_time_get(positions_attrib, tube, segment_idx);
 								for (size_t glyph_idx = 0; glyph_idx < segment.n; glyph_idx++)
 								{
 									//THESIS2 TODO: Check if glyphs exists two times at caps
 									const size_t attrib_base_idx = (segment.i0 + glyph_idx) * size_per_glyph;
 
-									const float glyph_s = attribs.data[attrib_base_idx];
+									//const float glyph_s = attribs.data[attrib_base_idx];
 									//TODO: Attribute MinMax Mapping does not apply for these attributes ((clamp)remap happens inside shaders) -> x0.4
 									const float glyph_radius = attribs.count > 0 ? attribs.data[attrib_base_idx + attrib_radius_idx] * 0.4f : 0.0f;
 									
 									//Get t from s and renormalize to segment local (0..1)
-									const float t = arclen::map(mat_sToT, segment.n, (last_s - glyph_s) / glyph_count);
-
+									//const float t = arclen::map(mat_sToT, segment.n, (last_s - glyph_s) / glyph_count);
+																	
+									const float	t = t_segs[segment.i0 + glyph_idx];
 									//THESIS2 TODO: 		-> Pos & ... Create interface to Gui to check which glyphs should be filled with data and rendered:
 									render3D.glyphs.spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));									
-									//		Sphere			-> ... & Radius (needed in GS)							| (Color via glyph_attribs buffer in comp FS)
-									//		Ellipsoid		-> ... & Radii & Orientation (quat)						| (Color via glyph_attribs buffer in comp FS)
+									//		Sphere			-> ... & Radius							(needed in GS)	| (Color via glyph_attribs buffer in comp FS)
+									//		Ellipsoid		-> ... & Radii & Orientation (quat)		(needed in GS)	| (Color via glyph_attribs buffer in comp FS)
 									//		Cylinder+Cone	-> ... & Orientation (quat) & Magnitude (needed in GS)	| (Color via glyph_attribs buffer in comp FS)
 									render3D.glyphs.spheres.add_radius(glyph_radius);
 								}
@@ -2900,8 +2905,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		else
 			tstr.render(ctx, 0, count);*/
 
-		render3D.glyphs.spheres.render(ctx);
-
 		tstr.disable_attribute_array_manager(ctx, render.aam);
 
 		// disable the drawing framebuffer
@@ -3060,6 +3063,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 			fbc.disable_attachment(ctx, "glyph_center");
 
 		prog.disable(ctx);
+
+		//THESIS2: Render glyphs
+		render3D.glyphs.spheres.render(ctx);
+
 
 		if(playback.active)
 			post_redraw();
