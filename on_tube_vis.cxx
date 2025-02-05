@@ -1304,7 +1304,6 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 			//THESIS2:
 			const size_t ds_index_buffer_base = render.data->datasets[ds_idx].irange.i0;
-			//const auto& timestamps = render.data->timestamps;
 			const auto& positions_attrib = dataset.positions().attrib;
 			const auto& trajectories = dataset.trajectories(positions_attrib);
 			const auto& attrib_names = dataset.get_attribute_names();
@@ -1334,7 +1333,6 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						render3D.glyphs.spheres.clear();
 
 						const auto& hermites = render3D.splines;
-						//const auto& mat_sToTs = render.arclen_data.s_to_t;					
 						const size_t size_per_glyph = attribs.count_of_non_attrib_values + attribs.count;
 
 						//s=0, debug=1, radius=2 (for spheres) -> TODO: use attrib mapping for this
@@ -1351,21 +1349,15 @@ bool on_tube_vis::compile_glyph_attribs (void)
 							{
 								const uint32_t global_segment_idx = trajectory_offset + segment_idx;
 								const auto& segment = ranges[global_segment_idx];
-								//const auto& mat_sToT = mat_sToTs[global_segment_idx];
 
-								//const auto& segment_t = segment_time_get(positions_attrib, tube, segment_idx);
 								for (size_t glyph_idx = 0; glyph_idx < segment.n; glyph_idx++)
 								{
 									//THESIS2 TODO: Check if glyphs exists two times at caps
 									const size_t attrib_base_idx = (segment.i0 + glyph_idx) * size_per_glyph;
 
-									//const float glyph_s = attribs.data[attrib_base_idx];
 									//TODO: Attribute MinMax Mapping does not apply for these attributes ((clamp)remap happens inside shaders) -> x0.4
 									const float glyph_radius = attribs.count > 0 ? attribs.data[attrib_base_idx + attrib_radius_idx] * 0.4f : 0.0f;
 									
-									//Get t from s and renormalize to segment local (0..1)
-									//const float t = arclen::map(mat_sToT, segment.n, (last_s - glyph_s) / glyph_count);
-																	
 									const float	t = t_segs[segment.i0 + glyph_idx];
 									//THESIS2 TODO: 		-> Pos & ... Create interface to Gui to check which glyphs should be filled with data and rendered:
 									render3D.glyphs.spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));									
