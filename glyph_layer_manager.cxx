@@ -56,7 +56,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			std::string glyph_outline_str = "0.0";
 			std::string glyph_windowed_size_str = "0.0";
 
-			// We only allow one 3D glyph type. Other layers are for now reserved for morphing functions.
+			// We only allow one 3D glyph type. Other layers are for now reserved for morphing/composition functions.
 			const bool glyph_is_3D = static_cast<uint32_t>(shape_ptr->type()) >= static_cast<uint32_t>(GlyphType::GT_FIRST_3D) && i == 0;
 			
 			// should maybe be a modifiable renderer uniform!
@@ -319,7 +319,7 @@ void glyph_layer_manager::create_gui(cgv::base::base* bp, cgv::gui::provider& p)
 			else
 			{
 				//THESIS2:
-				gam.set_sampling_strategy(ASS_AT_SAMPLES_WITH_POS);
+				gam.set_sampling_strategy(ASS_3D_GLYPHS_AT_SAMPLES);
 				gam.create_glyph3D_gui(this, p);
 			}
 

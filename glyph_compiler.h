@@ -92,15 +92,15 @@ protected:
 	};
 
 	// generate a glyph at every attribute sample location (interpolates attributes if more than one is mapped in this layer)
-	void compile_glyphs_front_at_samples_with_pos(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
+	void compile_glyphs_3D_front_at_samples(const traj_attribute<float>& P, const std::vector<range>& tube_trajs, const std::vector<mat4>& arc_length, const glyph_layer_manager::configuration::layer_configuration& layer_config, layer_compile_info& lci) {
 		// convenience shorthands
 		const size_t attrib_count = lci.attrib_count;
 		const auto& mapped_attribs = lci.mapped_attribs;
 		const auto& attribs_trajs = lci.attribs_trajs;
 		auto& ranges = lci.ranges;
 		auto& attribs = lci.attribs;
-		auto& t_segs = lci.t_segs;
 		//THESIS2: Because we insert a vec3, that is not part of the attribs_mappings
+		auto& t_segs = lci.t_segs;
 		attribs.count_of_non_attrib_values = 5;
 		const auto& alen = arc_length;
 
@@ -295,9 +295,6 @@ protected:
 
 						//THESIS2: Calculate the tube_space position of the glyph
 						const vec3 glyph_pos_tube = { 1.0, 0.5, 1.0 };
-						{
-
-						}
 						t_segs.push_back(t_seg);
 
 
@@ -1116,8 +1113,8 @@ protected:
 			case ASS_AT_SAMPLES:
 				compile_glyphs_front_at_samples(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
 				break;
-			case ASS_AT_SAMPLES_WITH_POS:			
-				compile_glyphs_front_at_samples_with_pos(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
+			case ASS_3D_GLYPHS_AT_SAMPLES:			
+				compile_glyphs_3D_front_at_samples(P, tube_trajs, parametrization.t_to_s, layer_config, lci);
 				break;
 			default:
 				/* DoNothing() */;
@@ -1126,6 +1123,7 @@ protected:
 		layer_filled[layer_idx] = true;
 		layer_ranges[layer_idx] = lci.ranges;
 		layer_attribs[layer_idx] = lci.attribs;
+		//THESIS2:
 		layer_t_segs[layer_idx] = lci.t_segs;
 
 	}
@@ -1141,6 +1139,7 @@ protected:
 		layer_filled.resize(layer_count, false);
 		layer_ranges.resize(layer_count, std::vector<irange>());
 		layer_attribs.resize(layer_count, glyph_attributes());
+		//THESIS2:
 		layer_t_segs.resize(layer_count, {});
 
 		// build seperate range and attribs buffers for each glyph layer
@@ -1168,6 +1167,7 @@ public:
 	std::vector<bool> layer_filled;
 	std::vector<std::vector<irange>> layer_ranges;
 	std::vector<glyph_attributes> layer_attribs;
+	//THESIS2:
 	std::vector<std::vector<float>> layer_t_segs;
 
 
@@ -1179,6 +1179,7 @@ public:
 		layer_filled.clear();
 		layer_ranges.clear();
 		layer_attribs.clear();
+		//THESIS2:
 		layer_t_segs.clear();
 		if(layers_config.layer_configs.size() > 0) {
 			compile_glyph_attributes_impl(data_set, parametrization, layers_config);

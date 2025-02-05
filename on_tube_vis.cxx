@@ -31,7 +31,6 @@
 
 // Local includes
 #include "arclen_helper.h"
-#include "glyph_compiler.h"
 #ifdef RTX_SUPPORT
 #include "cuda/optix_interface.h"
 
@@ -1296,21 +1295,16 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 			const auto &dataset = traj_mgr.dataset(0);
 
-			success = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);
-			
+			success = gc.compile_glyph_attributes(dataset, render.arclen_data, ds_config.config);			
 			
 			// get context
 			const auto &ctx = *get_context();
 
-			//THESIS2:
-			const size_t ds_index_buffer_base = render.data->datasets[ds_idx].irange.i0;
-			const auto& positions_attrib = dataset.positions().attrib;
-			const auto& trajectories = dataset.trajectories(positions_attrib);
-			const auto& attrib_names = dataset.get_attribute_names();
 			for(size_t layer_idx = 0; layer_idx < gc.layer_filled.size(); ++layer_idx) {
 				if(gc.layer_filled[layer_idx]) {
 					const auto& ranges = gc.layer_ranges[layer_idx];
 					const auto& attribs = gc.layer_attribs[layer_idx];
+					//THESIS2:
 					const auto& t_segs = gc.layer_t_segs[layer_idx];
 
 					// - sanity check
@@ -1322,52 +1316,12 @@ bool on_tube_vis::compile_glyph_attribs (void)
 
 					//THESIS2:
 					// Only layer 1 should contain glyph information (HACK), other layers reserved for 
-					// compositing/morphing in the future
-					//
-					// Assumption1 from paper "Hermite Spline Tubes VIS2020" -> Segment == Hermite spline
-					// Assumption2 from paper "Advanced Rendering of ... with AO and Transparency" -> min(NodeA_idx, NodeB_idx) / 2.0;
+					// compositing/morphing in the future					
 					if (layer_idx == 0 
 						&& render.style.is_billboard_pipeline()
 						&& !t_segs.empty())
 					{
-						render3D.glyphs.spheres.clear();
-
-						const auto& hermites = render3D.splines;
-						const size_t size_per_glyph = attribs.count_of_non_attrib_values + attribs.count;
-
-						//s=0, debug=1, radius=2 (for spheres) -> TODO: use attrib mapping for this
-						const size_t attrib_radius_idx = attribs.count_of_non_attrib_values + 0;
-
-						const uint32_t glyph_count = attribs.glyph_count();
-						const float last_s = attribs.last_glyph_s();
-						//Range_idx == segID
-						for (size_t trj_idx = 0; trj_idx < trajectories.size(); trj_idx++)
-						{
-							const auto& tube = trajectories[trj_idx];
-							const uint32_t trajectory_offset = tube.i0 - trj_idx;
-							for (size_t segment_idx = 0; segment_idx < tube.n-1; segment_idx++)
-							{
-								const uint32_t global_segment_idx = trajectory_offset + segment_idx;
-								const auto& segment = ranges[global_segment_idx];
-
-								for (size_t glyph_idx = 0; glyph_idx < segment.n; glyph_idx++)
-								{
-									//THESIS2 TODO: Check if glyphs exists two times at caps
-									const size_t attrib_base_idx = (segment.i0 + glyph_idx) * size_per_glyph;
-
-									//TODO: Attribute MinMax Mapping does not apply for these attributes ((clamp)remap happens inside shaders) -> x0.4
-									const float glyph_radius = attribs.count > 0 ? attribs.data[attrib_base_idx + attrib_radius_idx] * 0.4f : 0.0f;
-									
-									const float	t = t_segs[segment.i0 + glyph_idx];
-									//THESIS2 TODO: 		-> Pos & ... Create interface to Gui to check which glyphs should be filled with data and rendered:
-									render3D.glyphs.spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));									
-									//		Sphere			-> ... & Radius							(needed in GS)	| (Color via glyph_attribs buffer in comp FS)
-									//		Ellipsoid		-> ... & Radii & Orientation (quat)		(needed in GS)	| (Color via glyph_attribs buffer in comp FS)
-									//		Cylinder+Cone	-> ... & Orientation (quat) & Magnitude (needed in GS)	| (Color via glyph_attribs buffer in comp FS)
-									render3D.glyphs.spheres.add_radius(glyph_radius);
-								}
-							}
-						}
+						calculate_glyph3D_tube_space_positions(dataset, ds_idx, gc, layer_idx);
 					}
 
 
@@ -1398,6 +1352,66 @@ bool on_tube_vis::compile_glyph_attribs (void)
 	}
 
 	return success;
+}
+
+//THESIS2:
+void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<float>& dataset, size_t ds_idx, const glyph_compiler& gc, size_t layer_idx)
+{	
+	// Assumption1 from paper "Hermite Spline Tubes VIS2020" -> Segment == Hermite spline
+	// Assumption2 from paper "Advanced Rendering of ... with AO and Transparency" -> min(NodeA_idx, NodeB_idx) / 2.0;
+
+	cgv::utils::stopwatch s(true);
+	std::cout << "Computing glyph3D tube space positions for dataset " << ds_idx << " '" << dataset.name() << "'... ";
+
+	const size_t ds_index_buffer_base = render.data->datasets[ds_idx].irange.i0;
+	const auto& positions_attrib = dataset.positions().attrib;
+	const auto& trajectories = dataset.trajectories(positions_attrib);
+	const auto& attrib_names = dataset.get_attribute_names();
+
+	const auto& ranges = gc.layer_ranges[layer_idx];
+	const auto& attribs = gc.layer_attribs[layer_idx];
+	const auto& t_segs = gc.layer_t_segs[layer_idx];
+
+	render3D.glyphs.spheres.clear();
+
+	const auto& hermites = render3D.splines;
+	const size_t size_per_glyph = attribs.count_of_non_attrib_values + attribs.count;
+
+	//s=0, debug=1, radius=2 (for spheres) -> TODO: use attrib mapping for this
+	const size_t attrib_radius_idx = attribs.count_of_non_attrib_values + 0;
+
+	const uint32_t glyph_count = attribs.glyph_count();
+	const float last_s = attribs.last_glyph_s();
+	//Range_idx == segID
+	for (size_t trj_idx = 0; trj_idx < trajectories.size(); trj_idx++)
+	{
+		const auto& tube = trajectories[trj_idx];
+		const uint32_t trajectory_offset = tube.i0 - trj_idx;
+		for (size_t segment_idx = 0; segment_idx < tube.n - 1; segment_idx++)
+		{
+			const uint32_t global_segment_idx = trajectory_offset + segment_idx;
+			const auto& segment = ranges[global_segment_idx];
+
+			for (size_t glyph_idx = 0; glyph_idx < segment.n; glyph_idx++)
+			{
+				//THESIS2 TODO: Check if glyphs exists two times at caps
+				const size_t attrib_base_idx = (segment.i0 + glyph_idx) * size_per_glyph;
+
+				//TODO: Attribute MinMax Mapping does not apply for these attributes ((clamp)remap happens inside shaders) -> x0.4
+				const float glyph_radius = attribs.count > 0 ? attribs.data[attrib_base_idx + attrib_radius_idx] * 0.1f : 0.0f;
+
+				const float	t = t_segs[segment.i0 + glyph_idx];
+				//THESIS2 TODO: 		-> Pos & ... Create interface to Gui to check which glyphs should be filled with data and rendered:
+				render3D.glyphs.spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
+				//		Sphere			-> ... & Radius							(needed in GS)	| (Color via glyph_attribs buffer in comp FS)
+				//		Ellipsoid		-> ... & Radii & Orientation (quat)		(needed in GS)	| (Color via glyph_attribs buffer in comp FS)
+				//		Cylinder+Cone	-> ... & Orientation (quat) & Magnitude (needed in GS)	| (Color via glyph_attribs buffer in comp FS)
+				render3D.glyphs.spheres.add_radius(glyph_radius);
+			}
+		}
+	}
+
+	std::cout << "Glyph3D tube space position done (" << s.get_elapsed_time() << "s)" << std::endl;
 }
 
 bool on_tube_vis::init (cgv::render::context &ctx)

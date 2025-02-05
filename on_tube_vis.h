@@ -49,6 +49,7 @@
 #include "glyph3D_spline_tube_renderer.h"
 #include "color_map_viewer.h"
 #include "mapping_legend.h"
+#include "glyph_compiler.h"
 #ifdef RTX_SUPPORT
 #include "optix_integration.h"
 #include "optixtracer_textured_spline_tube.h"
@@ -626,6 +627,8 @@ protected:
 	void update_glyph_layer_managers(void);
 	void glyphs_out_of_date(bool state);
 	bool compile_glyph_attribs(void);
+	void calculate_glyph3D_tube_space_positions(const traj_dataset<float>& dataset, size_t ds_idx, const glyph_compiler& gc, size_t layer_idx);
+
 	double change_time = 0.0;
 	double recalc_delay = 0.2;
 	bool has_changed = false;

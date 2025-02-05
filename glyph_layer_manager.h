@@ -46,6 +46,8 @@ public:
 			std::vector<int> mapped_attributes;
 			std::vector<glyph_mapping_triple> glyph_mapping_parameters;
 			std::string glyph_definition = "";
+
+			//THESIS:
 			std::string glyph_sdf_definition = "";
 			std::string glyph_surface_grad_definition = "";
 		};

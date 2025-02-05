@@ -24,7 +24,7 @@ enum AttributeSamplingStrategy {
 	ASS_EQUIDIST,
 	ASS_AT_SAMPLES,
 	//THESIS2:
-	ASS_AT_SAMPLES_WITH_POS
+	ASS_3D_GLYPHS_AT_SAMPLES
 };
 
 class glyph_attribute_mapping {
