@@ -65,6 +65,7 @@ struct glyph_attribute {
 	GlyphAttributeType type;
 	GlyphAttributeModifier modifiers = GAM_NONE;
 	GuiHint gui_hint = GH_NONE;
+	bool is_present = false;
 
 	glyph_attribute(std::string name, GlyphAttributeType type) : name(name), type(type) {}
 	glyph_attribute(std::string name, GlyphAttributeType type, GlyphAttributeModifier modifiers) : name(name), type(type), modifiers(modifiers) {}
@@ -93,6 +94,16 @@ public:
 		for(size_t i = 0; i < supported_attributes().size(); ++i)
 			if(supported_attributes()[i].type != GAT_COLOR) ++n;
 		return n;
+	}
+
+	//THESIS2:
+	virtual int32_t get_attrib_index(const std::string attrib_name) const {
+		for (int32_t i = 0; i < supported_attributes().size(); i++)
+		{
+			if (supported_attributes()[i].name == attrib_name)
+				return i;
+		}
+		return -1;
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
@@ -539,6 +550,7 @@ public:
 };
 
 //THESIS:
+//THESIS2 DISCLAIMER:
 class sphere_glyph : public glyph_shape {
 public:
 	virtual sphere_glyph* copy() const {
@@ -586,11 +598,15 @@ public:
 		static const attribute_list attributes = {
 			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "Vector", GAT_COMPOSITE_3 },
-			{ "length", GAT_SIZE, GAM_COMPOSITE_ELEMENT },
-			{ "pitch", GAT_ANGLE, GAM_COMPOSITE_ELEMENT },
-			{ "yaw", GAT_ANGLE, GAM_COMPOSITE_ELEMENT },
-			{ "scale", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START }
+			/*{ "Vector", GAT_COMPOSITE_3 },*/
+			{ "magnitude", GAT_SIZE/*, GAM_COMPOSITE_ELEMENT*/ },
+			{ "ori_0", GAT_SIGNED_UNIT },
+			{ "ori_i", GAT_SIGNED_UNIT },
+			{ "ori_j", GAT_SIGNED_UNIT },
+			{ "ori_k", GAT_SIGNED_UNIT },
+			{ "pitch", GAT_ANGLE },
+			{ "yaw", GAT_ANGLE },
+			{ "roll", GAT_ANGLE }
 		};
 		return attributes;
 	}
@@ -618,9 +634,13 @@ public:
 		static const attribute_list attributes = {
 			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius1", GAT_SIZE },
+			{ "radius", GAT_SIZE },
 			{ "radius2", GAT_SIZE },
 			{ "radius3", GAT_SIZE },
+			{ "ori_0", GAT_SIGNED_UNIT },
+			{ "ori_i", GAT_SIGNED_UNIT },
+			{ "ori_j", GAT_SIGNED_UNIT },
+			{ "ori_k", GAT_SIGNED_UNIT },
 			{ "pitch", GAT_ANGLE },
 			{ "yaw", GAT_ANGLE },
 			{ "roll", GAT_ANGLE }

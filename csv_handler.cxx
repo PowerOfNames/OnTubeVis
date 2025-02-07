@@ -445,7 +445,11 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		{"radius3", {"ID", false, 1}},
 		{"angle1", {"ID", false, 1}},
 		{"angle2", {"ID", false, 1}},
-		{"angle3", {"ID", false, 1}}
+		{"angle3", {"ID", false, 1}},
+		{"ori_0", {"ID", false, 1}},
+		{"ori_i", {"ID", false, 1}},
+		{"ori_j", {"ID", false, 1}},
+		{"ori_k", {"ID", false, 1}}
 	};
 	bool is_tensor_contained = false;
 	if (impl.csv_desc.name().compare("Diffusion Tensor Debug") == 0)
@@ -521,8 +525,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		//THESIS:
 		bool performed_tensor_jacobi = false;
 		cgv::math::fmat<float, 3, 3> eigenvectors;
-		cgv::math::fvec<float, 3> permutationVector; // For order
-		
+		cgv::math::quaternion<float> eigen_quat;
 		cgv::math::fvec<float, 3> eigenvalues;
 		cgv::math::fvec<float, 3> angles;
 
@@ -582,6 +585,26 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 						else if (attrib.desc.name == "angle3")
 						{ 
 							a.template get_data<real>().append(std::move(angles[2]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "ori_0")
+						{
+							a.template get_data<real>().append(std::move(eigen_quat[0]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "ori_i")
+						{
+							a.template get_data<real>().append(std::move(eigen_quat[1]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "ori_j")
+						{
+							a.template get_data<real>().append(std::move(eigen_quat[2]), (real)t_mod);
+							continue;
+						}
+						else if (attrib.desc.name == "ori_k")
+						{
+							a.template get_data<real>().append(std::move(eigen_quat[3]), (real)t_mod);
 							continue;
 						}
 					}
@@ -659,11 +682,17 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 						// map as a way of caching, to reduce overhead for equal (potentially similar) tensors
 						// which would result in indistinguishable ellipsoids
 						cgv::math::fmat<float, 3, 3> matCopy = tensorMatrix;
-						JacobiEigen::JacobiEigen(matCopy, eigenvectors, eigenvalues, permutationVector);
-						JacobiEigen::PrintMatrix(matCopy);
+						JacobiEigen::JacobiEigen(matCopy, eigenvectors, eigenvalues);
+						//JacobiEigen::PrintMatrix(matCopy);
 						JacobiEigen::NormalizeEigenvectors(eigenvectors);
 						eigenvalues.normalize();
+						for (uint32_t i = 0; i < 3; i++)
+						{
+							std::printf("Eigenvalue %i: %f; Eigenvector: (%f, %f, %f)\n", i, eigenvalues[i], eigenvectors(i, 0), eigenvectors(i, 1), eigenvectors(i, 2));
+						}
 						JacobiEigen::CalculateAnglesFromEigenVectors(eigenvectors, angles);
+						eigen_quat = JacobiEigen::CalculateQuaternionFromEigenVectors(eigenvectors);
+						//JacobiEigen::PrintQuaternion(eigen_quat);
 						performed_tensor_jacobi = true;
 					}
 					

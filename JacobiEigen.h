@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cgv/math/fmat.h>
+#include <cgv/math/quaternion.h>
 #include <math.h>
 
 namespace JacobiEigen {
@@ -26,7 +27,7 @@ namespace JacobiEigen {
 	}
 	//THESIS: (from chatGPT, but with adjustment to the theta calculation (switch to matrix(q,q) - matrix(p,p) from matrix(p,p) - matrix(q,q) because of colum-major order) and equivalent
 	//			for the eigenvector rotation
-	static void JacobiRotation(cgv::math::fmat<float, 3, 3>& matrix, cgv::math::fmat<float, 3, 3>& eigenvectors, uint32_t p, uint32_t q, cgv::math::fvec<float, 3>& permutationVector)
+	static void JacobiRotation(cgv::math::fmat<float, 3, 3>& matrix, cgv::math::fmat<float, 3, 3>& eigenvectors, uint32_t p, uint32_t q)
 	{
 		if (fabs(matrix(p, q)) < EPSILON) return; // Already close to zero
 
@@ -102,7 +103,7 @@ namespace JacobiEigen {
 		}
 	}
 	//THESIS: (from chatGPT)	
-	static void JacobiEigen(cgv::math::fmat<float, 3, 3>& matrix, cgv::math::fmat<float, 3, 3>& eigenvectors, cgv::math::fvec<float, 3>& eigenvalues, cgv::math::fvec<float, 3>& permutationVector)
+	static void JacobiEigen(cgv::math::fmat<float, 3, 3>& matrix, cgv::math::fmat<float, 3, 3>& eigenvectors, cgv::math::fvec<float, 3>& eigenvalues)
 	{
 		//Eigenvector initialization to identity matrix
 		for (int i = 0; i < 3; ++i) {
@@ -115,7 +116,7 @@ namespace JacobiEigen {
 		for (int iter = 0; iter < 100; ++iter) {
 			auto [p, q] = FindLargestOffDiagonal(matrix);
 			if (fabs(matrix(p, q)) < EPSILON) break; // Converged
-			JacobiRotation(matrix, eigenvectors, p, q, permutationVector);
+			JacobiRotation(matrix, eigenvectors, p, q);
 			//PrintMatrix(matrix);
 		}
 
@@ -152,6 +153,16 @@ namespace JacobiEigen {
 
 		//std::printf("Yaw: %f; Pitch: %f; Roll: %f \n", angles[0], angles[1], angles[2]);
 		//std::printf("Yaw: %f; Pitch: %f; Roll: %f \n", (angles[0] * 180.0) / PI, (angles[1] * 180.0) / PI, (angles[2] * 180.0) / PI);
+	}
+
+	static cgv::math::quaternion<float> CalculateQuaternionFromEigenVectors(cgv::math::fmat<float, 3, 3>& eigenvectors)
+	{
+		return cgv::math::quaternion<float>(eigenvectors);
+	}
+
+	static void PrintQuaternion(cgv::math::quaternion<float> quat)
+	{
+		std::printf("Eigen-Quaternion: r:%f, i:%f, j:%f, k:%f \n", quat[0], quat[1], quat[2], quat[3]);
 	}
 
 }

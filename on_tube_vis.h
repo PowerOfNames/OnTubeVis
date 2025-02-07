@@ -20,6 +20,7 @@
 #include <cgv_gl/cone_render_data.h>
 #include <cgv_gl/sphere_render_data.h>
 #include <cgv_gl/volume_renderer.h>
+#include <cgv_gl/ellipsoid_render_data.h>
 
 // CGV framework application utility
 #include <cgv_app/application_plugin.h>
@@ -515,6 +516,7 @@ protected:
 		struct {
 			cgv::render::sphere_render_data<> spheres;
 			cgv::render::cone_render_data<> cones;
+			cgv::render::ellipsoid_render_data<> ellipsoids;
 		} glyphs;
 
 		size_t glyph_count = 0;
@@ -627,7 +629,13 @@ protected:
 	void update_glyph_layer_managers(void);
 	void glyphs_out_of_date(bool state);
 	bool compile_glyph_attribs(void);
-	void calculate_glyph3D_tube_space_positions(const traj_dataset<float>& dataset, size_t ds_idx, const glyph_compiler& gc, size_t layer_idx);
+	void calculate_glyph3D_tube_space_positions(
+		const traj_dataset<float>& dataset, 
+		size_t ds_idx, 
+		const glyph_compiler& gc, 
+		size_t layer_idx, 
+		const glyph_layer_manager::configuration::layer_configuration& layer_config
+	);
 
 	double change_time = 0.0;
 	double recalc_delay = 0.2;

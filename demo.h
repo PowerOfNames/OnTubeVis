@@ -533,13 +533,16 @@ struct demo : public traj_format_handler<float>
 				cgv::math::fmat<float, 3, 3> matCopy = attrib.value;
 				cgv::math::fmat<float, 3, 3> eigenvectors;
 				cgv::math::fvec<float, 3> eigenvalues;
-				cgv::math::fvec<float, 3> permutationVector;
-				JacobiEigen::JacobiEigen(matCopy, eigenvectors, eigenvalues, permutationVector);
+				JacobiEigen::JacobiEigen(matCopy, eigenvectors, eigenvalues);
 				//JacobiEigen::PrintMatrix(matCopy);
 				cgv::math::fvec<float, 3> angles;
 				JacobiEigen::NormalizeEigenvectors(eigenvectors);
 				eigenvalues.normalize();
 				JacobiEigen::CalculateAnglesFromEigenVectors(eigenvectors, angles);
+				const auto& eigen_quat = JacobiEigen::CalculateQuaternionFromEigenVectors(eigenvectors);
+				//JacobiEigen::PrintQuaternion(eigen_quat);
+
+
 				/*for (uint32_t i = 0; i < 3; i++)
 				{
 					std::printf("Eigenvalue %i: %f; Eigenvector: (%f, %f, %f)\n", i, eigenvalues[i], eigenvectors(i, 0), eigenvectors(i, 1), eigenvectors(i, 2));

@@ -331,6 +331,7 @@ void on_tube_vis::clear(cgv::render::context &ctx) {
 	//THESIS2:
 	render3D.glyphs.spheres.destruct(ctx);
 	render3D.glyphs.cones.destruct(ctx);
+	render3D.glyphs.ellipsoids.destruct(ctx);
 
 
 	shaders.clear(ctx);
@@ -1321,7 +1322,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 						&& render.style.is_billboard_pipeline()
 						&& !t_segs.empty())
 					{
-						calculate_glyph3D_tube_space_positions(dataset, ds_idx, gc, layer_idx);
+						calculate_glyph3D_tube_space_positions(dataset, ds_idx, gc, layer_idx, ds_config.config.layer_configs[layer_idx]);
 					}
 
 
@@ -1355,7 +1356,7 @@ bool on_tube_vis::compile_glyph_attribs (void)
 }
 
 //THESIS2:
-void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<float>& dataset, size_t ds_idx, const glyph_compiler& gc, size_t layer_idx)
+void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<float>& dataset, size_t ds_idx, const glyph_compiler& gc, size_t layer_idx, const glyph_layer_manager::configuration::layer_configuration& layer_config)
 {	
 	// Assumption1 from paper "Hermite Spline Tubes VIS2020" -> Segment == Hermite spline
 	// Assumption2 from paper "Advanced Rendering of ... with AO and Transparency" -> min(NodeA_idx, NodeB_idx) / 2.0;
@@ -1366,19 +1367,58 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	const size_t ds_index_buffer_base = render.data->datasets[ds_idx].irange.i0;
 	const auto& positions_attrib = dataset.positions().attrib;
 	const auto& trajectories = dataset.trajectories(positions_attrib);
-	const auto& attrib_names = dataset.get_attribute_names();
+	//const auto& attrib_names = dataset.get_attribute_names();	
+	const auto& mapping = layer_config.glyph_mapping_parameters;
+	const auto& glyph_attrib_idx_to_buffer_idx = layer_config.mapped_attribs_idx_to_buffer_idx;
+	const GlyphType glyph_type = layer_config.shape_ptr->type();
 
 	const auto& ranges = gc.layer_ranges[layer_idx];
 	const auto& attribs = gc.layer_attribs[layer_idx];
 	const auto& t_segs = gc.layer_t_segs[layer_idx];
 
-	render3D.glyphs.spheres.clear();
+	auto& spheres = render3D.glyphs.spheres;
+	auto& ellipsoids = render3D.glyphs.ellipsoids;
+	auto& cones = render3D.glyphs.cones;
+
+	spheres.clear();
+	cones.clear();
+	ellipsoids.clear();
+
+	if (!attribs.count || glyph_attrib_idx_to_buffer_idx.empty())
+		return;
 
 	const auto& hermites = render3D.splines;
 	const size_t size_per_glyph = attribs.count_of_non_attrib_values + attribs.count;
 
-	//s=0, debug=1, radius=2 (for spheres) -> TODO: use attrib mapping for this
-	const size_t attrib_radius_idx = attribs.count_of_non_attrib_values + 0;
+	//The following is hardcoded until better solution is found if time is left:
+	//Always included in glyphs: s (idx = 0), debug_info (1)
+	//Included when 3D billboard glyph method enabled: Pos x(2), y(3), z(4)
+	//We do the check if the needed parameter is present via strings, which is far from ideal, for now. It would be better to introduce a flag (boolean - isPresent)
+	//and set that inside glyph_shapes.h glyph description via the glyph_layer_manager. The check here then retrieves the flags value from the shape_ptr of layer_config.
+	const auto find_buffer_idx = [this](const std::unordered_map<uint32_t, uint32_t>& idx_to_idx, const std::string& attrib_name, const glyph_shape* glyph, uint32_t base_idx) {
+		//Check if parameter is present in current glyph:
+		const int32_t glyph_attrib_idx = glyph->get_attrib_index(attrib_name);
+		//check if glyph parameter was set as attribute in the buffer and get its index
+		bool found = idx_to_idx.find(glyph_attrib_idx) != idx_to_idx.end();
+		//Set attrib_idx
+		return found ? base_idx + idx_to_idx.at(glyph_attrib_idx) : 0; //return 0.0 -> s | return 1 -> debug_int -> choose 0 -> potential check and set to default value if idx == 0
+		};
+
+	const uint32_t last_nonmapped_attrib_idx = attribs.count_of_non_attrib_values; // this should be the debug_int value (as float)
+
+	const uint32_t radius_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius2_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius2", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius3_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius3", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+
+	const uint32_t cone_magnitude_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "magnitude", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+
+	const uint32_t orientation_0_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_0", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t orientation_i_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_i", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t orientation_j_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_j", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t orientation_k_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_k", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	
+
+	// ---- hardcoded section end
 
 	const uint32_t glyph_count = attribs.glyph_count();
 	const float last_s = attribs.last_glyph_s();
@@ -1394,19 +1434,49 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 
 			for (size_t glyph_idx = 0; glyph_idx < segment.n; glyph_idx++)
 			{
-				//THESIS2 TODO: Check if glyphs exists two times at caps
 				const size_t attrib_base_idx = (segment.i0 + glyph_idx) * size_per_glyph;
 
-				//TODO: Attribute MinMax Mapping does not apply for these attributes ((clamp)remap happens inside shaders) -> x0.4
-				const float glyph_radius = attribs.count > 0 ? attribs.data[attrib_base_idx + attrib_radius_idx] * 0.1f : 0.0f;
-
 				const float	t = t_segs[segment.i0 + glyph_idx];
+
+				//TODO: Attribute MinMax Mapping does not apply for these attributes ((clamp)remap happens inside shaders) -> x0.4
+				
 				//THESIS2 TODO: 		-> Pos & ... Create interface to Gui to check which glyphs should be filled with data and rendered:
-				render3D.glyphs.spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
 				//		Sphere			-> ... & Radius							(needed in GS)	| (Color via glyph_attribs buffer in comp FS)
 				//		Ellipsoid		-> ... & Radii & Orientation (quat)		(needed in GS)	| (Color via glyph_attribs buffer in comp FS)
 				//		Cylinder+Cone	-> ... & Orientation (quat) & Magnitude (needed in GS)	| (Color via glyph_attribs buffer in comp FS)
-				render3D.glyphs.spheres.add_radius(glyph_radius);
+				switch (glyph_type)
+				{
+					case GT_3D_SPHERE:
+					{
+						spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
+						spheres.add_radius(attribs.data[attrib_base_idx + radius_idx] * 0.1f);
+						break;
+					}
+					case GT_3D_ELLIPSOID_3x3_TENSOR:
+					{
+						ellipsoids.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
+						ellipsoids.add_size({
+							attribs.data[attrib_base_idx + radius_idx] * 0.1f,
+							attribs.data[attrib_base_idx + radius2_idx] * 0.1f,
+							attribs.data[attrib_base_idx + radius3_idx] * 0.1f 
+						});
+						ellipsoids.add_orientation({
+							attribs.data[attrib_base_idx + orientation_0_idx] * 0.1f,
+							attribs.data[attrib_base_idx + orientation_i_idx] * 0.1f,
+							attribs.data[attrib_base_idx + orientation_j_idx] * 0.1f,
+							attribs.data[attrib_base_idx + orientation_k_idx] * 0.1f
+						});
+						break;
+					}
+					case GT_3D_CONE_VECTOR:
+					{
+						cones.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));					
+
+						break;
+					}
+					default: 
+						return;
+				}
 			}
 		}
 	}
@@ -1478,6 +1548,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	render3D.glyphs.spheres.init(ctx);
 	render3D.glyphs.cones.init(ctx);
+	render3D.glyphs.ellipsoids.init(ctx);
 
 
 	// init shared attribute array manager
@@ -3071,7 +3142,15 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		prog.disable(ctx);
 
 		//THESIS2: Render glyphs
-		render3D.glyphs.spheres.render(ctx);
+		if (render3D.glyphs.spheres.size())
+			render3D.glyphs.spheres.render(ctx);
+
+		if (render3D.glyphs.cones.size())
+			render3D.glyphs.cones.render(ctx);
+
+		if (render3D.glyphs.ellipsoids.size())
+			render3D.glyphs.ellipsoids.render(ctx);
+
 
 
 		if(playback.active)

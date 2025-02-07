@@ -181,6 +181,8 @@ void glyph_attribute_mapping::on_set(void* member_ptr, cgv::base::base* base_ptr
 				const vec2& range = visualization_variables->ref_attribute_ranges()[attrib_idx];
 				attrib_mapping_values[i].x() = range.x();
 				attrib_mapping_values[i].y() = range.y();
+				//THESIS2:
+				mapped_glyph_attrib_idx_to_possible_attrib_idx[i] = attrib_idx;
 			}
 		}
 	}
@@ -307,8 +309,8 @@ void glyph_attribute_mapping::create_attribute_gui(cgv::base::base* bp, cgv::gui
 	switch(attrib.type) {
 	case GAT_SIGNED_UNIT: lower_limit = "-1"; break;
 	//THESIS:
-	case GAT_COMPOSITE_3: // for scaling
-	case GAT_COMPOSITE_9: // for scaling
+	case GAT_COMPOSITE_3:  break;// for scaling
+	case GAT_COMPOSITE_9:  break;// for scaling
 	//
 	case GAT_SIZE: upper_limit = "2"; break;
 	case GAT_ANGLE:

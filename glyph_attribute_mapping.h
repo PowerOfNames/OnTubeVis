@@ -40,6 +40,8 @@ protected:
 	bool active = true;
 
 	std::shared_ptr<const visualization_variables_info> visualization_variables;
+	//THESIS2:
+	std::unordered_map<uint32_t, uint32_t> mapped_glyph_attrib_idx_to_possible_attrib_idx;
 
 	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
 	AttributeSamplingStrategy last_non_3D_sampling_strategy = sampling_strategy;
@@ -126,6 +128,7 @@ public:
 	const AttributeSamplingStrategy get_sampling_strategy() const { return sampling_strategy; }
 	//THESIS2:
 	const AttributeSamplingStrategy get_last_non_3d_sampling_strategy() const { return last_non_3D_sampling_strategy; }
+	const std::unordered_map<uint32_t, uint32_t>& ref_attrib_names_and_indices() const { return mapped_glyph_attrib_idx_to_possible_attrib_idx; }
 	
 	const float get_sampling_step() const { return sampling_step; }
 	//THESIS:
@@ -138,7 +141,7 @@ public:
 	void set_uv_disp_factor(float factor) { uv_displacement_factor = factor; }
 
 	const glyph_shape* get_shape_ptr() const { return shape_ptr; }
-
+	
 	void set_glyph_type(GlyphType type);
 
 	const std::vector<int> get_attrib_indices() const;

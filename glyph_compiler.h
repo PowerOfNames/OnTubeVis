@@ -101,7 +101,6 @@ protected:
 		auto& attribs = lci.attribs;
 		//THESIS2: Because we insert a vec3, that is not part of the attribs_mappings
 		auto& t_segs = lci.t_segs;
-		attribs.count_of_non_attrib_values = 5;
 		const auto& alen = arc_length;
 
 		// create an index for each attribute
@@ -291,17 +290,14 @@ protected:
 							}
 						}
 						// store the new glyph
-						attribs.add(s);
-
-						//THESIS2: Calculate the tube_space position of the glyph
-						const vec3 glyph_pos_tube = { 1.0, 0.5, 1.0 };
 						t_segs.push_back(t_seg);
-
-
-
-						attribs.add(glyph_pos_tube);
+						attribs.add(s);
 						int debug_info = include_glyph ? 0 : 1;
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
+
+						//THESIS2: Calculate the tube_space position of the glyph
+						//const vec3 glyph_pos_tube = { 1.0, 0.5, 1.0 };
+						//attribs.add(glyph_pos_tube);
 
 						std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
 					}

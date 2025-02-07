@@ -35,7 +35,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 	for(size_t i = 0; i < glyph_attribute_mappings.size(); ++i) {
 		const glyph_attribute_mapping& gam = glyph_attribute_mappings[i];
 		const glyph_shape* shape_ptr = gam.get_shape_ptr();
-
 		config.layer_configs.push_back(configuration::layer_configuration());
 		auto& layer_config = config.layer_configs.back();
 
@@ -70,6 +69,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			const std::vector<int> color_map_indices = gam.get_color_map_indices();
 			const std::vector<vec4> &attrib_values = gam.ref_attrib_mapping_values();
 			const std::vector<rgb> &attrib_colors = gam.ref_attrib_colors();
+			const std::unordered_map<uint32_t, uint32_t>& mapped_param_idx_to_poss_attrib_idx = gam.ref_attrib_names_and_indices();
 
 			for (size_t j = 0; j < attrib_indices.size(); ++j) {
 				int idx = attrib_indices[j];
@@ -125,6 +125,11 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 					}
 					else {
 						layer_config.glyph_mapping_parameters.push_back({ 1, config.mapping_parameters.size() - last_mapping_parameters_size, &attrib_values[j] });
+						//THESIS2:
+						if (mapped_param_idx_to_poss_attrib_idx.find(j) != mapped_param_idx_to_poss_attrib_idx.end())
+						{
+							layer_config.mapped_attribs_idx_to_buffer_idx[j] = config.mapping_parameters.size() - last_mapping_parameters_size;						
+						}
 					}
 
 					config.mapping_parameters.push_back(std::make_pair(uniform_name, &attrib_values[j]));
@@ -262,6 +267,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 		std::cout << "L" << std::to_string(i++) << std::endl;
 		std::cout << "Mapped attrib count = " << lc.mapped_attributes.size() << std::endl;
 		std::cout << lc.glyph_definition << std::endl << std::endl;
+		std::cout << lc.glyph_sdf_definition << std::endl << std::endl;
+		std::cout << lc.glyph_surface_grad_definition << std::endl << std::endl;
 	}
 	std::cout << ">>> ============== <<<" << std::endl << std::endl;
 #endif

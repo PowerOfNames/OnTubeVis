@@ -216,7 +216,7 @@ bool get_closest_samples##I(in int segid, in float s, out closest_glyphs_info cl
 	#endif
 #else 
 	#if L0_MAPPED_ATTRIB_COUNT > 0
-	DEF_GLYPH_DESC_AND_BUFFERS_WITH_POS(0, L0_MAPPED_ATTRIB_COUNT, 0, 1)
+	DEF_GLYPH_DESC_AND_BUFFERS(0, L0_MAPPED_ATTRIB_COUNT, 0, 1)
 	DEF_CLOSEST_SAMPLES(0, ranges0, glyphs0)
 	#endif
 #endif
@@ -1491,7 +1491,7 @@ float sd_cone(in vec3 ray_pos_glyph, in float height, in float pitch, in float y
 // anglez -> roll in x/y plane
 //THESIS TODO:	Transformation to the ray_pos_glyph MUST happen BEFORE ray_marching happens. Otherwise the whole Transformation-reconstruction+transformation happens
 //				at every step+Normalcalc as well. -> It'S even possible to skew space using the radii -> use Sphere SDF instead of Ellipse (but need to do the inverse afterwards, prob.)
-float sd_ellipsoid3x3tensor(in vec3 ray_pos_glyph, in float radiusX, in float radiusY, in float radiusZ, in float angleX, in float angleY, in float angleZ) 
+float sd_ellipsoid3x3tensor(in vec3 ray_pos_glyph, in float radiusX, in float radiusY, in float radiusZ, in float angleX, in float angleY, in float angleZ, /*temp*/ in float quat_0, in float quat_i, in float quat_j, in float quat_k) 
 {
 	vec3 radii = vec3(radiusX, radiusY, radiusZ);
 	mat3 transform = reconstructRotMat(angleX, angleY, angleZ);
@@ -1880,7 +1880,7 @@ void main()
 						normal_eye = rmr.normal_eye;
 					}
 					//rmr.debug_color = glyph.pos_in_tube;
-					rmr.debug_color = vec3(glyph.x, glyph.y, glyph.z);
+					rmr.debug_color = vec3(1.0);
 				}
 		#endif
 
