@@ -569,7 +569,7 @@ public:
 		static const attribute_list attributes = {
 			{ "windowedSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius", GAT_SIZE },
+			{ "radius0", GAT_SIZE },
 		};
 		return attributes;
 	}
@@ -634,9 +634,9 @@ public:
 		static const attribute_list attributes = {
 			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius", GAT_SIZE },
+			{ "radius0", GAT_SIZE },
+			{ "radius1", GAT_SIZE },
 			{ "radius2", GAT_SIZE },
-			{ "radius3", GAT_SIZE },
 			{ "ori_0", GAT_SIGNED_UNIT },
 			{ "ori_i", GAT_SIGNED_UNIT },
 			{ "ori_j", GAT_SIGNED_UNIT },

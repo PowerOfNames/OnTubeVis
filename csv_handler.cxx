@@ -440,9 +440,9 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	
 	//ID just placeholder -> Filling happens later
 	static const csv_descriptor::attribute eigen_attribs[] = {
+		{"radius0", {"ID", false, 1}},
 		{"radius1", {"ID", false, 1}},
 		{"radius2", {"ID", false, 1}},
-		{"radius3", {"ID", false, 1}},
 		{"angle1", {"ID", false, 1}},
 		{"angle2", {"ID", false, 1}},
 		{"angle3", {"ID", false, 1}},
@@ -557,17 +557,17 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 						//But just pass two vectors instead (containing 3 radii and three angles) But the backend is not make for this currently
 						//And I lack the time I would need to invest to make this work
 						//TODO: This is hardcoded stuff, which is technically not good.
-						if (attrib.desc.name == "radius1")
+						if (attrib.desc.name == "radius0")
 						{
 							a.template get_data<real>().append(std::move(eigenvalues[0]), (real)t_mod);
 							continue;
 						}
-						else if (attrib.desc.name == "radius2")
+						else if (attrib.desc.name == "radius1")
 						{
 							a.template get_data<real>().append(std::move(eigenvalues[1]), (real)t_mod);
 							continue;
 						}
-						else if (attrib.desc.name == "radius3")
+						else if (attrib.desc.name == "radius2")
 						{
 							a.template get_data<real>().append(std::move(eigenvalues[2]), (real)t_mod);
 							continue;

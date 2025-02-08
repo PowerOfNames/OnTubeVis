@@ -1406,7 +1406,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 
 	const uint32_t last_nonmapped_attrib_idx = attribs.count_of_non_attrib_values; // this should be the debug_int value (as float)
 
-	const uint32_t radius_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius0", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t radius2_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius2", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t radius3_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius3", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 

@@ -115,8 +115,10 @@ set(SOURCES
 	# THESIS:
 	glyph3D_renderer.cxx
 	glyph3D_spline_tube_renderer.cxx
+	# THESIS2:
 	quadratic_bezier_tube.cxx
 	hermite_spline_tube.cxx
+	sphere_renderer_ray_marching.cxx
 )
 # - C/C++ headers
 set(HEADERS
@@ -172,6 +174,10 @@ set(HEADERS
 	glyph3D_renderer.h
 	glyph3D_spline_tube_renderer.h
 	JacobiEigen.h
+	# THESIS2:
+	sphere_render_ray_marching_data.h
+	sphere_renderer_ray_marching.h
+
 )
 # - GLSL shaders
 set (SHADERS
@@ -204,6 +210,11 @@ set (SHADERS
 	glsl/textured_spline_tube_extended_shading.glpr
 	glsl/glyphed_spline_tube_shading.glfs
 	glsl/glyphed_spline_tube_shading.glpr
+	# THESIS2:
+	glsl/sphere_ray_marched.glpr
+	glsl/sphere_ray_marched.glvs
+	glsl/sphere_ray_marched.glgs
+	glsl/sphere_ray_marched.glfs
 )
 # - add contitional source files
 if (ENABLE_OPTIX_SUPPORT)

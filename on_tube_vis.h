@@ -22,6 +22,9 @@
 #include <cgv_gl/volume_renderer.h>
 #include <cgv_gl/ellipsoid_render_data.h>
 
+//THESIS2:
+#include "sphere_render_ray_marching_data.h"
+
 // CGV framework application utility
 #include <cgv_app/application_plugin.h>
 #include <cgv_app/color_map_editor.h>
@@ -514,7 +517,8 @@ protected:
 	{
 		//Glyph renderers
 		struct {
-			cgv::render::sphere_render_data<> spheres;
+			//cgv::render::sphere_render_data<> spheres;
+			cgv::render::sphere_render_ray_marching_data<> spheres;
 			cgv::render::cone_render_data<> cones;
 			cgv::render::ellipsoid_render_data<> ellipsoids;
 		} glyphs;

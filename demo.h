@@ -88,11 +88,7 @@ struct demo : public traj_format_handler<float>
 
 		//THESIS:
 		/// some Eigenvector+Eigenvalue matrix in form of 3 vec4s
-		std::vector<attrib_value<Mat33>> attrib_tensor3x3;
-		//std::vector<attrib_value<Vec4>> attrib_tensorEigen1;
-		//std::vector<attrib_value<Vec4>> attrib_tensorEigen2;
-		//std::vector<attrib_value<Vec4>> attrib_tensorEigen3;
-		
+		std::vector<attrib_value<Mat33>> attrib_tensor3x3;		
 	};
 
 	/// returns the "north" pole of the unit hypersphere
@@ -412,12 +408,13 @@ struct demo : public traj_format_handler<float>
 			ds_trajs_vec3,
 			ds_trajs_vec4,
 			//THESIS:
-			ds_trajs_tensorRadius1,
-			ds_trajs_tensorRadius2,
-			ds_trajs_tensorRadius3,
-			ds_trajs_tensorAngle1,
-			ds_trajs_tensorAngle2,
-			ds_trajs_tensorAngle3;
+			ds_trajs_Radius,
+			ds_trajs_Radius2,
+			ds_trajs_Radius3,
+			ds_trajs_ori0,
+			ds_trajs_orii,
+			ds_trajs_orij,
+			ds_trajs_orik;
 		// - create geometry attributes
 		auto P = add_attribute<Vec3>(ds, ATTRIB_POSITION);
 		auto T = add_attribute<Vec4>(ds, ATTRIB_TANGENT);
@@ -435,12 +432,13 @@ struct demo : public traj_format_handler<float>
 		auto attrib_vec4 = add_attribute<Vec4>(ds, "vec4");
 
 		//THESIS:
-		auto attrib_tensorRadius1 = add_attribute<real>(ds, "tensorRadius1");
-		auto attrib_tensorRadius2 = add_attribute<real>(ds, "tensorRadius2");
-		auto attrib_tensorRadius3 = add_attribute<real>(ds, "tensorRadius3");
-		auto attrib_tensorAngle1 = add_attribute<real>(ds, "tensorAngle1");
-		auto attrib_tensorAngle2 = add_attribute<real>(ds, "tensorAngle2");
-		auto attrib_tensorAngle3 = add_attribute<real>(ds, "tensorAngle3");
+		auto attrib_Radius = add_attribute<real>(ds, "radius0");
+		auto attrib_Radius2 = add_attribute<real>(ds, "radius1");
+		auto attrib_Radius3 = add_attribute<real>(ds, "radius2");
+		auto attrib_ori0 = add_attribute<real>(ds, "ori_0");
+		auto attrib_orii = add_attribute<real>(ds, "ori_i");
+		auto attrib_orij = add_attribute<real>(ds, "ori_j");
+		auto attrib_orik = add_attribute<real>(ds, "ori_k");
 
 
 		// compile
@@ -468,12 +466,13 @@ struct demo : public traj_format_handler<float>
 			ds_trajs_vec4.emplace_back(range{ attrib_vec4.data.num(), (unsigned)traj.attrib_vec4.size() });
 			
 			//THESIS:
-			ds_trajs_tensorRadius1.emplace_back(range{ attrib_tensorRadius1.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
-			ds_trajs_tensorRadius2.emplace_back(range{ attrib_tensorRadius2.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
-			ds_trajs_tensorRadius3.emplace_back(range{ attrib_tensorRadius3.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
-			ds_trajs_tensorAngle1.emplace_back(range{ attrib_tensorAngle1.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
-			ds_trajs_tensorAngle2.emplace_back(range{ attrib_tensorAngle2.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
-			ds_trajs_tensorAngle3.emplace_back(range{ attrib_tensorAngle3.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_Radius.emplace_back(range{ attrib_Radius.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_Radius2.emplace_back(range{ attrib_Radius2.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_Radius3.emplace_back(range{ attrib_Radius3.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_ori0.emplace_back(range{ attrib_ori0.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_orii.emplace_back(range{ attrib_orii.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_orij.emplace_back(range{ attrib_orij.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
+			ds_trajs_orik.emplace_back(range{ attrib_orik.data.num(), (unsigned)traj.attrib_tensor3x3.size() });
 
 			// copy over position attribute, generate timestamps and determine avg segment length
 			P.data.append(traj.positions.front(), 0);
@@ -541,19 +540,18 @@ struct demo : public traj_format_handler<float>
 				JacobiEigen::CalculateAnglesFromEigenVectors(eigenvectors, angles);
 				const auto& eigen_quat = JacobiEigen::CalculateQuaternionFromEigenVectors(eigenvectors);
 				//JacobiEigen::PrintQuaternion(eigen_quat);
-
-
 				/*for (uint32_t i = 0; i < 3; i++)
 				{
 					std::printf("Eigenvalue %i: %f; Eigenvector: (%f, %f, %f)\n", i, eigenvalues[i], eigenvectors(i, 0), eigenvectors(i, 1), eigenvectors(i, 2));
 				}*/
 
-				attrib_tensorRadius1.data.append(eigenvalues[0], attrib.t);
-				attrib_tensorRadius2.data.append(eigenvalues[1], attrib.t);
-				attrib_tensorRadius3.data.append(eigenvalues[2], attrib.t);
-				attrib_tensorAngle1.data.append(angles[0], attrib.t);
-				attrib_tensorAngle2.data.append(angles[1], attrib.t);
-				attrib_tensorAngle3.data.append(angles[2], attrib.t);
+				attrib_Radius.data.append(eigenvalues[0], attrib.t);
+				attrib_Radius2.data.append(eigenvalues[1], attrib.t);
+				attrib_Radius3.data.append(eigenvalues[2], attrib.t);
+				attrib_ori0.data.append(eigen_quat[0], attrib.t);
+				attrib_orii.data.append(eigen_quat[1], attrib.t);
+				attrib_orij.data.append(eigen_quat[2], attrib.t);
+				attrib_orik.data.append(eigen_quat[2], attrib.t);
 			}
 		}
 
@@ -575,15 +573,13 @@ struct demo : public traj_format_handler<float>
 		traj_format_handler<float>::trajectories(ds, attrib_vec4.attrib) = std::move(ds_trajs_vec4);
 
 		//THESIS:
-		//traj_format_handler<float>::trajectories(ds, attrib_tensorEigen1.attrib) = std::move(ds_trajs_tensorEigen1);
-		//traj_format_handler<float>::trajectories(ds, attrib_tensorEigen2.attrib) = std::move(ds_trajs_tensorEigen2);
-		//traj_format_handler<float>::trajectories(ds, attrib_tensorEigen3.attrib) = std::move(ds_trajs_tensorEigen3);
-		traj_format_handler<float>::trajectories(ds, attrib_tensorRadius1.attrib) = std::move(ds_trajs_tensorRadius1);
-		traj_format_handler<float>::trajectories(ds, attrib_tensorRadius2.attrib) = std::move(ds_trajs_tensorRadius2);
-		traj_format_handler<float>::trajectories(ds, attrib_tensorRadius3.attrib) = std::move(ds_trajs_tensorRadius3);
-		traj_format_handler<float>::trajectories(ds, attrib_tensorAngle1.attrib) = std::move(ds_trajs_tensorAngle1);
-		traj_format_handler<float>::trajectories(ds, attrib_tensorAngle2.attrib) = std::move(ds_trajs_tensorAngle2);
-		traj_format_handler<float>::trajectories(ds, attrib_tensorAngle3.attrib) = std::move(ds_trajs_tensorAngle3);
+		traj_format_handler<float>::trajectories(ds, attrib_Radius.attrib) = std::move(ds_trajs_Radius);
+		traj_format_handler<float>::trajectories(ds, attrib_Radius2.attrib) = std::move(ds_trajs_Radius2);
+		traj_format_handler<float>::trajectories(ds, attrib_Radius3.attrib) = std::move(ds_trajs_Radius3);
+		traj_format_handler<float>::trajectories(ds, attrib_ori0.attrib) = std::move(ds_trajs_ori0);
+		traj_format_handler<float>::trajectories(ds, attrib_orii.attrib) = std::move(ds_trajs_orii);
+		traj_format_handler<float>::trajectories(ds, attrib_orij.attrib) = std::move(ds_trajs_orij);
+		traj_format_handler<float>::trajectories(ds, attrib_orik.attrib) = std::move(ds_trajs_orik);
 
 		// finalize
 		ds.set_mapping(attrmap);
