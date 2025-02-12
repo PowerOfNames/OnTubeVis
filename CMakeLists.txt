@@ -113,7 +113,6 @@ set(SOURCES
 	voxelizer.cxx
 
 	# THESIS:
-	glyph3D_renderer.cxx
 	glyph3D_spline_tube_renderer.cxx
 	# THESIS2:
 	quadratic_bezier_tube.cxx
@@ -171,7 +170,6 @@ set(HEADERS
 	voxel_grid.h
 	voxelizer.h
 	# THESIS:
-	glyph3D_renderer.h
 	glyph3D_spline_tube_renderer.h
 	JacobiEigen.h
 	# THESIS2:
@@ -202,19 +200,26 @@ set (SHADERS
 	glsl/view_aligned_ribbon.glgs
 	glsl/view_aligned_ribbon.glpr
 	glsl/voxelize.glcs
+
 	# - THESIS
-	glsl/textured_spline_tube_extended.glfs
-	glsl/textured_spline_tube_extended.glgs
-	glsl/textured_spline_tube_extended.glpr
 	glsl/textured_spline_tube_extended_shading.glfs
 	glsl/textured_spline_tube_extended_shading.glpr
-	glsl/glyphed_spline_tube_shading.glfs
-	glsl/glyphed_spline_tube_shading.glpr
+
 	# THESIS2:
 	glsl/sphere_ray_marched.glpr
 	glsl/sphere_ray_marched.glvs
 	glsl/sphere_ray_marched.glgs
 	glsl/sphere_ray_marched.glfs
+
+	glsl/spline_tube_glyph3D.glfs
+	glsl/spline_tube_glyph3D.glgs
+	glsl/spline_tube_glyph3D.glpr
+
+	glsl/spline_tube_back_shading.glpr
+	glsl/spline_tube_back_shading.glfs
+
+	glsl/spline_tube_front_shading.glpr
+	glsl/spline_tube_front_shading.glfs
 )
 # - add contitional source files
 if (ENABLE_OPTIX_SUPPORT)

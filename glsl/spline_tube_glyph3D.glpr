@@ -1,4 +1,4 @@
-files:textured_spline_tube_extended
+files:spline_tube_glyph3D
 vertex_file:textured_line_primitive.glvs
 vertex_file:view.glsl
 geometry_file:view.glsl

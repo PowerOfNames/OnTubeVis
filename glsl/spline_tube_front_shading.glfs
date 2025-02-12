@@ -1,0 +1,389 @@
+#version 430
+#define M_PI 3.14159265359
+
+//THESIS:
+#define EPSILON 0.0005
+
+//THESIS2: 
+/* 0: TEXTURED_PIPELINE		needs to return frontside intersection (standard)
+   1: BILLBOARD_PIPELINE	needs to return backside intersection */
+
+#define DEBUG_SEGMENTS 0
+
+#define ENABLE_AMBIENT_OCCLUSION 1
+
+#define GRID_MODE 1
+#define ENABLE_FUZZY_GRID 0
+#define GRID_NORMAL_SETTINGS 0
+#define OUTLINE_INWARDS 0
+
+//***** begin interface of view.glsl ***********************************
+mat4 get_modelview_matrix();
+mat4 get_projection_matrix();
+mat4 get_modelview_projection_matrix();
+mat4 get_inverse_modelview_matrix();
+mat4 get_inverse_modelview_projection_matrix();
+mat3 get_normal_matrix();
+mat3 get_inverse_normal_matrix();
+//***** end interface of view.glsl ***********************************
+
+////***** begin interface of surface.glsl ***********************************
+vec4 compute_reflected_appearance(vec3 position_eye, vec3 normal_eye, vec4 color, int side, float specular_factor);
+////***** end interface of surface.glsl ***********************************
+
+layout (binding = 0) uniform usampler2D albedo_tex;
+layout (binding = 1) uniform usampler2D position_tex;
+layout (binding = 2) uniform sampler2D normal_tex;
+layout (binding = 3) uniform sampler2D tangent_tex;
+layout (binding = 4) uniform sampler2D depth_tex;
+#if ENABLE_AMBIENT_OCCLUSION == 1
+layout (binding = 5) uniform sampler3D density_tex;
+#endif
+layout (binding = 6) uniform sampler2D color_maps_tex;
+
+// general rendering parameters
+uniform vec3 gamma3 = vec3(2.2);
+
+// ambient occlusion parameters
+uniform struct {
+	//bool enable;
+	float sample_offset;
+	float sample_distance;
+	float strength_scale;
+	vec3 tex_offset;
+	vec3 tex_scaling;
+	vec3 texcoord_scaling;
+	float texel_size;
+	float cone_angle_factor;
+	vec3 sample_directions[3];
+} ambient_occlusion;
+
+// grid parameters
+struct grid_parameters {
+	vec2 scaling;
+	float thickness;
+	float blend_factor;
+};
+uniform vec4 grid_color;
+uniform float normal_mapping_scale = 1.0;
+uniform grid_parameters grids[2];
+
+uniform bool use_curvature_correction;
+uniform float length_scale;
+uniform float antialias_radius;
+
+// holographic raycasting parameters
+uniform bool  holographic_raycast;
+uniform float viewport_width;
+uniform float framebuf_width;
+
+
+in vec2 texcoord_fs;
+
+out vec4 frag_color;
+
+
+#if ENABLE_AMBIENT_OCCLUSION == 1
+float compute_ambient_occlusion_factor(in vec3 pos_eye, in vec3 normal_eye) {
+	vec3 pos = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
+	vec3 normal = normalize(get_inverse_normal_matrix() * normal_eye);
+
+	// do voxel cone tracing to determine occlusion of ambient light
+	float ao = 0.0;
+
+	mat3 R;
+	R[1] = normal;
+	R[0] = cross(R[1], normalize(pos));
+	R[2] = cross(R[0], R[1]);
+
+	for(int i = 0; i < 3; ++i) {
+		vec3 sd = R * ambient_occlusion.sample_directions[i];
+
+		float sample_distance = ambient_occlusion.sample_offset + 0.001;
+		vec3 normalized_pos = (pos - ambient_occlusion.tex_offset) * ambient_occlusion.tex_scaling;
+		float lod_texel_size = 0.0f;
+			
+		float illumination = 1.0;
+
+		do {
+			// get cone base radius at current distance and then the according mipmap sample level
+			float cone_radius = sample_distance * ambient_occlusion.cone_angle_factor;
+			float sample_level = clamp(log2(cone_radius / ambient_occlusion.texel_size), 0.0, 7.0);
+
+			lod_texel_size = pow(2.0, sample_level) * ambient_occlusion.texel_size;
+
+			vec3 sample_pos = normalized_pos + sample_distance * sd * ambient_occlusion.texcoord_scaling;
+			float density = textureLod(density_tex, sample_pos, sample_level).r;
+			// apply the compositing function
+			illumination *= 1.0 - density * illumination;
+
+			// get the next sample distance and position
+			sample_distance += cone_radius;
+		} while(sample_distance < ambient_occlusion.sample_distance - lod_texel_size && illumination > 0.02);
+
+		ao += (1.0 - illumination);
+	}
+
+	return 1.0 - clamp(ambient_occlusion.strength_scale * ao / 3.0, 0.0, 1.0);
+}
+#endif
+
+
+
+
+
+
+float grid_texture_fuzzy(in vec2 p, in float n) {
+	// coordinates
+	vec2 s = fract(p + 0.5*n);
+	vec2 t = clamp(s / n, 0.0, 1.0);
+
+	vec2 i = sin(M_PI*t);
+	return max(i.x, i.y);
+}
+
+float grid_texture_aa(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, na+w, p_frac) + smoothstep(nb-w, nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
+	//return 1.0-i.s*i.t;				// squares
+	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
+}
+
+float checker_texture_aa(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, na+w, p_frac) + smoothstep(nb-w, nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
+}
+
+float grid_texture(in vec2 p, in float n) {
+#if ENABLE_FUZZY_GRID == 1
+	return grid_texture_fuzzy(p, n);
+#else
+	return grid_texture_aa(p, n , 1);
+#endif
+}
+
+float aa_texture(in vec2 p, in float n, float aa_strength) {
+	// pre-filter AA preparations
+	const float na = n*0.5, nb = 1.0-n*0.5;
+	const vec2 p_frac = fract(p), w = 2*aa_strength*fwidth(p);
+
+	// coordinates
+	const vec2 i = vec2(1) - smoothstep(na-w, vec2(na), p_frac) + smoothstep(vec2(nb), nb+w, p_frac);
+
+	//pattern (from https://www.shadertoy.com/view/XtBfzz)
+	return 1.0 - (1.0-i.s)*(1.0-i.t);	// grid
+	//return 1.0-i.s*i.t;				// squares
+	//return 1.0-i.s-i.t+2.0*i.s*i.t;	// checker
+}
+
+vec3 grid_normal(in vec2 p, in float n) {
+
+	// coordinates
+	vec2 s = fract(p + 0.5*n);
+	vec2 t = clamp(s / n, 0.0, 1.0);
+
+#if (GRID_NORMAL_SETTINGS & 3) == 0
+#if GRID_NORMAL_SETTINGS & 8
+	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
+	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
+#else
+	vec2 xy = sin(2.0*M_PI*t);
+	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
+#endif
+	vec3 normal = normalize(vec3(-xy.x, xy.y, max(z.x, z.y)));
+#elif (GRID_NORMAL_SETTINGS & 3) == 1
+	vec2 i = sin(M_PI*t);
+	vec2 xy = sin(2.0*M_PI*t);
+
+	vec3 normal = vec3(0.0, 0.0, 0.0);
+#if GRID_NORMAL_SETTINGS & 8
+	vec3 n0 = vec3(-xy.x, 0.0, 0.0);
+	vec3 n1 = vec3(0.0, xy.y, 0.0);
+
+	float d = abs(i.x - i.y);
+	float sum = i.x + i.y;
+
+	if(i.x > i.y) normal = n0;
+	else normal = n1;
+
+	if(d < 0.2) {
+		float a = 1.0 - d / 0.2;
+		vec3 n2 = 0.5*(n0 + n1);
+		normal = mix(normal, n2, a);
+	}
+	float v = normal.x*normal.x + normal.y*normal.y;
+	normal.z = (v >= 0.99999) ? 0.0 : sqrt(1.0 - v);
+#else
+	if(i.x > i.y) normal.x = -xy.x;
+	else normal.y = xy.y;
+
+	float v = normal.x + normal.y;
+	v *= v;
+	normal.z = (v >= 0.99999) ? 0.0 : sqrt(1.0 - v);
+#endif
+
+#elif (GRID_NORMAL_SETTINGS & 3) == 2
+	vec2 i = sin(M_PI*t);
+#if GRID_NORMAL_SETTINGS & 8
+	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
+	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
+#else
+	vec2 xy = sin(2.0*M_PI*t);
+	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
+#endif
+
+	vec3 normal;
+	if(i.x > i.y) normal = vec3(-xy.x, 0.0, z.x);
+	else normal = vec3(0.0, xy.y, z.y);
+
+    normal = normalize(normal);
+#elif (GRID_NORMAL_SETTINGS & 3) == 3
+	vec2 i = sin(M_PI*t);
+#if GRID_NORMAL_SETTINGS & 8
+	vec2 xy = sin(0.5*M_PI*sin(2.0*M_PI*t));
+	vec2 z = 0.5*sin(0.5*M_PI*cos(2.0*M_PI*t)) + 0.5;
+#else
+	vec2 xy = sin(2.0*M_PI*t);
+	vec2 z = 0.5*cos(2.0*M_PI*t) + 0.5;
+#endif
+	
+	vec3 normal = vec3(0.0, 0.0, max(z.x, z.y));
+	if(i.x > i.y) normal.x = -xy.x;
+	else normal.y = xy.y;
+
+    normal = normalize(normal);
+#endif
+
+#if GRID_NORMAL_SETTINGS & 4
+	normal.xy = -normal.xy;
+#endif
+
+    return normal;
+}
+
+float compute_grid_factor(vec2 uv) {
+	//if(uv.s <= -length_scale || uv.s >= length_scale)// || uv.t <= -1.0 || uv.t >= 1.0)
+	//	return 0.0;
+
+	float grid_factor = 0.0;
+	grid_factor = grids[0].blend_factor * grid_texture(grids[0].scaling*uv, grids[0].thickness);
+	grid_factor = max(grid_factor, grids[1].blend_factor * grid_texture(grids[1].scaling*uv, grids[1].thickness));
+	return min(grid_factor, 1.0);
+}
+
+vec3 compute_grid_normal(vec2 uv) {
+	//if(uv.s <= -length_scale || uv.s >= length_scale)// || uv.t <= -1.0 || uv.t >= 1.0)
+	//	return vec3(0.0, 0.0, 1.0);
+	
+	vec3 normal = vec3(0.0, 0.0, 1.0);
+	vec3 normal0 = mix(normal, grid_normal(grids[0].scaling*uv, grids[0].thickness), grids[0].blend_factor);
+	vec3 normal1 = mix(normal, grid_normal(grids[1].scaling*uv, grids[1].thickness), grids[1].blend_factor);
+
+	float grid_blend_factor = grid_texture(grids[0].scaling*uv, grids[0].thickness);
+	return normalize(mix(normal0, normal1, 1.0 - grid_blend_factor));
+}
+
+void main()
+{
+	const uint num_subpixels = holographic_raycast ? 3 : 1;
+	const float subpxl_width = 1./framebuf_width;
+	const float pxl_width = 1./viewport_width;
+	const float intra_fbtexel_offset = subpxl_width*.125f;
+	const uint fbpxl = uint((texcoord_fs.x) * framebuf_width);
+	const float pxl = float(uint(fbpxl/num_subpixels));
+	const uint subpxl = fbpxl % 3;
+
+
+	/////////////////////////////////////////////
+	// BEGIN - holography loop
+	float frag_depth = 1;
+	for (uint subp=0; subp<num_subpixels; subp++) {	
+	
+	const vec2 fb_uv = vec2(/*(holographic_raycast ? pxl*subpxl_width : */pxl*pxl_width + subp*subpxl_width + intra_fbtexel_offset,
+		texcoord_fs.y);
+
+	uvec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
+	vec3 color = unpackUnorm4x8(albedo_texcoord_seg.x).rgb;
+	vec2 texcoord = vec2(uintBitsToFloat(albedo_texcoord_seg.y), uintBitsToFloat(albedo_texcoord_seg.z));
+
+	uvec4 pos_eye_radius = texture(position_tex, fb_uv);
+	vec3 pos_eye = vec3(uintBitsToFloat(pos_eye_radius.x), uintBitsToFloat(pos_eye_radius.y), uintBitsToFloat(pos_eye_radius.z));
+
+	vec3 normal_eye = texture(normal_tex, fb_uv).rgb;
+	vec3 tangent_eye = texture(tangent_tex, fb_uv).xyz;
+	float depth = texture(depth_tex, fb_uv).r;
+	float specular_factor = 1;
+
+	vec4 subp_color;
+	if(depth == 1.0) {
+		// TODO: these fragments are never drawn to the screen (because depth is one)
+		subp_color = vec4(vec3(0.0), 1.0);
+	} else {
+		vec2 uv = texcoord;
+
+		// The texture coordinate v (around the tube) lies in [0,1] at the front side (camera facing side) of the tube,
+		// with 0 at the top and 1 at the bottom of the visible part of the tube (if the bitangent is pointing up in screen space).
+		// The back side of the tube is parameterized in the same way, but we are only interested in the front side anyway.
+		
+		// Move the origin (0,0) to the center of the front side and scale the v coordinate to [-1,1]
+		uv.t = 2.0 * uv.t - 1.0;
+
+		// Correct the perspective distortion caused by the curved tube surface by rescaling the v coordinate around the tube.
+		if(use_curvature_correction)
+			uv.t = sin(0.5*M_PI*uv.t);
+
+#if GRID_MODE & 1
+		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
+#endif
+
+		subp_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1, specular_factor);
+
+#if GRID_MODE & 2
+		vec3 gn = compute_grid_normal(uv);
+		vec3 bitangent_eye = cross(normal_eye, tangent_eye);
+		mat3 TBN = mat3(tangent_eye, bitangent_eye, normal_eye);
+		vec3 normal_eye_bump = mix(normal_eye, normalize(TBN * gn), normal_mapping_scale);
+		vec4 subp_color_bump = compute_reflected_appearance(pos_eye, normal_eye_bump, vec4(color, 1.0), 1, specular_factor);
+		//color = 0.5*gn+0.5;
+		float aa_factor = min(aa_texture(grids[0].scaling*uv, grids[0].thickness, 0.5) + aa_texture(grids[1].scaling*uv, grids[1].thickness, 0.5), 1);
+		subp_color = mix(subp_color, subp_color_bump, aa_factor);
+#endif
+
+		//if(ambient_occlusion.enable)
+#if ENABLE_AMBIENT_OCCLUSION == 1
+		subp_color.rgb *= compute_ambient_occlusion_factor(pos_eye, normal_eye);
+#endif
+	}
+
+	subp_color.rgb = pow(subp_color.rgb, 1.0/gamma3);
+
+	// write colorchannel corresponding to this subpixel
+	if (holographic_raycast)
+		frag_color[subp] = subp_color[subp];
+	else
+		frag_color = subp_color;
+
+	// update fragment depth if this subpixel's depth is smaller
+	frag_depth = depth < frag_depth ? depth : frag_depth;
+
+	}
+	// END - holography loop
+	/////////////////////////////////////////////
+	
+	// write the frag depth to enable the framework view to work properly
+	gl_FragDepth = frag_depth;
+}

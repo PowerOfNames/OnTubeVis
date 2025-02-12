@@ -1,5 +1,5 @@
 vertex_file:screen_quad.glvs
-fragment_file:glyphed_spline_tube_shading.glfs
+fragment_file:spline_tube_back_shading.glfs
 fragment_file:view.glsl
 fragment_file:side.glsl
 fragment_file:lights.glsl
