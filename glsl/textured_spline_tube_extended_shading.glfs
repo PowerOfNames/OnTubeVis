@@ -1465,7 +1465,7 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 		//vec4 hit_pos_clip = get_projection_matrix() * vec4(rmr.pos_eye, 1.0);
 		//depth = ((hit_pos_clip.z / hit_pos_clip.w) + 1.0) / 2.0;
 		//return vec4(rmr.debug_color, 1.0);
-		return vec4(glyph_color, 1.0);
+		return vec4(rmr.debug_color, 1.0);
 	}	
 	return vec4(0.0, 0.0, 0.0, 0.0);
 }
@@ -1706,7 +1706,7 @@ void main()
 							tube_radius = uintBitsToFloat(nextGlpyh_pos_radius.w);
 
 							center_frame_center_tube = texture(glyph_center_tex, center_frame_pos_screen).xyz;
-							
+							rmr.debug_color = center_frame_center_tube;
 
 
 							vec3 center_frame_normal_eye_debug = texture(normal_tex, center_frame_pos_screen).rgb;
@@ -1772,7 +1772,6 @@ void main()
 
 							rmr.isPrev = true;
 							glyph = prevGlyph;
-							rmr.debug_color = vec3(rmr.debug_color.x, 1.0, 0.0);
 						}
 					}
 					i = 0;
@@ -1800,8 +1799,6 @@ void main()
 						rmr.normal_eye = normalize(get_normal_matrix() * GLYPH_SURFACE_GRAD_DEFINITION);
 						normal_eye = rmr.normal_eye;
 					}
-					//rmr.debug_color = glyph.pos_in_tube;
-					rmr.debug_color = vec3(1.0);
 				}
 		#endif
 

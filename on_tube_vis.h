@@ -659,6 +659,9 @@ protected:
 
 	void set_view(void);
 	void update_grid_ratios(void);
+	//THESIS2:
+	void update_node_buffers(context& ctx);
+
 	void update_attribute_bindings(void);
 	void update_debug_attribute_bindings(void);
 	void calculate_bounding_box(void);
@@ -671,10 +674,13 @@ protected:
 	void draw_density_volume(context& ctx);
 
 	//THESIS2:
-	void draw_3D_glyphs_trajectories(context& ctx);
-	void draw_3D_glyphs_tube_back(context& ctx);
-	void draw_3d_glyphs(context& ctx);
-	void draw_3D_glyphs_tube_front(context& ctx);
+	void draw_tube_geometry(context& ctx);
+	void draw_tube_geometry_glyph3D(context& ctx);
+
+	void draw_trajectories_glyphs3D(context& ctx);
+	void draw_tube_back_glyphs3D(context& ctx);
+	void draw_glyphs3D(context& ctx);
+	void draw_tube_front_glyphs3D(context& ctx);
 
 	/// helper methods
 	shader_define_map build_tube_shading_defines();

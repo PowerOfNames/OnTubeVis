@@ -202,8 +202,8 @@ set (SHADERS
 	glsl/voxelize.glcs
 
 	# - THESIS
-	glsl/textured_spline_tube_extended_shading.glfs
 	glsl/textured_spline_tube_extended_shading.glpr
+	glsl/textured_spline_tube_extended_shading.glfs
 
 	# THESIS2:
 	glsl/sphere_ray_marched.glpr

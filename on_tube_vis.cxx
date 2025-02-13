@@ -1088,6 +1088,9 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 
 		update_glyph_dimension_toggle();
 		do_full_gui_update = true;
+
+		context& ctx = *get_context();
+		update_node_buffers(ctx);
 	}
 
 	//THESIS2:
@@ -2643,6 +2646,40 @@ void on_tube_vis::update_grid_ratios(void) {
 	}
 }
 
+//THESIS2:
+void on_tube_vis::update_node_buffers(context& ctx)
+{
+	unsigned node_indices_count = (unsigned)render.data->indices.size();
+	unsigned segment_count = node_indices_count / 2;
+
+	std::vector<unsigned> segment_indices(segment_count);
+
+	for (unsigned i = 0; i < segment_indices.size(); ++i)
+		segment_indices[i] = i;
+
+	// Upload render attributes to legacy buffers
+		// THESIS2: Check if this works
+	if (is_2D())
+	{
+		auto& tstr = ref_textured_spline_tube_renderer(ctx);
+		tstr.enable_attribute_array_manager(ctx, render.aam);
+		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
+		tstr.set_indices(ctx, segment_indices);
+		tstr.disable_attribute_array_manager(ctx, render.aam);
+	}
+	else
+	{
+		auto& tstr = ref_glyph3D_spline_tube_renderer(ctx);
+		tstr.enable_attribute_array_manager(ctx, render.aam);
+		tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
+		tstr.set_indices(ctx, segment_indices);
+		tstr.disable_attribute_array_manager(ctx, render.aam);
+	}
+
+	debug.segment_count = segment_count;
+	debug.render_count = segment_count;
+}
+
 void on_tube_vis::update_attribute_bindings(void) {
 	auto &ctx = *get_context();
 
@@ -2709,42 +2746,15 @@ void on_tube_vis::update_attribute_bindings(void) {
 		if (!new_sbo.create(ctx, render_attribs))
 			std::cerr << "!!! unable to create render attribute Storage Buffer Object !!!" << std::endl << std::endl;
 		render.render_sbo = std::move(new_sbo);
-
-		unsigned node_indices_count = (unsigned)render.data->indices.size();
-		unsigned segment_count = node_indices_count / 2;
-
-		std::vector<unsigned> segment_indices(segment_count);
-
-		for(unsigned i = 0; i < segment_indices.size(); ++i)
-			segment_indices[i] = i;
-
-		// Upload render attributes to legacy buffers
-		// THESIS2: Check if this works
-		if (render.style3D.is_billboard_pipeline())
-		{
-			auto &tstr = ref_glyph3D_spline_tube_renderer(ctx);
-			tstr.enable_attribute_array_manager(ctx, render.aam);
-			tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
-			tstr.set_indices(ctx, segment_indices);
-			tstr.disable_attribute_array_manager(ctx, render.aam);
-		}
-		else
-		{
-			auto &tstr = ref_textured_spline_tube_renderer(ctx);
-			tstr.enable_attribute_array_manager(ctx, render.aam);
-			tstr.set_node_id_array(ctx, reinterpret_cast<const uvec2*>(render.data->indices.data()), segment_count, sizeof(uvec2));
-			tstr.set_indices(ctx, segment_indices);
-			tstr.disable_attribute_array_manager(ctx, render.aam);
-		}
+		
+		update_node_buffers(ctx);
 
 		if(!render.sorter.init(ctx, render.data->indices.size() / 2))
 			std::cout << "Could not initialize gpu sorter" << std::endl;
 
 		std::cout << "done (" << s.get_elapsed_time() << "s)" << std::endl;
 
-		debug.segment_count = segment_count;
 		debug.render_percentage = 1.0f;
-		debug.render_count = segment_count;
 		update_member(&debug.render_percentage);
 		update_member(&debug.render_count);
 
@@ -2940,31 +2950,25 @@ void on_tube_vis::draw_dnd(context& ctx) {
 	ctx.pop_pixel_coords();
 }
 
-void on_tube_vis::draw_trajectories(context& ctx)
+
+void on_tube_vis::draw_tube_geometry(context& ctx)
 {
-	// common init
 	// - view-related info
-	const vec3 &cyclopic_eye = view_ptr->get_eye();
-	const vec3 &view_dir = view_ptr->get_view_dir();
-	const vec3 &view_up_dir = view_ptr->get_view_up_dir();
+	const vec3& cyclopic_eye = view_ptr->get_eye();
+	const vec3& view_dir = view_ptr->get_view_dir();
+	const vec3& view_up_dir = view_ptr->get_view_up_dir();
 
 	vec2 viewport_size(
 		static_cast<float>(fbc.ref_frame_buffer().get_width()),
 		static_cast<float>(fbc.ref_frame_buffer().get_height())
 	);
 	// - spline stube renderer setup relevant to deferred shading pass
-	auto &tstr = ref_textured_spline_tube_renderer(ctx);
+	auto& tstr = ref_textured_spline_tube_renderer(ctx);
 	tstr.set_render_style(render.style);
-	// - the depth texture to use
-	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
-#ifdef RTX_SUPPORT
-	texture &tex_depth = (optix.enabled && optix.initialized) ? optix.fb.depth : *fbc.attachment_texture_ptr("depth");
-#else
-	texture &tex_depth = *fbc.attachment_texture_ptr("depth");
-#endif
+
 	// - node attribute data needed by both rasterization and raytracing
 	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
-	
+
 #ifdef RTX_SUPPORT
 	if (!optix.enabled || !optix.initialized)
 #endif
@@ -2974,12 +2978,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// render tubes
-		auto &tstr = ref_textured_spline_tube_renderer(ctx);
+		auto& tstr = ref_textured_spline_tube_renderer(ctx);
 
 		// prepare index buffer pointer
 		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
 
-		if(!render.render_sbo.is_created() ||
+		if (!render.render_sbo.is_created() ||
 			!render.arclen_sbo.is_created() ||
 			segment_idx_buffer_ptr == nullptr ||
 			node_idx_buffer_ptr == nullptr)
@@ -2989,14 +2993,14 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		bool do_sort = false;
 		float pos_angle = dot(normalize(last_sort_pos), normalize(cyclopic_eye));
 		float view_angle = dot(view_dir, last_sort_dir);
-		if(view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
+		if (view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
 			do_sort = true;
 			last_sort_pos = normalize(cyclopic_eye);
 			last_sort_dir = view_dir;
 		}
 
 		// sort the segment indices
-		if(debug.sort && do_sort && !debug.force_initial_order) {
+		if (debug.sort && do_sort && !debug.force_initial_order) {
 			// measure sort time
 			//render.sorter.begin_time_query();
 			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
@@ -3011,7 +3015,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
 		int count = static_cast<int>(render.data->indices.size() / 2);
-		if(debug.limit_render_count) {
+		if (debug.limit_render_count) {
 			count = static_cast<int>(debug.render_count);
 		}
 
@@ -3019,8 +3023,8 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
 		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
 			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
-			node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
-			tstr.render(ctx, 0, count);
+		node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
+		tstr.render(ctx, 0, count);
 		/*}
 		else
 			tstr.render(ctx, 0, count);*/
@@ -3040,6 +3044,119 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		tstr.enable(ctx); tstr.disable(ctx);
 	}
 #endif
+}
+void on_tube_vis::draw_tube_geometry_glyph3D(context& ctx)
+{
+	// - view-related info
+	const vec3& cyclopic_eye = view_ptr->get_eye();
+	const vec3& view_dir = view_ptr->get_view_dir();
+	const vec3& view_up_dir = view_ptr->get_view_up_dir();
+
+	vec2 viewport_size(
+		static_cast<float>(fbc.ref_frame_buffer().get_width()),
+		static_cast<float>(fbc.ref_frame_buffer().get_height())
+	);
+	// - spline stube renderer setup relevant to deferred shading pass
+	auto& tstr = ref_glyph3D_spline_tube_renderer(ctx);
+	tstr.set_textured_spline_tube_render_style_ptr(&render.style);
+	tstr.set_render_style(render.style3D);
+
+	// - node attribute data needed by both rasterization and raytracing
+	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
+
+#ifdef RTX_SUPPORT
+	if (!optix.enabled || !optix.initialized)
+#endif
+	{
+		// enable drawing framebuffer
+		fbc.enable(ctx);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// render tubes
+		auto& tstr = ref_glyph3D_spline_tube_renderer(ctx);
+
+		// prepare index buffer pointer
+		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
+
+		if (!render.render_sbo.is_created() ||
+			!render.arclen_sbo.is_created() ||
+			segment_idx_buffer_ptr == nullptr ||
+			node_idx_buffer_ptr == nullptr)
+			return;
+
+		// onyl perform a new visibility sort step when the view configuration deviates significantly
+		bool do_sort = false;
+		float pos_angle = dot(normalize(last_sort_pos), normalize(cyclopic_eye));
+		float view_angle = dot(view_dir, last_sort_dir);
+		if (view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
+			do_sort = true;
+			last_sort_pos = normalize(cyclopic_eye);
+			last_sort_dir = view_dir;
+		}
+
+		// sort the segment indices
+		if (debug.sort && do_sort && !debug.force_initial_order) {
+			// measure sort time
+			//render.sorter.begin_time_query();
+			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
+			//benchmark.sort_time_total += render.sorter.end_time_query();
+			++benchmark.num_sorts;
+		}
+
+		tstr.set_cyclopic_eye(cyclopic_eye);
+		tstr.set_view_dir(view_dir);
+		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
+		tstr.set_render_style(render.style);
+		tstr.enable_attribute_array_manager(ctx, render.aam);
+
+		int count = static_cast<int>(render.data->indices.size() / 2);
+		if (debug.limit_render_count) {
+			count = static_cast<int>(debug.render_count);
+		}
+
+		render.render_sbo.bind(ctx, VBT_STORAGE, 0);
+		render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
+		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
+			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
+		node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
+		tstr.render(ctx, 0, count);
+		/*}
+		else
+			tstr.render(ctx, 0, count);*/
+
+		tstr.disable_attribute_array_manager(ctx, render.aam);
+
+		// disable the drawing framebuffer
+		fbc.disable(ctx);
+	}
+#ifdef RTX_SUPPORT
+	else
+	{
+		// delegate to OptiX raytracing
+		optix_draw_trajectories(ctx);
+
+		// workaround for weird framework material behavior
+		tstr.enable(ctx); tstr.disable(ctx);
+	}
+#endif
+}
+
+void on_tube_vis::draw_trajectories(context& ctx)
+{
+	// common init
+	if (is_2D())
+		draw_tube_geometry(ctx);
+	else
+		draw_tube_geometry_glyph3D(ctx);
+
+	// - the depth texture to use
+	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
+#ifdef RTX_SUPPORT
+	texture& tex_depth = (optix.enabled && optix.initialized) ? optix.fb.depth : *fbc.attachment_texture_ptr("depth");
+#else
+	texture& tex_depth = *fbc.attachment_texture_ptr("depth");
+#endif
+
 #ifdef RTX_SUPPORT
 	if (   (!optix.enabled || !optix.initialized)
 		|| (!optix.debug && optix.enabled && optix.initialized))
@@ -3049,8 +3166,6 @@ void on_tube_vis::draw_trajectories(context& ctx)
 		//shader_program& prog = shaders.get("tube_shading");
 		//TODO THESIS
 		shader_program& prog = is_2D() ? shaders.get("tube_shading") : shaders.get("tube_shading_extended");
-		if (is_3D())
-			prog = shaders.get("tube_shading_extended");
 
 		prog.enable(ctx);
 		// set render parameters
@@ -3192,116 +3307,28 @@ void on_tube_vis::draw_trajectories(context& ctx)
 	}
 }
 
-void on_tube_vis::draw_3D_glyphs_trajectories(context& ctx)
+void on_tube_vis::draw_trajectories_glyphs3D(context& ctx)
 {
-	draw_3D_glyphs_tube_back(ctx);
-	draw_3d_glyphs(ctx);
-	draw_3D_glyphs_tube_front(ctx);
+	draw_tube_back_glyphs3D(ctx);
+	draw_glyphs3D(ctx);
+	draw_tube_front_glyphs3D(ctx);
 
 	if (playback.active)
 		post_redraw();
 }
 
-void on_tube_vis::draw_3D_glyphs_tube_back(context& ctx)
+void on_tube_vis::draw_tube_back_glyphs3D(context& ctx)
 {
-	// common init
-	// - view-related info
-	const vec3& cyclopic_eye = view_ptr->get_eye();
-	const vec3& view_dir = view_ptr->get_view_dir();
-	const vec3& view_up_dir = view_ptr->get_view_up_dir();
+	draw_tube_geometry_glyph3D(ctx);
 
-	vec2 viewport_size(
-		static_cast<float>(fbc.ref_frame_buffer().get_width()),
-		static_cast<float>(fbc.ref_frame_buffer().get_height())
-	);
-	// - spline stube renderer setup relevant to deferred shading pass
-	auto& tstr = ref_glyph3D_spline_tube_renderer(ctx);
-	tstr.set_render_style(render.style);
 	// - the depth texture to use
-	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
+//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
 #ifdef RTX_SUPPORT
 	texture& tex_depth = (optix.enabled && optix.initialized) ? optix.fb.depth : *fbc.attachment_texture_ptr("depth");
 #else
 	texture& tex_depth = *fbc.attachment_texture_ptr("depth");
 #endif
-	// - node attribute data needed by both rasterization and raytracing
-	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
 
-#ifdef RTX_SUPPORT
-	if (!optix.enabled || !optix.initialized)
-#endif
-	{
-		// enable drawing framebuffer
-		fbc.enable(ctx);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		// render tubes
-		auto& tstr = ref_glyph3D_spline_tube_renderer(ctx);
-
-		// prepare index buffer pointer
-		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
-
-		if (!render.render_sbo.is_created() ||
-			!render.arclen_sbo.is_created() ||
-			segment_idx_buffer_ptr == nullptr ||
-			node_idx_buffer_ptr == nullptr)
-			return;
-
-		// onyl perform a new visibility sort step when the view configuration deviates significantly
-		bool do_sort = false;
-		float pos_angle = dot(normalize(last_sort_pos), normalize(cyclopic_eye));
-		float view_angle = dot(view_dir, last_sort_dir);
-		if (view_angle < 0.8f || pos_angle < 0.8f || !debug.lazy_sort) {
-			do_sort = true;
-			last_sort_pos = normalize(cyclopic_eye);
-			last_sort_dir = view_dir;
-		}
-
-		// sort the segment indices
-		if (debug.sort && do_sort && !debug.force_initial_order) {
-			// measure sort time
-			//render.sorter.begin_time_query();
-			render.sorter.execute(ctx, render.render_sbo, *segment_idx_buffer_ptr, cyclopic_eye, view_dir, node_idx_buffer_ptr);
-			//benchmark.sort_time_total += render.sorter.end_time_query();
-			++benchmark.num_sorts;
-		}
-
-		tstr.set_cyclopic_eye(cyclopic_eye);
-		tstr.set_view_dir(view_dir);
-		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
-		tstr.set_render_style(render.style);
-		tstr.enable_attribute_array_manager(ctx, render.aam);
-
-		int count = static_cast<int>(render.data->indices.size() / 2);
-		if (debug.limit_render_count) {
-			count = static_cast<int>(debug.render_count);
-		}
-
-		render.render_sbo.bind(ctx, VBT_STORAGE, 0);
-		render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
-		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
-			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
-		node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
-		tstr.render(ctx, 0, count);
-		/*}
-		else
-			tstr.render(ctx, 0, count);*/
-
-		tstr.disable_attribute_array_manager(ctx, render.aam);
-
-		// disable the drawing framebuffer
-		fbc.disable(ctx);
-	}
-#ifdef RTX_SUPPORT
-	else
-	{
-		// delegate to OptiX raytracing
-		optix_draw_trajectories(ctx);
-
-		// workaround for weird framework material behavior
-		tstr.enable(ctx); tstr.disable(ctx);
-	}
-#endif
 #ifdef RTX_SUPPORT
 	if ((!optix.enabled || !optix.initialized)
 		|| (!optix.debug && optix.enabled && optix.initialized))
@@ -3384,7 +3411,7 @@ void on_tube_vis::draw_3D_glyphs_tube_back(context& ctx)
 	}
 }
 
-void on_tube_vis::draw_3d_glyphs(context& ctx)
+void on_tube_vis::draw_glyphs3D(context& ctx)
 {
 	if (render3D.glyphs.spheres.size())
 		render3D.glyphs.spheres.render(ctx);
@@ -3396,7 +3423,7 @@ void on_tube_vis::draw_3d_glyphs(context& ctx)
 		render3D.glyphs.ellipsoids.render(ctx);	
 }
 
-void on_tube_vis::draw_3D_glyphs_tube_front(context& ctx)
+void on_tube_vis::draw_tube_front_glyphs3D(context& ctx)
 {
 	vec2 viewport_size(
 		static_cast<float>(fbc.ref_frame_buffer().get_width()),
