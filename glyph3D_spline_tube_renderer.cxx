@@ -22,41 +22,15 @@ namespace cgv {
 
 		glyph3D_spline_tube_render_style::glyph3D_spline_tube_render_style()
 		{
-			/*radius_scale = 1.0f;
-			radius = 1.0f;
-			fragment_mode = FM_RAY_CAST;
-			bounding_geometry = BG_ALIGNED_BOX_BILLBOARD;
-			attrib_mode = AM_ALL;
-			line_primitive = LP_TUBE_RUSSIG;*/
-
 			//THESIS2:
 			glyph_method = GM_TUBE_SURFACE_PIPELINE;
 
-			tube_backside_render.cull_frontface = false;
-			tube_backside_render.use_distance_check = false;
-			tube_backside_render.clip_caps = true;
-			tube_backside_render.distance_tolerance_factor = 0.00001f;
+			tube_backside_render.use_distance_check = true;
+			tube_backside_render.clip_caps = false;
+			tube_backside_render.distance_tolerance_factor = 0.00080f;
 
-
-			/*use_conservative_depth = false;
-			use_cubic_tangents = true;
-			use_view_space_position = true;
-			use_curvature_correction = true;
-			length_scale = 1.0f;
-			antialias_radius = 0.5f;
-			cap_clip_distance = 20.0f;
-			max_t = std::numeric_limits<float>::infinity();
-
-			rcribbon.linearity_thr = .015625f;
-			rcribbon.screwiness_thr = .9375;
-			rcribbon.subdiv_abort_thr = 512;
-			rcribbon.max_intersection_stack_size = 8;
-			rcribbon.exact_ribbon_bboxes = false;
-			rcribbon.ray_centric_isects = false;
-			rcribbon.bbox_coord_system = rcribbon.BBO_RCC;
-
-			rcribbon.debug.visualize_stats = rcribbon.debug.VS_OFF;
-			rcribbon.debug.visualize_leaf_bboxes = false;*/
+			cull_frontface = true;
+			front_transparency = 0.1f;
 		}
 
 		glyph3D_spline_tube_renderer::glyph3D_spline_tube_renderer()
@@ -151,18 +125,18 @@ namespace cgv {
 		}
 		bool glyph3D_spline_tube_renderer::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
-			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+			const textured_spline_tube_render_style* rs = textured_rs;
 			const glyph3D_spline_tube_render_style& rs3D = get_style<glyph3D_spline_tube_render_style>();
 			last_active_glyph_method = rs3D.glyph_method;
 
 			//THESIS:
 			//TODO THESIS:
-			if (rs.is_tube())
+			if (rs->is_tube())
 			{
 				return prog.build_program(ctx, "spline_tube_glyph3D.glpr", true, defines);
 			}
 			//Not implemented in Thesis
-			else if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED)
+			else if (rs->line_primitive == rs->LP_RIBBON_RAYCASTED)
 				return prog.build_program(ctx, "view_aligned_ribbon.glpr", true, defines);
 			else
 				return prog.build_program(ctx, "textured_spline_ribbon.glpr", true, defines);
@@ -170,7 +144,7 @@ namespace cgv {
 		}
 		bool glyph3D_spline_tube_renderer::enable(context& ctx)
 		{
-			const textured_spline_tube_render_style& rs = get_style<textured_spline_tube_render_style>();
+			const textured_spline_tube_render_style* rs = textured_rs;
 			const glyph3D_spline_tube_render_style& rs3D = get_style<glyph3D_spline_tube_render_style>();
 
 			//THESIS2: needed?
@@ -185,25 +159,25 @@ namespace cgv {
 			if (!ref_prog().is_linked())
 				return false;
 
-			ref_prog().set_uniform(ctx, "radius_scale", rs.radius_scale);
+			ref_prog().set_uniform(ctx, "radius_scale", rs->radius_scale);
 			ref_prog().set_uniform(ctx, "cyclopic_eye", cyclopic_eye);
 			ref_prog().set_uniform(ctx, "view_dir", view_dir);
 			ref_prog().set_uniform(ctx, "viewport", viewport);
-			ref_prog().set_uniform(ctx, "cap_clip_distance", rs.cap_clip_distance);
-			ref_prog().set_uniform(ctx, "max_t", rs.max_t);
+			ref_prog().set_uniform(ctx, "cap_clip_distance", rs->cap_clip_distance);
+			ref_prog().set_uniform(ctx, "max_t", rs->max_t);
 
 			if (rs3D.is_billboard_pipeline())
 			{
-				ref_prog().set_uniform(ctx, "tbr.cull_frontface", rs3D.tube_backside_render.cull_frontface);
 				ref_prog().set_uniform(ctx, "tbr.use_distance_check", rs3D.tube_backside_render.use_distance_check);
 				ref_prog().set_uniform(ctx, "tbr.clip_caps", rs3D.tube_backside_render.clip_caps);
 				ref_prog().set_uniform(ctx, "tbr.distance_tolerance_factor", rs3D.tube_backside_render.distance_tolerance_factor);
+				ref_prog().set_uniform(ctx, "cull_frontface", rs3D.cull_frontface);
 			}
 
-			if (rs.line_primitive == rs.LP_RIBBON_RAYCASTED) {
-				ref_prog().set_uniform(ctx, "linearity_thr", rs.rcribbon.linearity_thr);
-				ref_prog().set_uniform(ctx, "screwiness_thr", std::min(rs.rcribbon.screwiness_thr, .9921875f));
-				ref_prog().set_uniform(ctx, "subdiv_abort_thr", rs.rcribbon.subdiv_abort_thr);
+			if (rs->line_primitive == rs->LP_RIBBON_RAYCASTED) {
+				ref_prog().set_uniform(ctx, "linearity_thr", rs->rcribbon.linearity_thr);
+				ref_prog().set_uniform(ctx, "screwiness_thr", std::min(rs->rcribbon.screwiness_thr, .9921875f));
+				ref_prog().set_uniform(ctx, "subdiv_abort_thr", rs->rcribbon.subdiv_abort_thr);
 			}
 
 			return true;
@@ -231,10 +205,11 @@ namespace cgv {
 			return
 				rh.reflect_base(*static_cast<surface_render_style*>(this)) &&
 				rh.reflect_member("glyph_method", glyph_method) &&
-				rh.reflect_member("tube_backside_render_cull_frontface", tube_backside_render.cull_frontface) &&
+				rh.reflect_member("tube_backside_render_cull_frontface", cull_frontface) &&
 				rh.reflect_member("tube_backside_render_use_distance_check", tube_backside_render.use_distance_check) &&
 				rh.reflect_member("tube_backside_render_clip_caps", tube_backside_render.clip_caps) &&
-				rh.reflect_member("tube_backside_render_distance_tolerance_factor", tube_backside_render.distance_tolerance_factor);
+				rh.reflect_member("tube_backside_render_distance_tolerance_factor", tube_backside_render.distance_tolerance_factor) &&
+				rh.reflect_member("front_transparency", front_transparency);
 		}
 
 		cgv::reflect::extern_reflection_traits<glyph3D_spline_tube_render_style, glyph3D_spline_tube_render_style_reflect> get_reflection_traits(const glyph3D_spline_tube_render_style&)
@@ -273,13 +248,14 @@ namespace cgv {
 				{
 					if (p->begin_tree_node("Tube Backside Parameters", rs_ptr->tube_backside_render, false)) {
 						p->align("\a");
-						p->add_member_control(b, "Cull Frontface", rs_ptr->tube_backside_render.cull_frontface, "check");
+						p->add_member_control(b, "Cull Frontface", rs_ptr->cull_frontface, "check");
 						p->add_member_control(b, "Use Distance Checks", rs_ptr->tube_backside_render.use_distance_check, "check");
 						p->add_member_control(b, "Clip Caps", rs_ptr->tube_backside_render.clip_caps, "check");
 						p->add_member_control(b, "Distance Tolerance", rs_ptr->tube_backside_render.distance_tolerance_factor, "value_slider", "min=0;max=0.1;step=0.00001;log=true");
 						p->align("\b");
 						p->end_tree_node(rs_ptr->tube_backside_render);
 					}
+					p->add_member_control(b, "Front Transparency", rs_ptr->front_transparency, "value_slider", "min=0.0;max=1.0;step=0.01;ticks=true");
 				}
 				return true;
 			}

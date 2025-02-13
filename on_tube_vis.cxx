@@ -779,8 +779,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
 
 			//THESIS2: quick solution.
-			shaders.reload(ctx, "tube_back_shading", build_glyphs3D_tube_shading_defines(false));
-			shaders.reload(ctx, "tube_front_shading", build_glyphs3D_tube_shading_defines(true));
+			shaders.reload(ctx, "tube_shading_back", build_glyphs3D_tube_shading_defines(false));
+			shaders.reload(ctx, "tube_shading_front", build_glyphs3D_tube_shading_defines(true));
 		}
 
 
@@ -831,8 +831,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 				shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
 
 				//THESIS2: quick solution.
-				shaders.reload(ctx, "tube_back_shading", build_glyphs3D_tube_shading_defines(false));
-				shaders.reload(ctx, "tube_front_shading", build_glyphs3D_tube_shading_defines(true));
+				shaders.reload(ctx, "tube_shading_back", build_glyphs3D_tube_shading_defines(false));
+				shaders.reload(ctx, "tube_shading_front", build_glyphs3D_tube_shading_defines(true));
 			}
 		}						
 	}
@@ -890,8 +890,8 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 				shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
 
 				//THESIS2: quick solution.
-				shaders.reload(ctx, "tube_back_shading", build_glyphs3D_tube_shading_defines(false));
-				shaders.reload(ctx, "tube_front_shading", build_glyphs3D_tube_shading_defines(true));
+				shaders.reload(ctx, "tube_shading_back", build_glyphs3D_tube_shading_defines(false));
+				shaders.reload(ctx, "tube_shading_front", build_glyphs3D_tube_shading_defines(true));
 			}
 
 			compile_glyph_attribs();
@@ -1091,6 +1091,10 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 
 		context& ctx = *get_context();
 		update_node_buffers(ctx);
+
+		//THESIS2: quick solution. -> here to update grid mode (no grid on backside, but on front
+		shaders.reload(ctx, "tube_shading_back", build_glyphs3D_tube_shading_defines(false));
+		shaders.reload(ctx, "tube_shading_front", build_glyphs3D_tube_shading_defines(true));
 	}
 
 	//THESIS2:
@@ -1572,8 +1576,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	shaders.reload(ctx, "tube_shading_extended", tube_shading_defines);
 
 	//THESIS2: quick solution
-	shaders.reload(ctx, "tube_back_shading", build_glyphs3D_tube_shading_defines(false));
-	shaders.reload(ctx, "tube_front_shading", build_glyphs3D_tube_shading_defines(true));
+	shaders.reload(ctx, "tube_shading_back", build_glyphs3D_tube_shading_defines(false));
+	shaders.reload(ctx, "tube_shading_front", build_glyphs3D_tube_shading_defines(true));
 
 	render3D.glyphs.spheres.init(ctx);
 	render3D.glyphs.cones.init(ctx);
@@ -2189,8 +2193,11 @@ void on_tube_vis::draw (cgv::render::context &ctx)
 
 		switch(debug.render_mode) {
 		case DRM_NONE:
-			//THESIS2 TODO: insert Billboard rendering here via plane maybe, also use debug.geometry.glpyhs.render(ctx, 0, glyph_idx_count); for rendering of billboards
-			draw_trajectories(ctx);
+			//THESIS2:
+			if (render.style3D.is_tube_surface_pipeline())
+				draw_trajectories(ctx);
+			else
+				draw_trajectories_glyphs3D(ctx);
 			break;
 		case DRM_NODES:
 			debug.geometry.nodes.render(ctx, 0, debug_idx_count);
@@ -2950,8 +2957,8 @@ void on_tube_vis::draw_dnd(context& ctx) {
 	ctx.pop_pixel_coords();
 }
 
-
-void on_tube_vis::draw_tube_geometry(context& ctx)
+//THESIS2:
+void on_tube_vis::draw_tube_geometry(context& ctx, bool sortNodes /*= true*/)
 {
 	// - view-related info
 	const vec3& cyclopic_eye = view_ptr->get_eye();
@@ -2998,7 +3005,7 @@ void on_tube_vis::draw_tube_geometry(context& ctx)
 			last_sort_pos = normalize(cyclopic_eye);
 			last_sort_dir = view_dir;
 		}
-
+		do_sort |= sortNodes;
 		// sort the segment indices
 		if (debug.sort && do_sort && !debug.force_initial_order) {
 			// measure sort time
@@ -3045,7 +3052,7 @@ void on_tube_vis::draw_tube_geometry(context& ctx)
 	}
 #endif
 }
-void on_tube_vis::draw_tube_geometry_glyph3D(context& ctx)
+void on_tube_vis::draw_tube_geometry_glyph3D(context& ctx, bool sortNodes /*= true*/)
 {
 	// - view-related info
 	const vec3& cyclopic_eye = view_ptr->get_eye();
@@ -3058,8 +3065,8 @@ void on_tube_vis::draw_tube_geometry_glyph3D(context& ctx)
 	);
 	// - spline stube renderer setup relevant to deferred shading pass
 	auto& tstr = ref_glyph3D_spline_tube_renderer(ctx);
-	tstr.set_textured_spline_tube_render_style_ptr(&render.style);
 	tstr.set_render_style(render.style3D);
+	tstr.set_textured_spline_tube_render_style_ptr(&render.style);
 
 	// - node attribute data needed by both rasterization and raytracing
 	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
@@ -3093,7 +3100,7 @@ void on_tube_vis::draw_tube_geometry_glyph3D(context& ctx)
 			last_sort_pos = normalize(cyclopic_eye);
 			last_sort_dir = view_dir;
 		}
-
+		do_sort |= sortNodes;
 		// sort the segment indices
 		if (debug.sort && do_sort && !debug.force_initial_order) {
 			// measure sort time
@@ -3106,7 +3113,7 @@ void on_tube_vis::draw_tube_geometry_glyph3D(context& ctx)
 		tstr.set_cyclopic_eye(cyclopic_eye);
 		tstr.set_view_dir(view_dir);
 		tstr.set_viewport(vec4((float)viewport[0], (float)viewport[1], (float)viewport[2], (float)viewport[3]));
-		tstr.set_render_style(render.style);
+		tstr.set_render_style(render.style3D);
 		tstr.enable_attribute_array_manager(ctx, render.aam);
 
 		int count = static_cast<int>(render.data->indices.size() / 2);
@@ -3145,9 +3152,12 @@ void on_tube_vis::draw_trajectories(context& ctx)
 {
 	// common init
 	if (is_2D())
-		draw_tube_geometry(ctx);
+		draw_tube_geometry(ctx, true);
 	else
-		draw_tube_geometry_glyph3D(ctx);
+	{
+		render.style3D.tube_backside_render.clip_caps = false;
+		draw_tube_geometry_glyph3D(ctx, true);
+	}
 
 	// - the depth texture to use
 	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
@@ -3309,8 +3319,10 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 void on_tube_vis::draw_trajectories_glyphs3D(context& ctx)
 {
+	render.style3D.cull_frontface = true;
 	draw_tube_back_glyphs3D(ctx);
 	draw_glyphs3D(ctx);
+	render.style3D.cull_frontface = false;
 	draw_tube_front_glyphs3D(ctx);
 
 	if (playback.active)
@@ -3319,7 +3331,7 @@ void on_tube_vis::draw_trajectories_glyphs3D(context& ctx)
 
 void on_tube_vis::draw_tube_back_glyphs3D(context& ctx)
 {
-	draw_tube_geometry_glyph3D(ctx);
+	draw_tube_geometry_glyph3D(ctx, true);
 
 	// - the depth texture to use
 //   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
@@ -3335,7 +3347,7 @@ void on_tube_vis::draw_tube_back_glyphs3D(context& ctx)
 #endif
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
-		shader_program& prog = shaders.get("tube_back_shading");
+		shader_program& prog = shaders.get("tube_shading_back");
 
 		prog.enable(ctx);
 		// set render parameters
@@ -3369,7 +3381,6 @@ void on_tube_vis::draw_tube_back_glyphs3D(context& ctx)
 
 		prog.set_uniform(ctx, "length_scale", render.style.length_scale);
 		prog.set_uniform(ctx, "antialias_radius", render.style.antialias_radius);
-
 
 		const textured_spline_tube_render_style& srs = *static_cast<const textured_spline_tube_render_style*>(&render.style);
 
@@ -3425,14 +3436,8 @@ void on_tube_vis::draw_glyphs3D(context& ctx)
 
 void on_tube_vis::draw_tube_front_glyphs3D(context& ctx)
 {
-	vec2 viewport_size(
-		static_cast<float>(fbc.ref_frame_buffer().get_width()),
-		static_cast<float>(fbc.ref_frame_buffer().get_height())
-	);
-	// - spline tube renderer setup relevant to deferred shading pass
-	//THESIS2: We use the 3D renderer here, but the textured_spline_renderer style -> style is the same for both, but the used shader pipeline is different
-	auto& tstr = ref_glyph3D_spline_tube_renderer(ctx);
-	tstr.set_render_style(render.style);
+	draw_tube_geometry_glyph3D(ctx, false);
+
 	// - the depth texture to use
 	//   (workaround for longstanding NVIDIA driver bug preventing GPU-internal PBO transfers to GL_DEPTH_COMPONENT formats)
 #ifdef RTX_SUPPORT
@@ -3440,73 +3445,13 @@ void on_tube_vis::draw_tube_front_glyphs3D(context& ctx)
 #else
 	texture& tex_depth = *fbc.attachment_texture_ptr("depth");
 #endif
-	// - node attribute data needed by both rasterization and raytracing
-	const vertex_buffer* node_idx_buffer_ptr = tstr.get_vertex_buffer_ptr(ctx, render.aam, "node_ids");
-
-#ifdef RTX_SUPPORT
-	if (!optix.enabled || !optix.initialized)
-#endif
-	{
-		// enable drawing framebuffer
-		fbc.enable(ctx);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		// render tubes
-		auto& tstr = ref_glyph3D_spline_tube_renderer(ctx);
-
-		// prepare index buffer pointer
-		const vertex_buffer* segment_idx_buffer_ptr = tstr.get_index_buffer_ptr(render.aam);
-
-		if (!render.render_sbo.is_created() ||
-			!render.arclen_sbo.is_created() ||
-			segment_idx_buffer_ptr == nullptr ||
-			node_idx_buffer_ptr == nullptr)
-			return;
-
-		//THESIS2:
-		//no need to resort nodes again, as this always follows the backside rendering, which performs the sort
-
-		
-		tstr.set_render_style(render.style);
-		tstr.enable_attribute_array_manager(ctx, render.aam);
-
-		int count = static_cast<int>(render.data->indices.size() / 2);
-		if (debug.limit_render_count) {
-			count = static_cast<int>(debug.render_count);
-		}
-
-		render.render_sbo.bind(ctx, VBT_STORAGE, 0);
-		render.arclen_sbo.bind(ctx, VBT_STORAGE, 1);
-		//if (render.style.attrib_mode != textured_spline_tube_render_style::AM_ALL) {
-			// for now we always bind the node indices buffer to enable smooth intra-segment t filtering
-		node_idx_buffer_ptr->bind(ctx, VBT_STORAGE, 2);
-		tstr.render(ctx, 0, count);
-		/*}
-		else
-			tstr.render(ctx, 0, count);*/
-
-		tstr.disable_attribute_array_manager(ctx, render.aam);
-
-		// disable the drawing framebuffer
-		fbc.disable(ctx);
-	}
-#ifdef RTX_SUPPORT
-	else
-	{
-		// delegate to OptiX raytracing
-		optix_draw_trajectories(ctx);
-
-		// workaround for weird framework material behavior
-		tstr.enable(ctx); tstr.disable(ctx);
-	}
-#endif
 #ifdef RTX_SUPPORT
 	if ((!optix.enabled || !optix.initialized)
 		|| (!optix.debug && optix.enabled && optix.initialized))
 #endif
 	{
 		// perform the deferred shading pass and draw the image into the shading framebuffer when not using OptiX (for now)
-		shader_program& prog = shaders.get("tube_front_shading");
+		shader_program& prog = shaders.get("tube_shading_front");
 
 		prog.enable(ctx);
 		// set render parameters
@@ -3565,6 +3510,8 @@ void on_tube_vis::draw_tube_front_glyphs3D(context& ctx)
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
 
+		//THESIS2:
+		prog.set_uniform(ctx, "front_transparency", render.style3D.front_transparency);
 		
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);
@@ -3588,7 +3535,17 @@ void on_tube_vis::draw_tube_front_glyphs3D(context& ctx)
 		//	}
 		//}
 
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		// Disable depth writing for transparent objects
+		//glDepthMask(GL_FALSE);
+
+
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+		//glDepthMask(GL_TRUE);
+		glDisable(GL_BLEND);
 
 		/*for (size_t i = 0; i < 4; ++i) {
 			if (active_sbos[i]) {
@@ -3671,6 +3628,7 @@ shader_define_map on_tube_vis::build_tube_shading_defines() {
 	return defines;
 }
 
+//THESIS2:
 shader_define_map on_tube_vis::build_glyphs3D_tube_shading_defines(bool isFront) {
 	shader_define_map defines;
 
@@ -3681,15 +3639,14 @@ shader_define_map on_tube_vis::build_glyphs3D_tube_shading_defines(bool isFront)
 	shader_code::set_define(defines, "ENABLE_AMBIENT_OCCLUSION", ao_style.enable, true);
 
 	// grid defines
-	if (isFront)
-	{
-		shader_code::set_define(defines, "GRID_MODE", grid_mode, GM_COLOR);
-		unsigned gs = static_cast<unsigned>(grid_normal_settings);
-		if (grid_normal_inwards) gs += 4u;
-		if (grid_normal_variant) gs += 8u;
-		shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
-		shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
-	}
+	
+	shader_code::set_define(defines, "GRID_MODE", grid_mode, isFront ? GM_COLOR : GM_NONE);
+	unsigned gs = static_cast<unsigned>(grid_normal_settings);
+	if (grid_normal_inwards) gs += 4u;
+	if (grid_normal_variant) gs += 8u;
+	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
+	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
+	
 
 	// glyph layer defines
 	/*const auto& glyph_layers_config = render.visualizations.front().config;

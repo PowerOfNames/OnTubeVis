@@ -72,6 +72,9 @@ uniform bool use_curvature_correction;
 uniform float length_scale;
 uniform float antialias_radius;
 
+//THESIS2:
+uniform float front_transparency;
+
 // holographic raycasting parameters
 uniform bool  holographic_raycast;
 uniform float viewport_width;
@@ -319,6 +322,7 @@ void main()
 	uvec4 albedo_texcoord_seg = texture(albedo_tex, fb_uv);
 	vec3 color = unpackUnorm4x8(albedo_texcoord_seg.x).rgb;
 	vec2 texcoord = vec2(uintBitsToFloat(albedo_texcoord_seg.y), uintBitsToFloat(albedo_texcoord_seg.z));
+	int segment_id = int(albedo_texcoord_seg.w);
 
 	uvec4 pos_eye_radius = texture(position_tex, fb_uv);
 	vec3 pos_eye = vec3(uintBitsToFloat(pos_eye_radius.x), uintBitsToFloat(pos_eye_radius.y), uintBitsToFloat(pos_eye_radius.z));
@@ -328,6 +332,9 @@ void main()
 	float depth = texture(depth_tex, fb_uv).r;
 	float specular_factor = 1;
 
+
+	float alpha = clamp(1.0-front_transparency, 0.0, 1.0);
+	
 	vec4 subp_color;
 	if(depth == 1.0) {
 		// TODO: these fragments are never drawn to the screen (because depth is one)
@@ -346,11 +353,18 @@ void main()
 		if(use_curvature_correction)
 			uv.t = sin(0.5*M_PI*uv.t);
 
+#if DEBUG_SEGMENTS == 1
+		// highlight individual segments
+		if((segment_id&1) > 0) color *= 0.5;
+#endif
+
+
 #if GRID_MODE & 1
 		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
 
-		subp_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1, specular_factor);
+		subp_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, alpha), 1, specular_factor);
+		subp_color.a = 1.0 - front_transparency;
 
 #if GRID_MODE & 2
 		vec3 gn = compute_grid_normal(uv);

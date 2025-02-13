@@ -16,122 +16,15 @@ namespace cgv { // @<
 		/*!	Style to control the look of glyph3D spline tubes. */
 		struct glyph3D_spline_tube_render_style : public surface_render_style
 		{
-			///// multiplied to the tube radius, initialized to 1
-			//float radius_scale;
-			///// default tube radius, initialized to 1
-			//float radius;
-			///// specifies the calculation routine and output of the fragment shader for debug purposes
-			//enum FragmentMode {
-			//	FM_NO_OP = 0, // discards all fragments
-			//	FM_RASTERIZE_DEBUG = 1, // show rasterized fragments but don't perform ray cast
-			//	FM_RAY_CAST_DEBUG = 2, // do ray cast but don't discard fragments with no hit
-			//	FM_RAY_CAST = 3 // full ray cast only keeping the intersected fragments
-			//} fragment_mode;
-			///// specifies the type of bounding geometry to use for ray casting
-			//enum BoundingGeometry {
-			//	BG_BOX = 0, // use oriented bounding boxes
-			//	BG_APPROXIMATE_BILLBOARD = 1, // quadrilateral billboard built from encapsulating the bounding box in a rounded cone and using the rounded cone billboard
-			//	BG_EXACT_POLYGON = 2, // a single polygon with 4 or 6 corners covering exactly the bounding box silhouette in screen space
-			//	BG_BOX_BILLBOARD = 3, // a single quadrilateral covering the full bounding box
-			//	BG_ALIGNED_BOX_BILLBOARD = 4, // a single quadrilateral calculated as the front side of a view-aligned bounding box
-			//	BG_BOX_SPLITSIMUL1 = 5, // same as BG_BOX, but subdivide the box into 2 equally sized boxes using a SINGLE triangle strip to simulate geometry load of splitting at inflection points, // a single quadrilateral calculated as the front side of a view-aligned bounding box
-			//	BG_BOX_SPLITSIMUL2 = 6, // same as BG_BOX, but subdivide the box into 2 equally sized segments using TWO triangle strips to simulate geometry load of splitting at inflection points
-			//	BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL1 = 7, // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using a SINGLE triangle strip to simulate geometry load of splitting at inflection points
-			//	BG_ALIGNED_BOX_BILLBOARD_SPLITSIMUL2 = 8 // same as BG_ALIGNED_BOX_BILLBOARD, but subdividing the billboard 2 quads using TWO triangle strips to simulate geometry load of splitting at inflection points
-			//} bounding_geometry;
-			///// specifies the degree of attributeless-ness the renderer should be.
-			//enum AttribMode
-			//{
-			//	AM_ALL = 0,                                 // store all shader-generated data in proxy geometry attributes
-			//	AM_CURVELESS = 1,                           // don't store curve data in proxy geometry attributes - original cubic curve data will be fetched from SBO and sub-curve subdivision will be re-calculated in the fragment shader
-			//	AM_COLORLESS = 2,                           // don't store node color in proxy geometry attributes - original node colors will be fetched from SBO and color at sub-curve split will be calculated in the fragment shader
-			//	AM_ATTRIBLESS = AM_CURVELESS | AM_COLORLESS // don't store any shader-generated data in proxy geometry attributes (only segment ID and subcurve index will be stored)
-			//} attrib_mode;
-			///// specifies the intersection routine to use
-			//enum LinePrimitive
-			//{
-			//	LP_TUBE_RUSSIG = 0,                         // use intersector for swept-sphere spline tubes by Russig et al.
-			//	LP_TUBE_PHANTOM = 1,                        // use swept-disc Phantom Ray Hair intersector by Reshetov and Lübke
-			//	LP_RIBBON_RAYCASTED = 2,                    // use raycasted view-aligned ribbon
-			//	LP_RIBBON_GEOMETRY = 3                      // use geometry-shader based triangle-strip tessellated view-aligned ribbon (ignores bounding geometry style options)
-			//} line_primitive;
-			
-
 			enum GlyphMethod
 			{
 				GM_TUBE_SURFACE_PIPELINE = 0,
 				GM_BILLBOARD_PIPELINE = 1
 			} glyph_method;
-			///// whether to use conservative depth extension to re-enable early depth testing
-			//bool use_conservative_depth;
-			///// whether to calculate tangents from the cubic hermite definition or from the two quadratic bezier segments
-			//bool use_cubic_tangents;
-			///// whether to use the vertex position in view space or the projected position for ray casting (reduces per-vertex output when turned off)
-			//bool use_view_space_position;
-			///// whether to correct for the tube curvature when computing radial texture coordinates (tubes only)
-			//bool use_curvature_correction;
-			//// length scale factor for longitudinal texture coordiante
-			//float length_scale;
-			///// the radius used for texture filtering
-			//float antialias_radius;
-			///// the minimum distance from the camera from which segment end caps are clipped to prevent z-fighting artifacts (tubes only)
-			//float cap_clip_distance;
-			///// draw only tube geometry up to the given timestamp
-			//float max_t;
-			///// fill this with the information what the earliest and latest timestamps among all position samples in your data are
-			//std::pair<float, float> data_t_minmax;
-
-			///// special parameters for raycasted ribbon
-			//struct {
-			//	/// linearity threshold at which to stop subdividing (0 means completely linear)
-			//	float linearity_thr;
-			//	/// threshold for the cosine of the maximum angle difference of bitangents allowed in a patch until which to keep subdividing
-			//	float screwiness_thr;
-			//	/// minimum subcurve length at which to force-stop subdividing, in multiples of machine epsilon
-			//	float subdiv_abort_thr;
-			//	/// defines the maximum depth of the subcurve stack - when the stack reaches this threshold, subcurves are intersected
-			//	/// as-is even if they don't yet fulfill the linearity threshold
-			//	unsigned max_intersection_stack_size;
-			//	/// whether to calculate exact tight-fitting ribbon bounding boxes or use a tube-based approximation
-			//	bool exact_ribbon_bboxes;
-			//	/// whether to transform subcurve patches to ray-centric coordinates (if they aren't already) for intersection
-			//	bool ray_centric_isects;
-			//	/// how to orient segment subcurve bounding boxes
-			//	enum BBoxOrientation {
-			//		BBO_SEGMENT = 0, /// all (sub-)boxes use original segment curve coordinate system
-			//		BBO_SUBCURVE = 1, /// each box uses a coordinate system oriented with its corresponding (sub-)curve
-			//		BBO_RCC = 2, // all (sub-)boxes use the ray-centric coordinate system of the fragment
-			//	} bbox_coord_system;
-
-			//	/// debug options
-			//	struct {
-			//		/// encode some statistic inside the ribbon surface color
-			//		enum VisualizeStats {
-			//			/// deactivated
-			//			VS_OFF = 0,
-			//			/// number of iterations needed until intersection
-			//			VS_INTERSECTIONS = 1,
-			//			/// stack usage
-			//			VS_STACK_USAGE = 2
-			//		} visualize_stats;
-			//		/// visualize leaf-level bounding boxes
-			//		bool visualize_leaf_bboxes;
-			//	} debug;
-			//} rcribbon;
 
 			/// construct with default values
 			glyph3D_spline_tube_render_style();
 
-			/*/// check wether chosen line primtive is a tube
-			inline bool is_tube(void) const {
-				return line_primitive < 2;
-			}
-			/// check wether chosen line primtive is a ribbon
-			inline bool is_ribbon(void) const {
-				return line_primitive > 1;
-			}*/
-
-			//THESIS2:
 			/// check wether chosen glyph medhod is textured
 			inline bool is_tube_surface_pipeline(void) const {
 				return glyph_method == 0;
@@ -141,14 +34,15 @@ namespace cgv { // @<
 				return glyph_method == 1;
 			}
 
-			//THESIS2:
 			struct tube_backside_render_parameters {
-				bool cull_frontface;
 				bool use_distance_check;
 				bool clip_caps;
 				float distance_tolerance_factor;
 			};
 			tube_backside_render_parameters tube_backside_render;
+
+			bool cull_frontface;
+			float front_transparency;
 		};
 
 		/// renderer that supports textured cubic hermite spline tubes
@@ -171,9 +65,6 @@ namespace cgv { // @<
 			/// additional defines not dependant on the style and set from outside the renderer
 			shader_define_map additional_defines;
 			/// keep track of which line primitive was active the last time the renderer drew something
-			//glyph3D_spline_tube_render_style::LinePrimitive last_active_line_primitive;
-
-
 
 
 			//THESIS2:

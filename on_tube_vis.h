@@ -674,8 +674,8 @@ protected:
 	void draw_density_volume(context& ctx);
 
 	//THESIS2:
-	void draw_tube_geometry(context& ctx);
-	void draw_tube_geometry_glyph3D(context& ctx);
+	void draw_tube_geometry(context& ctx, bool sortNodes = true);
+	void draw_tube_geometry_glyph3D(context& ctx, bool sortNodes = true);
 
 	void draw_trajectories_glyphs3D(context& ctx);
 	void draw_tube_back_glyphs3D(context& ctx);

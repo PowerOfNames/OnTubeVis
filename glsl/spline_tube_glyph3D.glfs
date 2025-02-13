@@ -77,7 +77,6 @@ struct QTube {
 };
 
 //THESIS2:
-
 struct Hit {
 	vec3 org;
 	vec3 dir;
@@ -94,11 +93,11 @@ struct Hit {
 
 //by David
 uniform struct tube_backside_render {
-	bool cull_frontface;
 	bool use_distance_check;
 	bool clip_caps;
 	float distance_tolerance_factor;
 } tbr;
+uniform bool cull_frontface;
 
 uniform float radius_scale;
 uniform vec3 cyclopic_eye;
@@ -852,7 +851,7 @@ Hit EvalSplineISect(
 			hit.h1 = hit2;
 
 			// select the preferred hit, which should be the nearest or furthest hit, depending on cull mode
-			if(tbr.cull_frontface) {
+			if(cull_frontface) {
 				if(hit2) {
 					if(t1 < t2 || !hit1) {
 						hit.preferred_idx = 1;
@@ -1028,7 +1027,7 @@ void main()
 	vec3 backside_origin = origin + (2.0 * dist_to_center) * direction;
 	//frag_reverse_ray_origin = backside_origin;
 
-	if(tbr.cull_frontface) { // reverse raycast
+	if(cull_frontface) { // reverse raycast
 		origin = backside_origin;
 		direction = -direction;
 	}
@@ -1039,7 +1038,7 @@ void main()
 		l_max
 	);
 
-	if(tbr.cull_frontface) {
+	if(cull_frontface) {
 		hit.nml0 = -hit.nml0;
 		hit.nml1 = -hit.nml1;
 	}
