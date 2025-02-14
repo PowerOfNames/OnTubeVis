@@ -443,10 +443,10 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 		{"radius0", {"ID", false, 1}},
 		{"radius1", {"ID", false, 1}},
 		{"radius2", {"ID", false, 1}},
-		{"angle1", {"ID", false, 1}},
-		{"angle2", {"ID", false, 1}},
-		{"angle3", {"ID", false, 1}},
-		{"ori_0", {"ID", false, 1}},
+		{"vec_x", {"ID", false, 1}},
+		{"vec_y", {"ID", false, 1}},
+		{"vec_z", {"ID", false, 1}},
+		{"ori_w", {"ID", false, 1}},
 		{"ori_i", {"ID", false, 1}},
 		{"ori_j", {"ID", false, 1}},
 		{"ori_k", {"ID", false, 1}}
@@ -545,7 +545,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 					//THESIS:
 					///////////
 					/// XXX: Hack to calculate the Eigenvector and Eigenvalues from the tensor matrix composed out of 9 float values.
-					if (is_tensor_contained && performed_tensor_jacobi && [&attrib]
+					if ((is_tensor_contained && performed_tensor_jacobi) && [&attrib]
 						{
 							for (const auto& vattr : eigen_attribs)
 								if (&attrib.desc == &vattr) // <-- this works because attrib just references the underlying csv_desc
@@ -572,22 +572,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 							a.template get_data<real>().append(std::move(eigenvalues[2]), (real)t_mod);
 							continue;
 						}
-						else if (attrib.desc.name == "angle1")
-						{
-							a.template get_data<real>().append(std::move(angles[0]), (real)t_mod);
-							continue;
-						}
-						else if (attrib.desc.name == "angle2")
-						{
-							a.template get_data<real>().append(std::move(angles[1]), (real)t_mod);
-							continue;
-						}
-						else if (attrib.desc.name == "angle3")
-						{ 
-							a.template get_data<real>().append(std::move(angles[2]), (real)t_mod);
-							continue;
-						}
-						else if (attrib.desc.name == "ori_0")
+						else if (attrib.desc.name == "ori_w")
 						{
 							a.template get_data<real>().append(std::move(eigen_quat[0]), (real)t_mod);
 							continue;
@@ -616,13 +601,13 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 					/// XXX: Hack to get absolute values of vorticity vector components for Paraview-exported Streamline datasets
 					///      Note: also has a preparatory custom hack in the initialization phase
 
-					if (is_paraview_streamline && [&attrib] 
+					if (is_paraview_streamline && [&attrib]
 						{
 							for (const auto &vattr : abs_attribs)
 								if (&attrib.desc == &vattr) // <-- this works because attrib just references the underlying csv_desc
 									return true;
 							return false;
-						}()) 
+						}())
 					{
 						a.template get_data<real>().append(
 							std::abs(Impl::parse_field(fields[attrib.field_ids.front()])), (real)t_mod
@@ -686,10 +671,10 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 						//JacobiEigen::PrintMatrix(matCopy);
 						JacobiEigen::NormalizeEigenvectors(eigenvectors);
 						eigenvalues.normalize();
-						for (uint32_t i = 0; i < 3; i++)
+						/*for (uint32_t i = 0; i < 3; i++)
 						{
 							std::printf("Eigenvalue %i: %f; Eigenvector: (%f, %f, %f)\n", i, eigenvalues[i], eigenvectors(i, 0), eigenvectors(i, 1), eigenvectors(i, 2));
-						}
+						}*/
 						JacobiEigen::CalculateAnglesFromEigenVectors(eigenvectors, angles);
 						eigen_quat = JacobiEigen::CalculateQuaternionFromEigenVectors(eigenvectors);
 						//JacobiEigen::PrintQuaternion(eigen_quat);
@@ -938,15 +923,19 @@ static const csv_descriptor csv_debug_diffTens_desc("Diffusion Tensor Debug", ",
 	{ "t", {"Timestamp", false, 0}, CSV::TIMESTAMP },
 	{ "id", {"ID", false, 1}, CSV::TRAJ_ID },
 	{ "Position", {{"Pos:0", false, 2}, {"Pos:1", false, 3}, {"Pos:2", false, 4}}, CSV::POS },
-	{ "DiffTensor", {	{"Diff:0", false, 5},
-						{"Diff:1", false, 6},
-						{"Diff:2", false, 7},
-						{"Diff:3", false, 8},
-						{"Diff:4", false, 9},
-						{"Diff:5", false, 10},
-						{"Diff:6", false, 11},
-						{"Diff:7", false, 12},
-						{"Diff:8", false, 13} }, CSV::TENSOR3x3}
+	{ "Vector", {{"Vec:x", false, 5}, {"Vec:y", false, 6}, {"Vec:z", false, 7}}, CSV::VEC },
+	{ "Vector.x", {"Vec:x", false, 5} },
+	{ "Vector.y", {"Vec:y", false, 6} },
+	{ "Vector.z", {"Vec:z", false, 7} },
+	{ "DiffTensor", {	{"Diff:0", false, 8},
+						{"Diff:1", false, 9},
+						{"Diff:2", false, 10},
+						{"Diff:3", false, 11},
+						{"Diff:4", false, 12},
+						{"Diff:5", false, 13},
+						{"Diff:6", false, 14},
+						{"Diff:7", false, 15},
+						{"Diff:8", false, 16} }, CSV::TENSOR3x3}
 	});
 cgv::base::object_registration_2<
 	csv_handler<float>, csv_descriptor, visual_attribute_mapping<float>

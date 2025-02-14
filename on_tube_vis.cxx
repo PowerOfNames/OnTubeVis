@@ -1441,9 +1441,13 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	const uint32_t radius2_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius2", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t radius3_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius3", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 
+	const uint32_t vec_x_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t vec_y_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t vec_z_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_z", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+
 	const uint32_t cone_magnitude_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "magnitude", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 
-	const uint32_t orientation_0_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_0", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t orientation_0_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_w", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t orientation_i_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_i", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t orientation_j_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_j", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t orientation_k_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_k", layer_config.shape_ptr, last_nonmapped_attrib_idx);
@@ -1502,7 +1506,11 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 					case GT_3D_CONE_VECTOR:
 					{
 						//Position ->
-						cones.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));					
+						const auto& pos = hermites[ds_index_buffer_base + global_segment_idx].interpolate(t);
+						const vec3& end_pos = { attribs.data[attrib_base_idx + vec_x_idx], attribs.data[attrib_base_idx + vec_y_idx], attribs.data[attrib_base_idx + vec_z_idx] };
+						const vec3& start_pos = pos - 0.5f * (end_pos - pos);
+						cones.add(start_pos, start_pos + end_pos);
+						cones.add(0.1f, 0.5f);
 
 						break;
 					}

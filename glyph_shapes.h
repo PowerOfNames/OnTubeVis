@@ -587,7 +587,7 @@ public:
 	}
 
 	virtual GlyphType type() const {
-		return GT_3D_ELLIPSOID_3x3_TENSOR;
+		return GT_3D_CONE_VECTOR;
 	}
 
 	virtual std::string name() const {
@@ -598,15 +598,10 @@ public:
 		static const attribute_list attributes = {
 			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			/*{ "Vector", GAT_COMPOSITE_3 },*/
-			{ "magnitude", GAT_SIZE/*, GAM_COMPOSITE_ELEMENT*/ },
-			{ "ori_0", GAT_SIGNED_UNIT },
-			{ "ori_i", GAT_SIGNED_UNIT },
-			{ "ori_j", GAT_SIGNED_UNIT },
-			{ "ori_k", GAT_SIGNED_UNIT },
-			{ "pitch", GAT_ANGLE },
-			{ "yaw", GAT_ANGLE },
-			{ "roll", GAT_ANGLE }
+			{ "magnitude", GAT_SIZE },
+			{ "vec_x", GAT_SIGNED_UNIT },
+			{ "vec_y", GAT_SIGNED_UNIT },
+			{ "vec_Z", GAT_SIGNED_UNIT }
 		};
 		return attributes;
 	}

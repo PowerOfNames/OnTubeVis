@@ -342,8 +342,7 @@ void main()
 	float depth = texture(depth_tex, fb_uv).r;
 	float specular_factor = 1;
 
-	float alpha = 1.0 - (front_transparency * fresnel(cos(dot(normalize(-pos_eye), normal_eye)), fresnel_reflection));
-	//float alpha = clamp(1.0-front_transparency, 0.0, 1.0);
+	float alpha = (1.0 - front_transparency) * fresnel(dot(normalize(-pos_eye), normal_eye), fresnel_reflection);
 	
 	vec4 subp_color;
 	if(depth == 1.0) {

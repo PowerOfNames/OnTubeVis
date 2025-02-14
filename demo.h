@@ -435,7 +435,7 @@ struct demo : public traj_format_handler<float>
 		auto attrib_Radius = add_attribute<real>(ds, "radius0");
 		auto attrib_Radius2 = add_attribute<real>(ds, "radius1");
 		auto attrib_Radius3 = add_attribute<real>(ds, "radius2");
-		auto attrib_ori0 = add_attribute<real>(ds, "ori_0");
+		auto attrib_ori0 = add_attribute<real>(ds, "ori_w");
 		auto attrib_orii = add_attribute<real>(ds, "ori_i");
 		auto attrib_orij = add_attribute<real>(ds, "ori_j");
 		auto attrib_orik = add_attribute<real>(ds, "ori_k");

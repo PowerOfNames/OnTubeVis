@@ -30,8 +30,8 @@ namespace cgv {
 			tube_backside_render.distance_tolerance_factor = 0.00080f;
 
 			cull_frontface = true;
-			front_transparency = 0.1f;
-			fresnel_reflection = 1.0f;
+			front_transparency = 0.2f;
+			fresnel_reflection = 5.4f;
 		}
 
 		glyph3D_spline_tube_renderer::glyph3D_spline_tube_renderer()
