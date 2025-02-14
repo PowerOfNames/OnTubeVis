@@ -43,6 +43,7 @@ namespace cgv { // @<
 
 			bool cull_frontface;
 			float front_transparency;
+			float fresnel_reflection;
 		};
 
 		/// renderer that supports textured cubic hermite spline tubes

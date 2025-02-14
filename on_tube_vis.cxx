@@ -3319,6 +3319,7 @@ void on_tube_vis::draw_trajectories(context& ctx)
 
 void on_tube_vis::draw_trajectories_glyphs3D(context& ctx)
 {
+	render.style3D.tube_backside_render.clip_caps = true;
 	render.style3D.cull_frontface = true;
 	draw_tube_back_glyphs3D(ctx);
 	draw_glyphs3D(ctx);
@@ -3512,6 +3513,7 @@ void on_tube_vis::draw_tube_front_glyphs3D(context& ctx)
 
 		//THESIS2:
 		prog.set_uniform(ctx, "front_transparency", render.style3D.front_transparency);
+		prog.set_uniform(ctx, "fresnel_reflection", render.style3D.fresnel_reflection);
 		
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);
@@ -3538,13 +3540,8 @@ void on_tube_vis::draw_tube_front_glyphs3D(context& ctx)
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-		// Disable depth writing for transparent objects
-		//glDepthMask(GL_FALSE);
-
-
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		//glDepthMask(GL_TRUE);
 		glDisable(GL_BLEND);
 
 		/*for (size_t i = 0; i < 4; ++i) {

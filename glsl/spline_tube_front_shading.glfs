@@ -74,6 +74,7 @@ uniform float antialias_radius;
 
 //THESIS2:
 uniform float front_transparency;
+uniform float fresnel_reflection;
 
 // holographic raycasting parameters
 uniform bool  holographic_raycast;
@@ -300,6 +301,15 @@ vec3 compute_grid_normal(vec2 uv) {
 	return normalize(mix(normal0, normal1, 1.0 - grid_blend_factor));
 }
 
+
+//Suggestion from David:
+float fresnel(float cost, float ior) {
+    float a = (1.0 - ior) / (1.0 + ior);
+    float f0 = a * a;
+    float fe = 1.0 - cost;
+    return f0 + (1.0 - f0) * pow(fe, 5.0);
+}
+
 void main()
 {
 	const uint num_subpixels = holographic_raycast ? 3 : 1;
@@ -332,8 +342,8 @@ void main()
 	float depth = texture(depth_tex, fb_uv).r;
 	float specular_factor = 1;
 
-
-	float alpha = clamp(1.0-front_transparency, 0.0, 1.0);
+	float alpha = 1.0 - (front_transparency * fresnel(cos(dot(normalize(-pos_eye), normal_eye)), fresnel_reflection));
+	//float alpha = clamp(1.0-front_transparency, 0.0, 1.0);
 	
 	vec4 subp_color;
 	if(depth == 1.0) {
@@ -363,8 +373,8 @@ void main()
 		color = mix(color, grid_color.rgb, compute_grid_factor(uv) * grid_color.a);
 #endif
 
-		subp_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, alpha), 1, specular_factor);
-		subp_color.a = 1.0 - front_transparency;
+		subp_color = compute_reflected_appearance(pos_eye, normal_eye, vec4(color, 1.0), 1, specular_factor);
+		subp_color.a = alpha;
 
 #if GRID_MODE & 2
 		vec3 gn = compute_grid_normal(uv);

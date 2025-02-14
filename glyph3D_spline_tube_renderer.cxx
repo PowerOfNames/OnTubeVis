@@ -26,11 +26,12 @@ namespace cgv {
 			glyph_method = GM_TUBE_SURFACE_PIPELINE;
 
 			tube_backside_render.use_distance_check = true;
-			tube_backside_render.clip_caps = false;
+			tube_backside_render.clip_caps = true;
 			tube_backside_render.distance_tolerance_factor = 0.00080f;
 
 			cull_frontface = true;
 			front_transparency = 0.1f;
+			fresnel_reflection = 1.0f;
 		}
 
 		glyph3D_spline_tube_renderer::glyph3D_spline_tube_renderer()
@@ -209,7 +210,8 @@ namespace cgv {
 				rh.reflect_member("tube_backside_render_use_distance_check", tube_backside_render.use_distance_check) &&
 				rh.reflect_member("tube_backside_render_clip_caps", tube_backside_render.clip_caps) &&
 				rh.reflect_member("tube_backside_render_distance_tolerance_factor", tube_backside_render.distance_tolerance_factor) &&
-				rh.reflect_member("front_transparency", front_transparency);
+				rh.reflect_member("front_transparency", front_transparency) &&
+				rh.reflect_member("fresnel_reflection", fresnel_reflection);
 		}
 
 		cgv::reflect::extern_reflection_traits<glyph3D_spline_tube_render_style, glyph3D_spline_tube_render_style_reflect> get_reflection_traits(const glyph3D_spline_tube_render_style&)
@@ -256,6 +258,7 @@ namespace cgv {
 						p->end_tree_node(rs_ptr->tube_backside_render);
 					}
 					p->add_member_control(b, "Front Transparency", rs_ptr->front_transparency, "value_slider", "min=0.0;max=1.0;step=0.01;ticks=true");
+					p->add_member_control(b, "Fresnel RefracIdx", rs_ptr->fresnel_reflection, "value_slider", "min=1.0;max=10.0;step=0.1;ticks=true");
 				}
 				return true;
 			}
