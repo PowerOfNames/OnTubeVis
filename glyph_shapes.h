@@ -569,14 +569,14 @@ public:
 		static const attribute_list attributes = {
 			{ "windowedSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius0", GAT_SIZE },
+			{ "radius_x", GAT_SIZE },
 		};
 		return attributes;
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
 		//TODO:
-		return 2.0f * param_values[1];
+		return 2.0f * param_values[2];
 	}
 };
 
@@ -601,13 +601,13 @@ public:
 			{ "magnitude", GAT_SIZE },
 			{ "vec_x", GAT_SIGNED_UNIT },
 			{ "vec_y", GAT_SIGNED_UNIT },
-			{ "vec_Z", GAT_SIGNED_UNIT }
+			{ "vec_z", GAT_SIGNED_UNIT }
 		};
 		return attributes;
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {		
-		return 2.0f * param_values[1];
+		return 2.0f * param_values[2];
 	}
 };
 
@@ -629,14 +629,14 @@ public:
 		static const attribute_list attributes = {
 			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius0", GAT_SIZE },
-			{ "radius1", GAT_SIZE },
-			{ "radius2", GAT_SIZE },
-			{ "ori_0", GAT_SIGNED_UNIT },
+			{ "radius_x", GAT_SIZE },
+			{ "radius_y", GAT_SIZE },
+			{ "radius_z", GAT_SIZE },
+			{ "ori_w", GAT_SIGNED_UNIT },
 			{ "ori_i", GAT_SIGNED_UNIT },
 			{ "ori_j", GAT_SIGNED_UNIT },
 			{ "ori_k", GAT_SIGNED_UNIT },
-			{ "pitch", GAT_ANGLE },
+			{ "pitch", GAT_ANGLE }, //deprecated in Billboard approach, still used in the neighbour-problem approach
 			{ "yaw", GAT_ANGLE },
 			{ "roll", GAT_ANGLE }
 		};

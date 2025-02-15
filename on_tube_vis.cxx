@@ -712,6 +712,10 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		datapath_helper.set_file_name("");
 		traj_mgr.clear();
 
+		render3D.glyphs.spheres.clear();
+		render3D.glyphs.cones.clear();
+		render3D.glyphs.ellipsoids.clear();
+
 		// load new data
 		bool loaded_something = false;
 		for(const auto& file : dataset.files) {
@@ -734,6 +738,10 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		}
 		if(traj_mgr.dataset(0).name().compare("rtlola_droneflight") == 0)
 			dataset.is_rtlola = true;
+
+		render3D.glyphs.spheres.clear();
+		render3D.glyphs.cones.clear();
+		render3D.glyphs.ellipsoids.clear();
 
 		// print out attribute statistics
 		const auto& ds = traj_mgr.dataset(0);
@@ -1071,7 +1079,13 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 			if (render.style.is_tube())
 				ui_state.tr_toggle.last_tube_primitive = render.style.line_primitive;
 			else
+			{
+				render3D.glyphs.spheres.clear();
+				render3D.glyphs.cones.clear();
+				render3D.glyphs.ellipsoids.clear();
+			
 				ui_state.tr_toggle.last_ribbon_primitive = render.style.line_primitive;
+			}
 		}
 
 		update_tube_ribbon_toggle();
@@ -1089,6 +1103,10 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		update_glyph_dimension_toggle();
 		do_full_gui_update = true;
 
+		render3D.glyphs.spheres.clear();
+		render3D.glyphs.cones.clear();
+		render3D.glyphs.ellipsoids.clear();
+
 		context& ctx = *get_context();
 		update_node_buffers(ctx);
 
@@ -1104,6 +1122,10 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		if (!ui_state.tb_toggle.check_toggled()) {
 			ui_state.tb_toggle.current_glyph_method = render.style3D.glyph_method;
 		}
+
+		render3D.glyphs.spheres.clear();
+		render3D.glyphs.cones.clear();
+		render3D.glyphs.ellipsoids.clear();
 
 		update_glyph_method_toggle();
 		do_full_gui_update = true;
@@ -1437,9 +1459,9 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 
 	const uint32_t last_nonmapped_attrib_idx = attribs.count_of_non_attrib_values; // this should be the debug_int value (as float)
 
-	const uint32_t radius_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius0", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t radius2_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius2", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t radius3_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius3", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius2_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius3_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_z", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 
 	const uint32_t vec_x_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t vec_y_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
@@ -1510,7 +1532,10 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 						const vec3& end_pos = { attribs.data[attrib_base_idx + vec_x_idx], attribs.data[attrib_base_idx + vec_y_idx], attribs.data[attrib_base_idx + vec_z_idx] };
 						const vec3& start_pos = pos - 0.5f * (end_pos - pos);
 						cones.add(start_pos, start_pos + end_pos);
-						cones.add(0.1f, 0.5f);
+						cones.add(0.2f, 0.01f);
+
+						if (trj_idx == 2 && segment_idx == 3 && glyph_idx == 1)
+							break;
 
 						break;
 					}

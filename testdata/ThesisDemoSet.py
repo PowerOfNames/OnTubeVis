@@ -22,18 +22,18 @@ def generate_time_points(count, start=0, end=60):
 def generate_positions(length, axis):
     # Axis-specific tensor generation
     if axis == "x":
-        return [[i, 0.0, 0.0] for i in range(length)]
+        return [[i/10.0, 0.0, 0.0] for i in range(length)]
     elif axis == "y":
-        return [[0.0, i, 0.0] for i in range(length)]
+        return [[0.0, i/10.0, 0.0] for i in range(length)]
     elif axis == "z":
-        return [[0.0, 0.0, i] for i in range(length)]
+        return [[0.0, 0.0, i/10.0] for i in range(length)]
     elif axis == "diag":
-        return [[i, i, i] for i in range(length)]
+        return [[i/10.0, i/10.0, i/10.0] for i in range(length)]
     else:
         raise ValueError("Invalid axis. Choose 'x', 'y', or 'z'.")
 
 def generate_unit_vector():
-    vec = np.random.randn(3)
+    vec = np.random.uniform(-1.0, 1.0, size=3)
     vec /= np.linalg.norm(vec)
     return vec
 

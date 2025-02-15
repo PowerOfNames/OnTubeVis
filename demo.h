@@ -432,9 +432,9 @@ struct demo : public traj_format_handler<float>
 		auto attrib_vec4 = add_attribute<Vec4>(ds, "vec4");
 
 		//THESIS:
-		auto attrib_Radius = add_attribute<real>(ds, "radius0");
-		auto attrib_Radius2 = add_attribute<real>(ds, "radius1");
-		auto attrib_Radius3 = add_attribute<real>(ds, "radius2");
+		auto attrib_Radius = add_attribute<real>(ds, "radius_x");
+		auto attrib_Radius2 = add_attribute<real>(ds, "radius_y");
+		auto attrib_Radius3 = add_attribute<real>(ds, "radius_z");
 		auto attrib_ori0 = add_attribute<real>(ds, "ori_w");
 		auto attrib_orii = add_attribute<real>(ds, "ori_i");
 		auto attrib_orij = add_attribute<real>(ds, "ori_j");
