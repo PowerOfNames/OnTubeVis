@@ -1448,16 +1448,19 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	//Included when 3D billboard glyph method enabled: Pos x(2), y(3), z(4)
 	//We do the check if the needed parameter is present via strings, which is far from ideal, for now. It would be better to introduce a flag (boolean - isPresent)
 	//and set that inside glyph_shapes.h glyph description via the glyph_layer_manager. The check here then retrieves the flags value from the shape_ptr of layer_config.
-	const auto find_buffer_idx = [this](const std::unordered_map<uint32_t, uint32_t>& idx_to_idx, const std::string& attrib_name, const glyph_shape* glyph, uint32_t base_idx) {
+	const auto find_buffer_idx = [this](const std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>& idx_to_idx, const std::string& attrib_name, const glyph_shape* glyph, uint32_t base_idx) {
 		//Check if parameter is present in current glyph:
 		const int32_t glyph_attrib_idx = glyph->get_attrib_index(attrib_name);
 		//check if glyph parameter was set as attribute in the buffer and get its index
 		bool found = idx_to_idx.find(glyph_attrib_idx) != idx_to_idx.end();
 		//Set attrib_idx
-		return found ? base_idx + idx_to_idx.at(glyph_attrib_idx) : 0; //return 0.0 -> s | return 1 -> debug_int -> choose 0 -> potential check and set to default value if idx == 0
+		return found ? base_idx + idx_to_idx.at(glyph_attrib_idx).first : 0; //return 0.0 -> s | return 1 -> debug_int -> choose 0 -> potential check and set to default value if idx == 0
 		};
 
 	const uint32_t last_nonmapped_attrib_idx = attribs.count_of_non_attrib_values; // this should be the debug_int value (as float)
+
+	//color not supported -> not sure how to get to the set color_map
+	const uint32_t max_glyph_size_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "color", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 
 	const uint32_t radius_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t radius2_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
@@ -1529,9 +1532,10 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 					{
 						//Position ->
 						const auto& pos = hermites[ds_index_buffer_base + global_segment_idx].interpolate(t);
-						const vec3& end_pos = { attribs.data[attrib_base_idx + vec_x_idx], attribs.data[attrib_base_idx + vec_y_idx], attribs.data[attrib_base_idx + vec_z_idx] };
-						const vec3& start_pos = pos - 0.5f * (end_pos - pos);
-						cones.add(start_pos, start_pos + end_pos);
+						const vec3 v = vec3(attribs.data[attrib_base_idx + vec_x_idx], attribs.data[attrib_base_idx + vec_y_idx], attribs.data[attrib_base_idx + vec_z_idx]);
+						const vec3& start_pos = pos - 0.5f * v;
+						const vec3& end_pos = pos + 0.5f * v;
+						cones.add(start_pos, end_pos);
 						cones.add(0.2f, 0.01f);
 
 						if (trj_idx == 2 && segment_idx == 3 && glyph_idx == 1)

@@ -1365,9 +1365,9 @@ vec4 splat_generic_glyph(in uint debug_info, in float dist, in vec3 glyph_color,
 
 //from https://iquilezles.org/articles/ellipsedist/
 
-float sd_sphere(in vec3 ray_pos_glyph, in float radius)
+float sd_sphere(in vec3 ray_pos_glyph, in float glyph_scale, in float radius)
 {
-	return length(ray_pos_glyph) - radius;
+	return length(ray_pos_glyph) - (radius * glyph_scale);
 }
 
 //phi for yaw,
@@ -1389,17 +1389,17 @@ mat3 reconstructRotMat(in float yaw, in float pitch, in float roll)
 
 //THESIS TODO:	Cones need much more iterations then "round shaped" due to their straight edge, which increases step count significantly when theta
 //				dot(cone_up, view_vec) -> 1 (looking down the cone)
-float sd_cone(in vec3 ray_pos_glyph, in float height, in float pitch, in float yaw)
+float sd_cone(in vec3 ray_pos_glyph, in float glyph_scale, in float height, in float pitch, in float yaw)
 {
 	const float pi_over_three = M_PI*0.45;
-
+	const float size = height * glyph_scale;
 	mat3 transform = reconstructRotMat(pitch, yaw, 0);
-	vec3 posTrans = transform*vec3(ray_pos_glyph.x, ray_pos_glyph.y - 0.5*height, ray_pos_glyph.z);
+	vec3 posTrans = transform*vec3(ray_pos_glyph.x, ray_pos_glyph.y - 0.5*size, ray_pos_glyph.z);
 
 	float s = sin(pi_over_three);
 	float c = cos(pi_over_three);
 	float q = length(posTrans.xz);
-	return max(dot(vec2(s,c), vec2(q, posTrans.y)), -height - posTrans.y);
+	return max(dot(vec2(s,c), vec2(q, posTrans.y)), -size - posTrans.y);
 }
 
 
@@ -1422,9 +1422,9 @@ float sd_cone(in vec3 ray_pos_glyph, in float height, in float pitch, in float y
 // anglez -> roll in x/y plane
 //THESIS TODO:	Transformation to the ray_pos_glyph MUST happen BEFORE ray_marching happens. Otherwise the whole Transformation-reconstruction+transformation happens
 //				at every step+Normalcalc as well. -> It'S even possible to skew space using the radii -> use Sphere SDF instead of Ellipse (but need to do the inverse afterwards, prob.)
-float sd_ellipsoid3x3tensor(in vec3 ray_pos_glyph, in float radiusX, in float radiusY, in float radiusZ, in float angleX, in float angleY, in float angleZ, /*temp*/ in float quat_0, in float quat_i, in float quat_j, in float quat_k) 
+float sd_ellipsoid3x3tensor(in vec3 ray_pos_glyph, in float glyph_scale, in float radiusX, in float radiusY, in float radiusZ, in float angleX, in float angleY, in float angleZ, /*temp*/ in float quat_0, in float quat_i, in float quat_j, in float quat_k) 
 {
-	vec3 radii = vec3(radiusX, radiusY, radiusZ);
+	vec3 radii = vec3(radiusX, radiusY, radiusZ) * glyph_scale;
 	mat3 transform = reconstructRotMat(angleX, angleY, angleZ);
 	vec3 posTrans = transform*ray_pos_glyph;
 
@@ -1457,7 +1457,7 @@ struct ray_march_result
 	bool isPrev;
 };
 
-vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result rmr, in float tube_radius, inout float depth, in vec3 glyph_color, in float windowedSize)
+vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result rmr, in float tube_radius, inout float depth, in vec3 glyph_color)
 {		
 	if(rmr.hit)
 	{

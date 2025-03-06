@@ -52,8 +52,8 @@ public:
 			std::string glyph_surface_grad_definition = "";
 			//THESIS2:
 			GlyphType glyph_type;
-			//We use this to check: If key (attrib index) is set, we now that at value (buffer_index) we find the value of the attribute
-			std::unordered_map<uint32_t, uint32_t> mapped_attribs_idx_to_buffer_idx;
+			//We use this to check: If key (attrib index) is set, we know that at value.first (buffer_index) we find the value of the attribute and at value.second, we find the mapping_idx (for clamp_remap)
+			std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> mapped_attribs_idx_to_buffer_idx;
 		};
 
 		struct shader_configuration {

@@ -53,7 +53,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 			std::string func_name_str = "sd_" + shape_ptr->name();
 			std::string glyph_coord_str = "glyphuv";
 			std::string glyph_outline_str = "0.0";
-			std::string glyph_windowed_size_str = "0.0";
 
 			// We only allow one 3D glyph type. Other layers are for now reserved for morphing/composition functions.
 			const bool glyph_is_3D = static_cast<uint32_t>(shape_ptr->type()) >= static_cast<uint32_t>(GlyphType::GT_FIRST_3D) && i == 0;
@@ -128,7 +127,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 						//THESIS2:
 						if (mapped_param_idx_to_poss_attrib_idx.find(j) != mapped_param_idx_to_poss_attrib_idx.end())
 						{
-							layer_config.mapped_attribs_idx_to_buffer_idx[j] = config.mapping_parameters.size() - last_mapping_parameters_size;						
+							layer_config.mapped_attribs_idx_to_buffer_idx[j].first = config.mapping_parameters.size() - last_mapping_parameters_size;						
 						}
 					}
 
@@ -152,9 +151,6 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 				else if (type == GAT_OUTLINE) {
 					glyph_outline_str = parameter_str;
 				}
-				else if (type == GAT_WINDOW_SIZE) {
-					glyph_windowed_size_str = parameter_str;			
-				} 
 				else {
 					float_parameter_strs.push_back(parameter_str);
 				}
@@ -199,7 +195,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 				//THESIS:
 				if (glyph_is_3D)
-					splat_func = "splat_generic_glyph_3D(glyph.debug_info, glyphuv, rmr, tube_radius, depth, " + color_str + ", " + glyph_windowed_size_str + ")";
+					splat_func = "splat_generic_glyph_3D(glyph.debug_info, glyphuv, rmr, tube_radius, depth, " + color_str +")";
 				else
 				{
 					std::string glyph_func = func_name_str + "(" + glyph_coord_str;

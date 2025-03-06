@@ -567,7 +567,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "windowedSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "size_scaling", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START},
 			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "radius_x", GAT_SIZE },
 		};
@@ -575,8 +575,10 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		//TODO:
-		return 2.0f * param_values[2];
+		
+		//HACK: this should be dependent on the radius, but there is no guarantie, radius is set
+		int32_t size_idx = get_attrib_index("size_scaling");
+		return param_values[size_idx] * 2.0f;
 	}
 };
 
@@ -595,8 +597,8 @@ public:
 	}
 
 	virtual const attribute_list& supported_attributes() const {
-		static const attribute_list attributes = {
-			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			static const attribute_list attributes = {
+			{ "size_scaling", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
 			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "magnitude", GAT_SIZE },
 			{ "vec_x", GAT_SIGNED_UNIT },
@@ -607,7 +609,9 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {		
-		return 2.0f * param_values[2];
+		//HACK: this should be dependent on the magnitude, but there is no way to determine the index of the magnitude
+		int32_t size_idx = get_attrib_index("size_scaling");
+		return param_values[size_idx] * 2.0f;
 	}
 };
 
@@ -627,7 +631,7 @@ public:
 
 	virtual const attribute_list& supported_attributes() const {
 		static const attribute_list attributes = {
-			{ "windowSize", GAT_WINDOW_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START },
+			{ "size_scaling", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START},
 			{ "color", GAT_COLOR, GH_BLOCK_START },
 			{ "radius_x", GAT_SIZE },
 			{ "radius_y", GAT_SIZE },
@@ -644,12 +648,24 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		uint32_t largestIdx = 1; // with 1, 2, 3 being the three ellipsoid radii
-		if (param_values[largestIdx] < param_values[2])
-			largestIdx = 2;
-		if (param_values[largestIdx] < param_values[3])
-			largestIdx = 3;
-		return 2.0f * param_values[largestIdx];
+		//HACK: this should be dependent on the radii, but there is no way to determine which of the param_values the radii are
+		int32_t size_idx = get_attrib_index("size_scaling");
+		return param_values[size_idx] * 2.0f;
+
+		//int32_t size_idx_x = get_attrib_index("radius_x");
+		//int32_t size_idx_y = get_attrib_index("radius_y");
+		//int32_t size_idx_z = get_attrib_index("radius_z");
+		//if (size_idx_x == -1 ||
+		//	size_idx_y == -1 ||
+		//	size_idx_z == -1)
+		//	return -1.0f;
+		//
+		//uint32_t largestIdx = size_idx_x; // with 1, 2, 3 being the three ellipsoid radii
+		//if (param_values[largestIdx] < param_values[size_idx_y])
+		//	largestIdx = size_idx_y;
+		//if (param_values[largestIdx] < param_values[size_idx_z])
+		//	largestIdx = size_idx_z;
+		//return 2.0f * param_values[largestIdx];
 	}
 };
 
