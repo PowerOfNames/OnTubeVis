@@ -127,7 +127,8 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 						//THESIS2:
 						if (mapped_param_idx_to_poss_attrib_idx.find(j) != mapped_param_idx_to_poss_attrib_idx.end())
 						{
-							layer_config.mapped_attribs_idx_to_buffer_idx[j].first = config.mapping_parameters.size() - last_mapping_parameters_size;						
+							layer_config.mapped_attribs_idx_to_buffer_idx[j].first = config.mapping_parameters.size() - last_mapping_parameters_size;				
+							layer_config.mapped_attribs_idx_to_buffer_idx[j].second = layer_config.glyph_mapping_parameters.size()-1;
 						}
 					}
 

@@ -1454,29 +1454,67 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 		//check if glyph parameter was set as attribute in the buffer and get its index
 		bool found = idx_to_idx.find(glyph_attrib_idx) != idx_to_idx.end();
 		//Set attrib_idx
-		return found ? base_idx + idx_to_idx.at(glyph_attrib_idx).first : 0; //return 0.0 -> s | return 1 -> debug_int -> choose 0 -> potential check and set to default value if idx == 0
+		return found ? std::pair<uint32_t, uint32_t>(base_idx + idx_to_idx.at(glyph_attrib_idx).first, idx_to_idx.at(glyph_attrib_idx).second ) : std::pair<uint32_t, uint32_t>(0, 0); //return 0.0 -> s | return 1 -> debug_int -> choose 0 -> potential check and set to default value if idx == 0
 		};
 
 	const uint32_t last_nonmapped_attrib_idx = attribs.count_of_non_attrib_values; // this should be the debug_int value (as float)
 
 	//color not supported -> not sure how to get to the set color_map
-	const uint32_t max_glyph_size_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "color", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t max_glyph_size_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "color", layer_config.shape_ptr, last_nonmapped_attrib_idx).first;
 
-	const uint32_t radius_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t radius2_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t radius3_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_z", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const auto radius_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius_idx = radius_idcs.first;
+	const auto& mapping_radius = mapping[radius_idcs.second];
 
-	const uint32_t vec_x_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t vec_y_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t vec_z_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_z", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const auto radius2_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius2_idx = radius2_idcs.first;
+	const auto& mapping_radius2 = mapping[radius2_idcs.second];
 
-	const uint32_t cone_magnitude_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "magnitude", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const auto radius3_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_z", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t radius3_idx = radius3_idcs.first;
+	const auto& mapping_radius3 = mapping[radius3_idcs.second];
 
-	const uint32_t orientation_0_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_w", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t orientation_i_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_i", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t orientation_j_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_j", layer_config.shape_ptr, last_nonmapped_attrib_idx);
-	const uint32_t orientation_k_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_k", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const auto vec_x_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t vec_x_idx = vec_x_idcs.first;
+	//const auto& mapping_vec_x = mapping[vec_x_idcs.second];
+
+	const auto vec_y_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t vec_y_idx = vec_y_idcs.first;
+	//const auto& mapping_vec_y = mapping[vec_y_idcs.second];
+
+	const auto vec_z_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_z", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t vec_z_idx = vec_z_idcs.first;
+	//const auto& mapping_vec_z = mapping[vec_z_idcs.second];
+
+	const auto vec_mag_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "magnitude", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t vec_mag_idx = vec_mag_idcs.first;
+	const auto& mapping_vec_mag = mapping[vec_mag_idcs.second];
+
+	const auto orientation_w_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_w", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t orientation_w_idx = orientation_w_idcs.first;
+	//const auto& mapping_ori_w = mapping[orientation_w_idcs.second];
+
+	const auto orientation_i_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_i", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t orientation_i_idx = orientation_i_idcs.first;
+	//const auto& mapping_ori_i = mapping[orientation_i_idcs.second];
+
+	const auto orientation_j_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_j", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t orientation_j_idx = orientation_j_idcs.first;
+	//const auto& mapping_ori_j = mapping[orientation_j_idcs.second];
+
+	const auto orientation_k_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_k", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t orientation_k_idx = orientation_k_idcs.first;
+	//const auto& mapping_ori_k = mapping[orientation_k_idcs.second];
 	
+
+	//clamp_remap quick access
+	const auto clamp_remap = [this](float v, const on_tube_vis::vec4& r) {
+		v = cgv::math::clamp(v, r.x(), r.y());
+		float t = 0.0f;
+		if (abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
+			t = (v - r.x()) / (r.y() - r.x());
+		return cgv::math::lerp(r.z(), r.w(), t);
+		};
 
 	// ---- hardcoded section end
 
@@ -1509,22 +1547,22 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 					case GT_3D_SPHERE:
 					{
 						spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
-						spheres.add_radius(attribs.data[attrib_base_idx + radius_idx] * 0.1f);
+						spheres.add_radius(clamp_remap(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v)));
 						break;
 					}
 					case GT_3D_ELLIPSOID_3x3_TENSOR:
 					{
 						ellipsoids.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
 						ellipsoids.add_size({
-							attribs.data[attrib_base_idx + radius_idx] * 0.1f,
-							attribs.data[attrib_base_idx + radius2_idx] * 0.1f,
-							attribs.data[attrib_base_idx + radius3_idx] * 0.1f 
+							clamp_remap(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v)),
+							clamp_remap(attribs.data[attrib_base_idx + radius2_idx], *(mapping_radius2.v)),
+							clamp_remap(attribs.data[attrib_base_idx + radius3_idx], *(mapping_radius3.v))
 						});
 						ellipsoids.add_orientation({
-							attribs.data[attrib_base_idx + orientation_0_idx] * 0.1f,
-							attribs.data[attrib_base_idx + orientation_i_idx] * 0.1f,
-							attribs.data[attrib_base_idx + orientation_j_idx] * 0.1f,
-							attribs.data[attrib_base_idx + orientation_k_idx] * 0.1f
+							attribs.data[attrib_base_idx + orientation_w_idx],
+							attribs.data[attrib_base_idx + orientation_i_idx],
+							attribs.data[attrib_base_idx + orientation_j_idx],
+							attribs.data[attrib_base_idx + orientation_k_idx]
 						});
 						break;
 					}
@@ -1532,14 +1570,21 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 					{
 						//Position ->
 						const auto& pos = hermites[ds_index_buffer_base + global_segment_idx].interpolate(t);
-						const vec3 v = vec3(attribs.data[attrib_base_idx + vec_x_idx], attribs.data[attrib_base_idx + vec_y_idx], attribs.data[attrib_base_idx + vec_z_idx]);
-						const vec3& start_pos = pos - 0.5f * v;
-						const vec3& end_pos = pos + 0.5f * v;
+						const vec3 v = vec3(
+							attribs.data[attrib_base_idx + vec_x_idx],
+							attribs.data[attrib_base_idx + vec_y_idx],
+							attribs.data[attrib_base_idx + vec_z_idx]
+						);
+						vec3 normalized_scaled_v = v;
+						normalized_scaled_v.safe_normalize();
+						normalized_scaled_v *= clamp_remap(attribs.data[attrib_base_idx + vec_mag_idx], *(mapping_vec_mag.v));
+						const vec3 start_pos = pos;
+						const vec3 end_pos = pos + normalized_scaled_v;
 						cones.add(start_pos, end_pos);
-						cones.add(0.2f, 0.01f);
+						cones.add(0.02f, 0.001f);
 
-						if (trj_idx == 2 && segment_idx == 3 && glyph_idx == 1)
-							break;
+						//if (trj_idx == 2 && segment_idx == 3 && glyph_idx == 1)
+						//	break;
 
 						break;
 					}
@@ -1552,6 +1597,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 
 	std::cout << "Glyph3D tube space position done (" << s.get_elapsed_time() << "s)" << std::endl;
 }
+
 
 bool on_tube_vis::init (cgv::render::context &ctx)
 {
