@@ -1,5 +1,24 @@
 #version 330
 
+#define EPSILON 0.00005
+#define MAX_ITERATIONS 30
+#define NORMAL_DELTA 0.00001
+
+
+struct sphere_splat_info
+{
+	vec2 q_tilde;
+	vec3 inv_T_square_v;
+	vec3 inv_T_square_e_c;
+	float inv_e;
+	vec2 e_zw_clip;
+	vec2 v_zw_clip;
+//	vec3 v;
+	vec3 v_eye;
+};
+
+in sphere_splat_info ssi;
+
 in SPHERE_FS {
 	vec4  color;
 	float percentual_blend_width;
@@ -8,21 +27,111 @@ in SPHERE_FS {
 	float percentual_splat_size;
 } fi;
 
+uniform float morph_sin_factor;
+uniform int culling_mode = 0;
+
 layout(location = 1) out vec4 frag_position;
 layout(location = 2) out vec3 frag_normal;
 
-//***** begin interface of sphere_lib.glfs ***********************************
-bool computer_ray_sphere_intersection(out vec3 p_eye, out vec3 n_eye, out vec2 splat_tc, out float clip_depth, out int side);
-bool computer_ray_sphere_intersection(in float percentual_splat_size, out vec3 p_eye, out vec3 n_eye, out vec2 splat_tc, out float clip_depth, out int side, out float percentual_radial_position);
+//***** copied and modified from interface of sphere_lib.glfs ***********************************
+bool computer_ray_sphere_intersection(in float percentual_splat_size, out vec3 p_eye, out vec3 n_eye, out vec2 splat_tc, out int side, out float lambda)
+{
+	// ray-sphere intersection	
+
+	// check for intersection with q_tilde parameterization of unit circle
+	float q_tilde_squared_length = dot(ssi.q_tilde.xy, ssi.q_tilde.xy);
+	float percentual_radial_position = sqrt(q_tilde_squared_length);
+	if (percentual_radial_position > percentual_splat_size)
+		return false;
+	if (q_tilde_squared_length > 1.0)
+		q_tilde_squared_length = 1.0;
+
+	splat_tc = 0.5*(ssi.q_tilde + vec2(1.0));
+	// compute ray parameter of intersection
+	float beta = ssi.inv_e*sqrt(1.0 - q_tilde_squared_length);
+	lambda = 1.0 / (1.0 + beta);
+
+	// culling 
+
+	// compute sphere position in eye coordinates and normal
+	p_eye = lambda * ssi.v_eye;
+	n_eye = normalize(ssi.inv_T_square_e_c + lambda * ssi.inv_T_square_v);
+	
+	side = (dot(n_eye, p_eye) < 0.0) ? 1 : 0;
+	bool keep_this_side = (culling_mode == 0) || (side != culling_mode-1); 
+	if (!keep_this_side) {
+		lambda = 1.0 / (1.0 - beta);
+		p_eye = lambda * ssi.v_eye;
+		n_eye = normalize(ssi.inv_T_square_e_c + lambda * ssi.inv_T_square_v);
+	}
+
+	return true;
+}
 //***** end interface of sphere_lib.glfs ***********************************
 
-////***** begin interface of splat.glsl ***********************************
-//vec4 compute_blended_color_with_halo(
-//	in float percentual_radial_position,
-//	in vec4 core_color, in float percentual_core_size,
-//	in vec4 halo_color, in float percentual_point_size,
-//	in float percentual_blend_width);
-////***** end interface of splat.glsl ***********************************
+
+
+//***** begin instead of ray-cast intersection between ray-sphere, use ray marching using sphere_sd ***********************************
+float sd_sphere(in vec3 ray_pos_glyph, in float glyph_scale, in float radius)
+{
+	return length(ray_pos_glyph) - (radius * glyph_scale);
+}
+
+// from https://iquilezles.org/articles/distfunctions/
+float morph_sin(in vec3 pos, in float factor)
+{
+	return sin(factor*pos.x)*sin(factor*pos.y)*sin(factor*pos.z);
+}
+
+//Hardcoded for now
+vec3 normal_fdg_for_morph_sin(in vec3 pos_eye, in float factor)
+{	
+	vec3 hit_pos_plus = pos_eye + NORMAL_DELTA;
+	vec3 hit_pos_minus = pos_eye - NORMAL_DELTA;
+	return normalize(vec3(
+			morph_sin(vec3(hit_pos_plus.x, pos_eye.yz), factor) - morph_sin(vec3(hit_pos_minus.x, pos_eye.yz), factor), 
+			morph_sin(vec3(pos_eye.x, hit_pos_plus.y, pos_eye.z), factor) - morph_sin(vec3(pos_eye.x, hit_pos_minus.y, pos_eye.z), factor), 
+			morph_sin(vec3(pos_eye.xy, hit_pos_plus.z), factor) - morph_sin(vec3(pos_eye.xy, hit_pos_minus.z), factor))
+			);
+}
+
+bool ray_march(out vec3 pos_eye, out vec3 normal_eye, out vec2 splat_tc, out float clip_depth, out int side)
+{
+	float morph_sin_factor = 20.0f;
+	float lambda;
+	
+	// use the established ray-sphere intersetion test to see if the ray hits the bounding sphere -> if hit, we perform ray-marching to enable morphing and compositing
+	if (!computer_ray_sphere_intersection(fi.percentual_splat_size, pos_eye, normal_eye, splat_tc, side, lambda))
+		discard;
+	
+	vec3 dir_eye = normalize(pos_eye);
+	int i = 0;
+	float dist = 1000.0;
+	while(i < MAX_ITERATIONS)
+	{
+		dist = morph_sin(pos_eye, morph_sin_factor);
+		// we hit -> calculate normal using finite difference gradient
+		if(dist <= EPSILON)
+		{
+			normal_eye = normal_fdg_for_morph_sin(pos_eye, morph_sin_factor);
+			// compute the depth value in clip coordinates
+			lambda += dist;
+			vec2 zw = ssi.e_zw_clip + lambda * ssi.v_zw_clip;
+			float z_clip = zw.x / zw.y;
+
+			// transform from [-1,1] to [0,1]
+			clip_depth = 0.5*(z_clip + 1);
+			return true;
+		}
+
+		pos_eye += dir_eye * dist;
+		i++;
+	}
+
+	return false; 
+}
+//***** end instead of ray-cast intersection between ray-sphere, use ray marching using sphere_sd ***********************************
+
 
 //***** begin interface of surface.glsl ***********************************
 struct Material {
@@ -56,9 +165,8 @@ void main()
 	vec3 n_eye;
 	int side;
 	vec2 tc;
-	float percentual_radial_position;
 	float depth;
-	if (!computer_ray_sphere_intersection(fi.percentual_splat_size, p_eye, n_eye, tc, depth, side, percentual_radial_position))
+	if (!ray_march(p_eye, n_eye, tc, depth, side))
 		discard;
 
 	vec4 color = compute_reflected_appearance(p_eye, n_eye, fi.color, side);

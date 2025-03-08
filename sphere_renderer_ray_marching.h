@@ -29,6 +29,8 @@ namespace cgv { // @<
 			bool use_group_radius;
 			/// set to 1 in constructor 
 			float blend_width_in_pixel;
+			/// set to 20.0 in constructor
+			float morph_sin_factor;
 			//@}
 
 			/// construct with default values
