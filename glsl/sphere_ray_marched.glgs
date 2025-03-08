@@ -11,9 +11,6 @@ in SPHERE_GS {
 	mat4 model_view_matrix;
 	mat4 model_view_projection_matrix;
 	vec4 color;
-	vec4 halo_color;
-	float halo_width_in_pixel;
-	float percentual_halo_width;
 } gi[];
 
 //***** begin interface of sphere_lib.glgs ***********************************
@@ -35,32 +32,44 @@ in sphere_parameter_space sps[];
 
 out SPHERE_FS {
 	vec4  color;
-	vec4  halo_color;
 	float percentual_blend_width;
 	float percentual_point_size;
 	float percentual_core_size;
 	float percentual_splat_size;
 } fo;
 
-//***** begin interface of splat.glsl ***********************************
+//***** copied from interface of splat.glsl ***********************************
 void prepare_splat(
 	in float reference_point_radius, in float pixel_extent,
-	in float blend_width_in_pixel, in float halo_width_in_pixel, in float percentual_halo_width,
+	in float blend_width_in_pixel,
 	out float percentual_core_size, out float percentual_point_size,
-	out float percentual_blend_width, out float percentual_splat_size);
+	out float percentual_blend_width, out float percentual_splat_size)
+{
+	// compute percentage of one pixel with respect to point radius
+	float percentual_pixel_extent = pixel_extent / reference_point_radius;
+	// compute percentual width of blending area
+	percentual_blend_width = blend_width_in_pixel * percentual_pixel_extent;
+	// compute percentual halo size
+	
+	// compute point radius possibly extended by positive halo width
+	percentual_point_size = 1.0;
+	// compute core size
+	percentual_core_size = percentual_point_size;
+	// compute scaling factor to get splat radius
+	percentual_splat_size = percentual_point_size + percentual_blend_width;
+}
 //***** end interface of surface.glsl ***********************************
 
 void main()
 {
 	fo.color = gi[0].color;
-	fo.halo_color = gi[0].halo_color;
 	// compute depth of sphere center
 	float depth = abs((gi[0].model_view_matrix * vec4(gl_in[0].gl_Position.xyz, 1.0)).z);
 	// compute extent of a pixel at sphere center depth 
 	float pixel_extent = pixel_extent_per_depth * depth;
 	// compute splat parameters for fragment shader
 	prepare_splat(gl_in[0].gl_Position.w, pixel_extent,
-		blend_width_in_pixel, gi[0].halo_width_in_pixel, gi[0].percentual_halo_width,
+		blend_width_in_pixel,
 		fo.percentual_core_size, fo.percentual_point_size,
 		fo.percentual_blend_width, fo.percentual_splat_size);
 

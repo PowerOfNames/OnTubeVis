@@ -19,16 +19,13 @@ namespace cgv {
 			return new sphere_render_ray_marching_style();
 		}
 
-		sphere_render_ray_marching_style::sphere_render_ray_marching_style() : halo_color(1, 1, 1, 1)
+		sphere_render_ray_marching_style::sphere_render_ray_marching_style()
 		{
 			radius_scale = 1;
 			radius = 1;
 			use_group_radius = false;
 
 			blend_width_in_pixel = 0.0f;
-			halo_width_in_pixel = 0.0f;
-			percentual_halo_width = 0.0;
-			halo_color_strength = 0.5f;
 		}
 
 		sphere_renderer_ray_marching::sphere_renderer_ray_marching()
@@ -91,10 +88,6 @@ namespace cgv {
 			float pixel_extent_per_depth = (float)(2.0 * tan(0.5 * 0.0174532925199 * y_view_angle) / ctx.get_height());
 			ref_prog().set_uniform(ctx, "pixel_extent_per_depth", pixel_extent_per_depth);
 			ref_prog().set_uniform(ctx, "blend_width_in_pixel", srs.blend_width_in_pixel);
-			ref_prog().set_uniform(ctx, "percentual_halo_width", 0.01f * srs.percentual_halo_width);
-			ref_prog().set_uniform(ctx, "halo_width_in_pixel", srs.halo_width_in_pixel);
-			ref_prog().set_uniform(ctx, "halo_color", srs.halo_color);
-			ref_prog().set_uniform(ctx, "halo_color_strength", srs.halo_color_strength);
 			return true;
 		}
 
@@ -121,11 +114,7 @@ namespace cgv {
 				rh.reflect_member("radius", radius) &&
 				rh.reflect_member("use_group_radius", use_group_radius) &&
 				rh.reflect_member("radius_scale", radius_scale) &&
-				rh.reflect_member("blend_width_in_pixel", blend_width_in_pixel) &&
-				rh.reflect_member("halo_width_in_pixel", halo_width_in_pixel) &&
-				rh.reflect_member("halo_color", halo_color) &&
-				rh.reflect_member("halo_color_strength", halo_color_strength) &&
-				rh.reflect_member("percentual_halo_width", percentual_halo_width);
+				rh.reflect_member("blend_width_in_pixel", blend_width_in_pixel);
 		}
 
 		cgv::reflect::extern_reflection_traits<sphere_render_ray_marching_style, sphere_render_ray_marching_style_reflect> get_reflection_traits(const sphere_render_ray_marching_style&)

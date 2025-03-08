@@ -29,14 +29,6 @@ namespace cgv { // @<
 			bool use_group_radius;
 			/// set to 1 in constructor 
 			float blend_width_in_pixel;
-			/// set to 0 in constructor
-			float halo_width_in_pixel;
-			/// set to 0 in constructor
-			float percentual_halo_width;
-			/// color of halo with opacity channel
-			cgv::media::color<float, cgv::media::RGB, cgv::media::OPACITY> halo_color;
-			/// strength in [0,1] of halo color with respect to color of primitive
-			float halo_color_strength;
 			//@}
 
 			/// construct with default values
