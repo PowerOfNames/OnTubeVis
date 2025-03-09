@@ -33,6 +33,15 @@ namespace cgv { // @<
 			float morph_sin_factor;
 			//@}
 
+
+			struct RayMarching
+			{
+				float epsilon;
+				uint32_t max_iterations;
+				float fdg_delta;
+			}rm;
+			
+
 			/// construct with default values
 			sphere_render_ray_marching_style();
 		};
@@ -46,6 +55,8 @@ namespace cgv { // @<
 			float y_view_angle;
 			/// overload to allow instantiation of point_renderer
 			render_style* create_render_style() const;
+			/// update shader defines based on render style
+			void update_defines(shader_define_map& defines);
 			/// build sphere program
 			bool build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines);
 		public:

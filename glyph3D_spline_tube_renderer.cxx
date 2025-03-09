@@ -13,7 +13,7 @@ namespace cgv {
 				r.set_textured_spline_tube_render_style_ptr(textured_rs_ptr);
 			r.manage_singleton(ctx, "glyph3D_spline_tube_renderer", ref_count, ref_count_change);
 			return r;
-		}
+		};
 
 		render_style* glyph3D_spline_tube_renderer::create_render_style() const
 		{
@@ -266,6 +266,6 @@ namespace cgv {
 
 #include <cgv_gl/gl/lib_begin.h>
 
-		cgv::gui::gui_creator_registration<glyph3D_spline_tube_render_style_gui_creator> textured_spline_tube_rs_gc_reg("glyph3D_spline_tube_render_style_gui_creator");
+		cgv::gui::gui_creator_registration<glyph3D_spline_tube_render_style_gui_creator> glyph3D_spline_tube_rs_gc_reg("glyph3D_spline_tube_render_style_gui_creator");
 	}
 }

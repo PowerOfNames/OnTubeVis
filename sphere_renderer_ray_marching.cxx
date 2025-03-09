@@ -27,6 +27,11 @@ namespace cgv {
 			morph_sin_factor = 20.0f;
 
 			blend_width_in_pixel = 0.0f;
+
+			//Ray marching defines:
+			rm.epsilon = 0.001f;
+			rm.max_iterations = 30;
+			rm.fdg_delta = 0.0005f;
 		}
 
 		sphere_renderer_ray_marching::sphere_renderer_ray_marching()
@@ -35,6 +40,7 @@ namespace cgv {
 			has_group_radii = false;
 			cull_per_primitive = false;
 		}
+
 		/// call this before setting attribute arrays to manage attribute array in given manager
 		void sphere_renderer_ray_marching::enable_attribute_array_manager(const context& ctx, attribute_array_manager& aam)
 		{
@@ -57,6 +63,17 @@ namespace cgv {
 		{
 			y_view_angle = _y_view_angle;
 		}
+
+		void sphere_renderer_ray_marching::update_defines(shader_define_map& defines)
+		{
+			const sphere_render_ray_marching_style& rs = get_style<sphere_render_ray_marching_style>();
+			defines.clear();
+
+			shader_code::set_define(defines, "RM_EPSILON", rs.rm.epsilon, 0.001f);
+			shader_code::set_define(defines, "RM_MAX_ITERATIONS", rs.rm.max_iterations, (uint32_t)30);
+			shader_code::set_define(defines, "RM_FDG_DELTA", rs.rm.fdg_delta, 0.0005f);
+		}
+
 		bool sphere_renderer_ray_marching::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
 			return prog.build_program(ctx, "sphere_ray_marched.glpr", true, defines);
@@ -116,13 +133,50 @@ namespace cgv {
 				rh.reflect_member("radius", radius) &&
 				rh.reflect_member("use_group_radius", use_group_radius) &&
 				rh.reflect_member("radius_scale", radius_scale) &&
-				rh.reflect_member("blend_width_in_pixel", blend_width_in_pixel);
-				rh.reflect_member("blenmorph_sin_factord_width_in_pixel", morph_sin_factor);
+				rh.reflect_member("blend_width_in_pixel", blend_width_in_pixel) &&
+				rh.reflect_member("morph_sin_factor", morph_sin_factor) &&
+				rh.reflect_member("rm.epsilon", rm.epsilon) &&
+				rh.reflect_member("rm.max_iterations", rm.max_iterations) &&
+				rh.reflect_member("rm.fdg_delta", rm.fdg_delta);
 		}
 
 		cgv::reflect::extern_reflection_traits<sphere_render_ray_marching_style, sphere_render_ray_marching_style_reflect> get_reflection_traits(const sphere_render_ray_marching_style&)
 		{
 			return cgv::reflect::extern_reflection_traits<sphere_render_ray_marching_style, sphere_render_ray_marching_style_reflect>();
 		}
-	}	
+	}
+}
+#include <cgv/gui/provider.h>
+
+
+namespace cgv {
+	namespace gui {
+
+		struct sphere_render_ray_marching_style_gui_creator : public gui_creator {
+			/// attempt to create a gui and return whether this was successful
+			bool create(provider* p, const std::string& label,
+				void* value_ptr, const std::string& value_type,
+				const std::string& gui_type, const std::string& options, bool*) {
+				if (value_type != cgv::type::info::type_name<cgv::render::sphere_render_ray_marching_style>::get_name())
+					return false;
+				cgv::render::sphere_render_ray_marching_style* rs_ptr = reinterpret_cast<cgv::render::sphere_render_ray_marching_style*>(value_ptr);
+				cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
+
+				if (p->begin_tree_node("Sphere Ray Marching Parameters", rs_ptr->rm, false)) {
+					p->align("\a");
+					p->add_member_control(b, "Epsilon", rs_ptr->rm.epsilon, "value_slider", "min=0;max=0.1;step=0.001;log=true");
+					p->add_member_control(b, "Max Iterations", rs_ptr->rm.max_iterations, "value_slider", "min=0;max=50;step=1;unsigned=true");
+					p->add_member_control(b, "FinDiffGrad Delta", rs_ptr->rm.fdg_delta, "value_slider", "min=0;max=0.1;step=0.001;ticks=true");
+					p->align("\b");
+					p->end_tree_node(rs_ptr->rm);
+				}
+
+				return true;
+			}
+		};
+
+#include <cgv_gl/gl/lib_begin.h>
+
+		cgv::gui::gui_creator_registration<sphere_render_ray_marching_style_gui_creator> sphere_render_ray_marching_rs_gc_reg("sphere_render_ray_marching_style_gui_creator");
+	}
 }

@@ -249,7 +249,7 @@ protected:
 		bool handle_neighbour_tex_clipping;
 		uint32_t res_ortho_hit_test;
 	};
-	glyph_ray_marching_parameters glyph_rm;	
+	glyph_ray_marching_parameters glyph_rm;
 
 	//THESIS:
 	enum GlyphDimension
@@ -495,6 +495,7 @@ protected:
 		cgv::gpgpu::visibility_sort sorter;
 	} render;
 	int render_gui_dummy = 0;
+	int glyph_gui_dummy = 0;
 
 	/// trajectory manager
 	traj_manager<float> traj_mgr;
@@ -540,6 +541,8 @@ protected:
 
 		size_t glyph_count = 0;
 		std::vector<hermite_spline_tube> splines;
+
+		sphere_render_ray_marching_style srm_style;
 
 	} render3D;
 

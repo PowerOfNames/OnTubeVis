@@ -2489,24 +2489,6 @@ void on_tube_vis::create_gui(void)
 		}
 	}
 
-	//THESIS:
-	add_decorator("", "separator");
-
-	if (begin_tree_node("Glyph Ray Marching", glyph_rm, false)) {
-		align("\a");
-		add_member_control(this, "Max Iterations", glyph_rm.max_iterations, "value_slider", "min=0;max=50;step=1;ticks=true");
-		add_member_control(this, "Hit Epsilon", glyph_rm.hit_epsilon, "value_slider", "min=0.0001;max=0.1;step=0.0001;ticks=true");
-		add_member_control(this, "Tangent Threshold", glyph_rm.tan_bitan_thresholds[0], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
-		add_member_control(this, "Bitangent Threshold", glyph_rm.tan_bitan_thresholds[1], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
-
-		add_member_control(this, "Handle Neighbour Texture Clipping", glyph_rm.handle_neighbour_tex_clipping, "check");
-		add_member_control(this, "Res Ortho-Hit-Test", glyph_rm.res_ortho_hit_test, "value_slider", "min=0;max=10.0;step=1.0;ticks=true");
-
-		align("\b");
-		end_tree_node(glyph_rm);
-	}
-	
-
 	add_decorator("", "separator");
 
 	if(begin_tree_node("Grid", grids, false)) {
@@ -2532,7 +2514,7 @@ void on_tube_vis::create_gui(void)
 	add_decorator("", "separator");
 
 	// Rendering settings
-	if(begin_tree_node("Rendering", render_gui_dummy, false)) {
+	if(begin_tree_node("Rendering - Tubes", render_gui_dummy, false)) {
 		align("\a");
 
 #ifdef RTX_SUPPORT
@@ -2562,7 +2544,7 @@ void on_tube_vis::create_gui(void)
 		//THESIS2:
 		if (render.style3D.is_billboard_pipeline())
 		{
-			if (begin_tree_node("Style - 3D Glyphs", render.style3D, false)) {
+			if (begin_tree_node("Tube Backside", render.style3D, false)) {
 				align("\a");
 				add_gui("", render.style3D);
 				align("\b");
@@ -2589,9 +2571,47 @@ void on_tube_vis::create_gui(void)
 		align("\b");
 		end_tree_node(render_gui_dummy);
 	}
-	
-	add_decorator("", "separator");
 
+	add_decorator("", "separator");
+	
+	//THESIS
+	if (is_3D()) {
+		// Rendering settings for 3D glyphs
+		if (begin_tree_node("Rendering - Glyphs", glyph_gui_dummy, false)) {
+			align("\a");
+
+			if (render.style3D.is_tube_surface_pipeline())
+			{
+				if (begin_tree_node("Ray Marching", glyph_rm, false)) {
+					align("\a");
+					add_member_control(this, "Max Iterations", glyph_rm.max_iterations, "value_slider", "min=0;max=50;step=1;ticks=true");
+					add_member_control(this, "Hit Epsilon", glyph_rm.hit_epsilon, "value_slider", "min=0.0001;max=0.1;step=0.0001;ticks=true");
+					add_member_control(this, "Tangent Threshold", glyph_rm.tan_bitan_thresholds[0], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
+					add_member_control(this, "Bitangent Threshold", glyph_rm.tan_bitan_thresholds[1], "value_slider", "min=0;max=1.0;step=0.05;ticks=true");
+
+					add_member_control(this, "Handle Neighbour Texture Clipping", glyph_rm.handle_neighbour_tex_clipping, "check");
+					add_member_control(this, "Res Ortho-Hit-Test", glyph_rm.res_ortho_hit_test, "value_slider", "min=0;max=10.0;step=1.0;ticks=true");
+
+					align("\b");
+					end_tree_node(glyph_rm);
+				}
+			}
+			else if (render.style3D.is_billboard_pipeline())
+			{
+				if (begin_tree_node("Ray Marching", render3D.srm_style, false)) {
+					align("\a");
+					add_gui("", render3D.srm_style);
+					align("\b");
+					end_tree_node(render3D.srm_style);
+				}
+			}		
+
+			align("\b");
+			end_tree_node(glyph_gui_dummy);
+		}
+
+		add_decorator("", "separator");
+	}
 	// Color scale manager and editor
 	integrate_object_gui(cm_editor_ptr);
 	if(cm_editor_ptr->begin_overlay_gui()) {
@@ -3509,7 +3529,11 @@ void on_tube_vis::draw_tube_back_glyphs3D(context& ctx)
 void on_tube_vis::draw_glyphs3D(context& ctx)
 {
 	if (render3D.glyphs.spheres.size())
+	{	
+		auto& srrm = ref_sphere_renderer_ray_marching(ctx);
+		srrm.set_render_style(render3D.srm_style);
 		render3D.glyphs.spheres.render(ctx);
+	}
 
 	if (render3D.glyphs.cones.size())
 		render3D.glyphs.cones.render(ctx);
@@ -3726,26 +3750,6 @@ shader_define_map on_tube_vis::build_glyphs3D_tube_shading_defines(bool isFront)
 	if (grid_normal_variant) gs += 8u;
 	shader_code::set_define(defines, "GRID_NORMAL_SETTINGS", gs, 0u);
 	shader_code::set_define(defines, "ENABLE_FUZZY_GRID", enable_fuzzy_grid, false);
-	
-
-	// glyph layer defines
-	/*const auto& glyph_layers_config = render.visualizations.front().config;
-	shader_code::set_define(defines, "GLYPH_MAPPING_UNIFORMS", glyph_layers_config.uniforms_definition, std::string(""));
-
-	shader_code::set_define(defines, "CONSTANT_FLOAT_UNIFORM_COUNT", glyph_layers_config.constant_float_parameters.size(), static_cast<size_t>(0));
-	shader_code::set_define(defines, "CONSTANT_COLOR_UNIFORM_COUNT", glyph_layers_config.constant_color_parameters.size(), static_cast<size_t>(0));
-	shader_code::set_define(defines, "MAPPING_PARAMETER_UNIFORM_COUNT", glyph_layers_config.mapping_parameters.size(), static_cast<size_t>(0));
-
-	for (size_t i = 0; i < glyph_layers_config.layer_configs.size(); ++i) {
-		const auto& lc = glyph_layers_config.layer_configs[i];
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_VISIBLE", lc.visible, true);
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_MAPPED_ATTRIB_COUNT", lc.mapped_attributes.size(), static_cast<size_t>(0));
-		shader_code::set_define(defines, "L" + std::to_string(i) + "_GLYPH_DEFINITION", lc.glyph_definition, std::string(""));
-
-		shader_code::set_define(defines, "GLYPH_SURFACE_GRAD_DEFINITION", lc.glyph_surface_grad_definition, std::string(""));
-		shader_code::set_define(defines, "GLYPH_SDF_DEFINITION", lc.glyph_sdf_definition, std::string(""));
-	}*/
-
 
 	return defines;
 }
