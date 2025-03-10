@@ -3531,8 +3531,8 @@ void on_tube_vis::draw_glyphs3D(context& ctx)
 	if (render3D.glyphs.spheres.size())
 	{	
 		auto& srrm = ref_sphere_renderer_ray_marching(ctx);
-		srrm.set_render_style(render3D.srm_style);
-		render3D.glyphs.spheres.render(ctx);
+		//srrm.set_render_style(render3D.srm_style);
+		render3D.glyphs.spheres.render(ctx, render3D.srm_style);
 	}
 
 	if (render3D.glyphs.cones.size())
