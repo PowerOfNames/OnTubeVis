@@ -170,6 +170,7 @@ namespace cgv {
 					p->align("\b");
 					p->end_tree_node(rs_ptr->rm);
 				}
+				p->add_member_control(b, "Morph Sin Factor", rs_ptr->morph_sin_factor, "value_slider", "min=0;max=20.0;step=0.1;ticks=true");
 
 				return true;
 			}
