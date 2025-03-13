@@ -27,6 +27,10 @@ in SPHERE_FS {
 	float percentual_splat_size;
 } fi;
 
+in Sphere_RMF {
+	vec4 pos_radius;
+}srmf;
+
 uniform float morph_sin_factor = 20.0;
 uniform int culling_mode = 0;
 
@@ -88,25 +92,32 @@ float sd_sphere(in vec3 ray_pos_glyph, in float glyph_scale, in float radius)
 	return length(ray_pos_glyph) - (radius * glyph_scale);
 }
 
+vec3 normal_sphere(in vec3 hit_pos_glyph)
+{
+	return normalize(hit_pos_glyph);
+}
+
 // from https://iquilezles.org/articles/distfunctions/
-float morph_sin(in vec3 pos, in float factor)
+float morph_sin(in vec3 glyph_pos, in vec3 pos, in float factor)
 {	
-	return 0.01 * (sin(factor*pos.x)*sin(factor*pos.y)*sin(factor*pos.z) - 1.0) * 0.5;
+	vec3 v_seed = glyph_pos + pos;
+	return factor == 0.0 ? 0.0 :  0.1 * srmf.pos_radius.w * (1.0 + sin(factor*v_seed.x)*sin(factor*v_seed.y)*sin(factor*v_seed.z)) * 0.5;
 }
 
 //Hardcoded for now
-vec3 normal_fdg_for_morph_sin(in vec3 pos, in float factor)
+vec3 normal_fdg_for_morph_sin(in vec3 glyph_pos, in vec3 pos, in float factor)
 {	
 	vec3 hit_pos_plus = pos + RM_FDG_DELTA;
 	vec3 hit_pos_minus = pos - RM_FDG_DELTA;
-	return normalize(vec3(
-			morph_sin(vec3(hit_pos_plus.x, pos.yz), factor) - morph_sin(vec3(hit_pos_minus.x, pos.yz), factor), 
-			morph_sin(vec3(pos.x, hit_pos_plus.y, pos.z), factor) - morph_sin(vec3(pos.x, hit_pos_minus.y, pos.z), factor), 
-			morph_sin(vec3(pos.xy, hit_pos_plus.z), factor) - morph_sin(vec3(pos.xy, hit_pos_minus.z), factor))
-			);
+	
+	float dx = sd_sphere(vec3(hit_pos_plus.x, pos.yz), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(hit_pos_plus.x, pos.yz), factor) - sd_sphere(vec3(hit_pos_minus.x, pos.yz), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(hit_pos_minus.x, pos.yz), factor);
+	float dy = sd_sphere(vec3(pos.x, hit_pos_plus.y, pos.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_plus.y, pos.z), factor) - sd_sphere(vec3(pos.x, hit_pos_minus.y, pos.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_minus.y, pos.z), factor);
+	float dz = sd_sphere(vec3(pos.xy, hit_pos_plus.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_plus.z), factor) - sd_sphere(vec3(pos.xy, hit_pos_minus.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_minus.z), factor);
+
+	return normalize(vec3(dx, dy, dz));
 }
 
-bool ray_march(out vec3 pos_eye, out vec3 normal_eye, out vec2 splat_tc, out float clip_depth, out int side)
+vec3 ray_march(out vec3 pos_eye, out vec3 normal_eye, out vec2 splat_tc, out int side)
 {	
 	float lambda;
 	
@@ -114,37 +125,36 @@ bool ray_march(out vec3 pos_eye, out vec3 normal_eye, out vec2 splat_tc, out flo
 	if (!computer_ray_sphere_intersection(fi.percentual_splat_size, pos_eye, normal_eye, splat_tc, side, lambda))
 		discard;
 	
-	vec3 pos_glyph = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz;
-	vec3 dir_glyph = normalize((get_inverse_modelview_matrix() * vec4(pos_eye, 0.0)).xyz);
+	
+	vec3 glyph_position_world = srmf.pos_radius.xyz;
+	vec3 pos_glyph = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz - glyph_position_world;
+	vec3 dir_world = normalize(get_inverse_normal_matrix() * pos_eye);
 
 
 	int i = 0;
-	float dist = 1000.0;
+	//Dist is 0 at the beginning, because we start at the general sphere surface coming form the ray cast result.
+	float dist = 0.0;
 	while(i < RM_MAX_ITERATIONS)
 	{
-		dist = morph_sin(pos_glyph, morph_sin_factor);
+		dist = sd_sphere(pos_glyph, 1.0, srmf.pos_radius.w) + morph_sin(glyph_position_world, pos_glyph, morph_sin_factor);
+		lambda += dist;
 		// we hit -> calculate normal using finite difference gradient
-		if(dist <= RM_EPSILON)
+		if(abs(dist) <= RM_EPSILON)
 		{
-			vec3 normal_glyph = normal_fdg_for_morph_sin(pos_glyph, morph_sin_factor);
-			pos_eye = (get_modelview_matrix() * vec4(pos_glyph, 1.0)).xyz;
-			normal_eye = get_normal_matrix() * normal_glyph;
+			pos_eye = (get_modelview_matrix() * vec4(pos_glyph + glyph_position_world, 1.0)).xyz;
+			
+			vec3 normal_glyph = normal_sphere(pos_glyph) + normal_fdg_for_morph_sin(glyph_position_world, pos_glyph, morph_sin_factor);
+			normal_eye = normalize(get_normal_matrix() * normal_glyph);
 
-			// compute the depth value in clip coordinates
-			lambda += dist;
-			vec2 zw = ssi.e_zw_clip + lambda * ssi.v_zw_clip;
-			float z_clip = zw.x / zw.y;
-
-			// transform from [-1,1] to [0,1]
-			clip_depth = 0.5*(z_clip + 1);
-			return true;
+			return fi.color.xyz;
 		}
 
-		pos_glyph += dir_glyph * dist;
+		pos_glyph += dir_world * dist;
 		i++;
 	}
 
-	return false; 
+	discard;
+	return vec3(1.0, 0.0, 0.0);
 }
 //***** end instead of ray-cast intersection between ray-sphere, use ray marching using sphere_sd ***********************************
 
@@ -181,12 +191,14 @@ void main()
 	vec3 n_eye;
 	int side;
 	vec2 tc;
-	float depth;
-	if (!ray_march(p_eye, n_eye, tc, depth, side))
-		discard;
+	vec4 glyph_color = vec4(ray_march(p_eye, n_eye, tc, side), 1.0);
 
-	vec4 color = compute_reflected_appearance(p_eye, n_eye, fi.color, side);
-	//vec4 color = vec4((get_inverse_modelview_matrix() * vec4(p_eye, 1.0)).xyz, 1.0);
+	vec4 v_eye = vec4(p_eye, 1.0);
+	vec4 v_depth = get_projection_matrix() * v_eye;
+	float depth = 0.5*(v_depth.z / v_depth.w) + 0.5;
+	
+
+	vec4 color = compute_reflected_appearance(p_eye, n_eye, glyph_color, side);
 	finish_fragment(color, depth);
 	frag_position = vec4(p_eye, 1.0);
 	frag_normal = n_eye;

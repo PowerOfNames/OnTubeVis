@@ -14,6 +14,10 @@ out SPHERE_GS {
 	vec4 color;
 } vo;
 
+out Sphere_RMG {
+	vec4 pos_radius;
+}srm;
+
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
 mat4 get_projection_matrix();
@@ -51,6 +55,7 @@ void main()
 	// compute sphere color
 	vo.color = group_color(color, group_index);
 	// output sphere parameter space for geometry shader
+	srm.pos_radius = vec4(position.xyz, radius);
 	gl_Position = position;
 	gl_Position.xyz = gl_Position.xyz / gl_Position.w;
 	gl_Position.w = radius_scale * radius;
