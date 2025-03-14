@@ -118,6 +118,7 @@ set(SOURCES
 	quadratic_bezier_tube.cxx
 	hermite_spline_tube.cxx
 	sphere_renderer_ray_marching.cxx
+	cone_renderer_ray_marching.cxx
 )
 # - C/C++ headers
 set(HEADERS
@@ -175,6 +176,8 @@ set(HEADERS
 	# THESIS2:
 	sphere_render_ray_marching_data.h
 	sphere_renderer_ray_marching.h
+	cone_render_ray_marching_data.h
+	cone_renderer_ray_marching.h
 
 )
 # - GLSL shaders
@@ -210,6 +213,11 @@ set (SHADERS
 	glsl/sphere_ray_marched.glvs
 	glsl/sphere_ray_marched.glgs
 	glsl/sphere_ray_marched.glfs
+
+	glsl/cone_ray_marched.glpr
+	glsl/cone_ray_marched.glvs
+	glsl/cone_ray_marched.glgs
+	glsl/cone_ray_marched.glfs
 
 	glsl/spline_tube_glyph3D.glfs
 	glsl/spline_tube_glyph3D.glgs

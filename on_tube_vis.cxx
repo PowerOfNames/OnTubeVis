@@ -2598,11 +2598,17 @@ void on_tube_vis::create_gui(void)
 			}
 			else if (render.style3D.is_billboard_pipeline())
 			{
-				if (begin_tree_node("Ray Marching", render3D.srm_style, false)) {
+				if (begin_tree_node("Sphere", render3D.srm_style, false)) {
 					align("\a");
 					add_gui("", render3D.srm_style);
 					align("\b");
 					end_tree_node(render3D.srm_style);
+				}
+				if (begin_tree_node("Cone", render3D.crm_style, false)) {
+					align("\a");
+					add_gui("", render3D.crm_style);
+					align("\b");
+					end_tree_node(render3D.crm_style);
 				}
 			}		
 
@@ -3529,14 +3535,10 @@ void on_tube_vis::draw_tube_back_glyphs3D(context& ctx)
 void on_tube_vis::draw_glyphs3D(context& ctx)
 {
 	if (render3D.glyphs.spheres.size())
-	{	
-		auto& srrm = ref_sphere_renderer_ray_marching(ctx);
-		//srrm.set_render_style(render3D.srm_style);
 		render3D.glyphs.spheres.render(ctx, render3D.srm_style);
-	}
 
 	if (render3D.glyphs.cones.size())
-		render3D.glyphs.cones.render(ctx);
+		render3D.glyphs.cones.render(ctx, render3D.crm_style);
 
 	if (render3D.glyphs.ellipsoids.size())
 		render3D.glyphs.ellipsoids.render(ctx);	

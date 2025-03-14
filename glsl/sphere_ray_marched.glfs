@@ -13,7 +13,6 @@ struct sphere_splat_info
 	float inv_e;
 	vec2 e_zw_clip;
 	vec2 v_zw_clip;
-//	vec3 v;
 	vec3 v_eye;
 };
 
@@ -49,7 +48,7 @@ mat3 get_inverse_normal_matrix();
 //***** end interface of view.glsl ***********************************
 
 //***** copied and modified from interface of sphere_lib.glfs ***********************************
-bool computer_ray_sphere_intersection(in float percentual_splat_size, out vec3 p_eye, out vec3 n_eye, out vec2 splat_tc, out int side, out float lambda)
+bool compute_ray_sphere_intersection(in float percentual_splat_size, out vec3 p_eye, out vec3 n_eye, out vec2 splat_tc, out int side, out float lambda)
 {
 	// ray-sphere intersection	
 
@@ -122,7 +121,7 @@ vec3 ray_march(out vec3 pos_eye, out vec3 normal_eye, out vec2 splat_tc, out int
 	float lambda;
 	
 	// use the established ray-sphere intersetion test to see if the ray hits the bounding sphere -> if hit, we perform ray-marching to enable morphing and compositing
-	if (!computer_ray_sphere_intersection(fi.percentual_splat_size, pos_eye, normal_eye, splat_tc, side, lambda))
+	if (!compute_ray_sphere_intersection(fi.percentual_splat_size, pos_eye, normal_eye, splat_tc, side, lambda))
 		discard;
 	
 	
