@@ -1,8 +1,11 @@
 #version 430
 
 #define CAPS 1
-#define CAP_TYPE 0
 #define COMP_ARROW 0
+
+#define RM_EPSILON 0.00005
+#define RM_MAX_ITERATIONS 30
+#define RM_FDG_DELTA 0.001
 
 #define M_PI 3.14159265359
 
@@ -34,6 +37,9 @@ in flat vec3 normal_fs;
 in flat vec3 binormal_fs;
 in flat vec4 color_start_fs;
 in flat vec4 color_end_fs;
+in flat mat4 cone_transform_fs;
+in flat mat4 inv_cone_transform_fs;
+
 
 layout(location = 1) out vec4 frag_position;
 layout(location = 2) out vec3 frag_normal;
@@ -97,71 +103,53 @@ float intersect_cone(in vec3 org, in vec3 dir, in vec3 pa, in vec3 pb, in float 
     return -1e20;
 }
 
-// https://www.shadertoy.com/view/MlKfzm
-float intersect_rounded_cone(in vec3 org, in vec3 dir, in vec3 pa, in vec3 pb, in float ra, in float rb, out vec3 normal, out float l) {
+float sd_cone(vec3 pos, vec2 c, float height )
+{
+  float q = length(pos.xz);
+  return max(dot(c.xy, vec2(q, pos.y)),-height-pos.y);
+}
 
-    vec3  ba = pb - pa;
-	vec3  oa = org - pa;
-	vec3  ob = org - pb;
-    float rr = ra - rb;
-    float m0 = dot(ba, ba);
-    float m1 = dot(ba, oa);
-    float m2 = dot(ba, dir);
-    float m3 = dot(dir, oa);
-    float m5 = dot(oa, oa);
-	float m6 = dot(ob, dir);
-    float m7 = dot(ob, ob);
-    
-    float d2 = m0 - rr*rr;
-    
-	float k2 = d2    - m2*m2;
-    float k1 = d2*m3 - m1*m2 + m2*rr*ra;
-    float k0 = d2*m5 - m1*m1 + m1*rr*ra*2.0 - m0*ra*ra;
-    
-	float h = k1*k1 - k0*k2;
+vec3 normal_cone()
+{
+	return vec3(1.0, 0.0, 0.0);
+}
 
-	if(h < 0.0) {
-		return -1e20;
-	}
+float sd_sphere(in vec3 ray_pos_glyph, in float glyph_scale, in float radius)
+{
+	return length(ray_pos_glyph) - (radius * glyph_scale);
+}
 
-    float t = (-sqrt(h) - k1) / k2;
-	float y = m1 - ra*rr + t*m2;
-    
-    if(y > 0.0 && y < d2) {
-		l = y / d2;
-		normal = normalize(d2*(oa + t*dir) - ba*y);
-		return t;
-    } 
+vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in float radius_start, in float radius_end, out vec3 normal_glyph, in out float lambda)
+{	
+	float height = length(end - start);
 
-#if CAPS == 0
-	return -1e20;
-#else
-	float h1 = m3*m3 - m5 + ra*ra;
-	float h2 = m6*m6 - m7 + rb*rb;
+	hit_pos = (inv_cone_transform_fs * vec4(hit_pos, 1.0)).xyz;
+	//hit_pos = (cone_transform_fs * vec4(hit_pos, 1.0)).xyz;
+	dir = normalize((inv_cone_transform_fs * vec4(dir, 0.0)).xyz);
 
-	if(max(h1, h2) < 0.0)
-		return -1e20;
-	
-	float rt = 1e20;
-
-	if(h1 > 0.0) {
-    	t = -m3 - sqrt(h1);
-		rt = t;
-		l = 0.0;
-		normal = normalize((oa + t*dir) / ra);
-	}
-
-	if(h2 > 0.0) {
-    	t = -m6 - sqrt(h2);
-		if(t < rt) {
-			rt = t;
-			l = 1.0;
-			normal = normalize((ob + t*dir) / rb);
+	vec2 cone_slope = normalize(vec2(-radius_start*0.5, height * 0.5));
+	int i = 0;
+	//Dist is 0 at the beginning, because we start at the general sphere surface coming from the ray cast result.
+	float dist = 0.0;
+	while(i < RM_MAX_ITERATIONS)
+	{
+		dist = sd_cone(hit_pos, cone_slope, height * 0.5);
+		//dist = sd_sphere(hit_pos, 1.0, radius_start);
+		lambda += dist;
+		// we hit -> calculate normal using finite difference gradient
+		if(abs(dist) <= RM_EPSILON)
+		{	
+			hit_pos = (cone_transform_fs * vec4(hit_pos, 1.0)).xyz;
+			
+			normal_glyph = normal_cone();
+			return vec3(1.0, 0.0, 0.0);
 		}
+		hit_pos += dir * dist;
+		i++;
 	}
 
-	return rt;
-#endif
+	return vec3(1.0);
+	discard;
 }
 
 void main()
@@ -180,26 +168,23 @@ void main()
 	
 	vec3 normal;
 	float l;
-#if CAP_TYPE == 0
+
 	float t = intersect_cone(org, dir, start_fs.xyz, end_fs.xyz, start_fs.w, end_fs.w, normal, l);
-	#if COMP_ARROW == 0
-
-	#else
-
-	#endif
-#else
-	float t = intersect_rounded_cone(org, dir, start_fs.xyz, end_fs.xyz, start_fs.w, end_fs.w, normal, l);
-	#if COMP_ARROW == 0
-
-	#else
-
-	#endif
-#endif
-
+	vec3 hit_pos = org + t * dir;
+	bool hit = false;
+	vec4 color;
 	if(t >= 0.0) {
+		hit = true;
 		// get the hit position in object space
-		vec3 hit_pos = org + t * dir;
-		vec4 color = mix(color_start_fs, color_end_fs, l);
+		//color = (cone_transform_fs * vec4(hit_pos, 1.0));
+		//color = vec4(normalize((inv_cone_transform_fs * vec4(dir, 0.0)).xyz), 1.0);
+		#if COMP_ARROW == 0
+			color = vec4(ray_march(hit_pos, dir, start_fs.xyz, end_fs.xyz, start_fs.w, end_fs.w, normal, t), 1.0);
+		#endif
+	}
+	if(hit)
+	{
+		//vec4 color = mix(color_start_fs, color_end_fs, l);
 	
 		vec3 hit_pos_eye = (get_modelview_matrix() * vec4(hit_pos, 1.0)).xyz;
 		vec3 normal_eye = normalize(get_normal_matrix() * normal);

@@ -1581,7 +1581,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 						const vec3 start_pos = pos;
 						const vec3 end_pos = pos + normalized_scaled_v;
 						cones.add(start_pos, end_pos);
-						cones.add(0.02f, 0.001f);
+						cones.add(0.02f, 0.02f);
 
 						//if (trj_idx == 2 && segment_idx == 3 && glyph_idx == 1)
 						//	break;

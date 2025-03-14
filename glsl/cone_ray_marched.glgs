@@ -2,7 +2,6 @@
 #extension GL_EXT_geometry_shader4 : enable
 
 #define CAPS 1
-#define CAP_TYPE 0
 
 //***** begin interface of view.glsl ***********************************
 mat4 get_modelview_matrix();
@@ -26,6 +25,8 @@ out flat vec3 normal_fs;
 out flat vec3 binormal_fs;
 out flat vec4 color_start_fs;
 out flat vec4 color_end_fs;
+out flat mat4 cone_transform_fs;
+out flat mat4 inv_cone_transform_fs;
 
 vec3 ortho_vec(vec3 v) {
 
@@ -40,15 +41,8 @@ void main()
 	float l = length(end.xyz - start.xyz);
 	vec3 delta = (end.xyz - start.xyz) / l;
 
-	float rs = start.w;
-	float re = end.w;
-
-	float max_d = 2 * max(rs, re);
-
 	vec3 center = start.xyz + end.xyz;
-#if CAP_TYPE == 1
-	center += delta*(re - rs);
-#endif
+
 	center *= 0.5;
 
 	// create transformation matrix as modelview * translation * rotation * scale
@@ -64,13 +58,12 @@ void main()
 	binormal_fs = T[2].xyz;
 
 	// scale part
-#if CAP_TYPE == 1
-	T[0] *= l + rs + re;
-	T[1] *= max_d;
-	T[2] *= max_d;
-#else
 	T[0] *= l;
-#endif
+
+	//cone_transform_fs = mat4(T[0], T[1], T[2], vec4(start.xyz, 1.0));
+	cone_transform_fs = T;
+	inv_cone_transform_fs = inverse(cone_transform_fs);
+
 
 	// transform to eye space
 	mat4 M = get_modelview_matrix() * T;
@@ -99,19 +92,7 @@ void main()
 	*/
 
 	// generate transformed base vector corners of the box
-#if CAP_TYPE == 0
-	vec4 C0 = M * vec4(-0.5, -rs, -rs, 1.0);
-	vec4 C1 = M * vec4(-0.5, -rs, +rs, 1.0);
-	vec4 C2 = M * vec4(-0.5, +rs, -rs, 1.0);
-	
-	vec4 C4 = M * vec4(+0.5, -re, -re, 1.0);
-	vec4 C5 = M * vec4(+0.5, -re, +re, 1.0);
-	vec4 C6 = M * vec4(+0.5, +re, -re, 1.0);
-	
-	// calculate remaining corners
-	vec4 C3 = C1 + C2 - C0;
-	vec4 C7 = C5 + C6 - C4;
-#else
+
 	vec4 C0 = M * vec4(-0.5, -0.5, -0.5, 1.0);
 	vec4 C1 = M * vec4(0.5, -0.5, -0.5, 1.0);
 	vec4 C2 = M * vec4(-0.5, 0.5, -0.5, 1.0);
@@ -124,7 +105,6 @@ void main()
 	vec4 C5 = C1 + C4-C0;
 	vec4 C6 = C4 + D20;
 	vec4 C7 = C5 + D20;
-#endif
 	
 	mat4 PM = get_projection_matrix();
 
