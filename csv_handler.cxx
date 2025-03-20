@@ -442,10 +442,7 @@ traj_dataset<flt_type> csv_handler<flt_type>::read (
 	static const csv_descriptor::attribute eigen_attribs[] = {
 		{"radius_x", {"ID", false, 1}},
 		{"radius_y", {"ID", false, 1}},
-		{"radius_z", {"ID", false, 1}},/*
-		{"vec_x", {"ID", false, 1}},
-		{"vec_y", {"ID", false, 1}},
-		{"vec_z", {"ID", false, 1}},*/
+		{"radius_z", {"ID", false, 1}},
 		{"ori_w", {"ID", false, 1}},
 		{"ori_i", {"ID", false, 1}},
 		{"ori_j", {"ID", false, 1}},

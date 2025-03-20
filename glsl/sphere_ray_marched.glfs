@@ -97,26 +97,26 @@ vec3 normal_sphere(in vec3 hit_pos_glyph)
 }
 
 // from https://iquilezles.org/articles/distfunctions/
-float morph_sin(in vec3 glyph_pos, in vec3 pos, in float factor)
+float morph_sin(in vec3 glyph_pos, in vec3 pos, in float bounding_dist, in float factor)
 {	
 	vec3 v_seed = glyph_pos + pos;
-	return factor == 0.0 ? 0.0 :  0.1 * srmf.pos_radius.w * (1.0 + sin(factor*v_seed.x)*sin(factor*v_seed.y)*sin(factor*v_seed.z)) * 0.5;
+	return factor == 0.0 ? 0.0 :  0.1 * bounding_dist * (1.0 + sin(factor*v_seed.x)*sin(factor*v_seed.y)*sin(factor*v_seed.z)) * 0.5;
 }
 
 //Hardcoded for now
-vec3 normal_fdg_for_morph_sin(in vec3 glyph_pos, in vec3 pos, in float factor)
+vec3 normal_fdg_for_morph_sin(in vec3 glyph_pos, in vec3 pos, in float bounding_dist, in float factor)
 {	
 	vec3 hit_pos_plus = pos + RM_FDG_DELTA;
 	vec3 hit_pos_minus = pos - RM_FDG_DELTA;
 	
-	float dx = sd_sphere(vec3(hit_pos_plus.x, pos.yz), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(hit_pos_plus.x, pos.yz), factor) - sd_sphere(vec3(hit_pos_minus.x, pos.yz), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(hit_pos_minus.x, pos.yz), factor);
-	float dy = sd_sphere(vec3(pos.x, hit_pos_plus.y, pos.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_plus.y, pos.z), factor) - sd_sphere(vec3(pos.x, hit_pos_minus.y, pos.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_minus.y, pos.z), factor);
-	float dz = sd_sphere(vec3(pos.xy, hit_pos_plus.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_plus.z), factor) - sd_sphere(vec3(pos.xy, hit_pos_minus.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_minus.z), factor);
+	float dx = sd_sphere(vec3(hit_pos_plus.x, pos.yz), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(hit_pos_plus.x, pos.yz), bounding_dist, factor) - sd_sphere(vec3(hit_pos_minus.x, pos.yz), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(hit_pos_minus.x, pos.yz), bounding_dist, factor);
+	float dy = sd_sphere(vec3(pos.x, hit_pos_plus.y, pos.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_plus.y, pos.z), bounding_dist, factor) - sd_sphere(vec3(pos.x, hit_pos_minus.y, pos.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_minus.y, pos.z), bounding_dist, factor);
+	float dz = sd_sphere(vec3(pos.xy, hit_pos_plus.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_plus.z), bounding_dist, factor) - sd_sphere(vec3(pos.xy, hit_pos_minus.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_minus.z), bounding_dist, factor);
 
 	return normalize(vec3(dx, dy, dz));
 }
 
-vec3 ray_march(out vec3 pos_eye, out vec3 normal_eye, out vec2 splat_tc, out int side)
+vec3 ray_march(in out vec3 pos_eye, in out vec3 normal_eye, in out vec2 splat_tc, out int side)
 {	
 	float lambda;
 	
@@ -127,6 +127,8 @@ vec3 ray_march(out vec3 pos_eye, out vec3 normal_eye, out vec2 splat_tc, out int
 	
 	vec3 glyph_position_world = srmf.pos_radius.xyz;
 	vec3 pos_glyph = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz - glyph_position_world;
+	// bounding_dist is the distance from the glyph center to the bounding shape at the hit position -> used to enforce sub-surface morphing
+	float bounding_dist = length(pos_glyph);
 	vec3 dir_world = normalize(get_inverse_normal_matrix() * pos_eye);
 
 
@@ -135,14 +137,14 @@ vec3 ray_march(out vec3 pos_eye, out vec3 normal_eye, out vec2 splat_tc, out int
 	float dist = 0.0;
 	while(i < RM_MAX_ITERATIONS)
 	{
-		dist = sd_sphere(pos_glyph, 1.0, srmf.pos_radius.w) + morph_sin(glyph_position_world, pos_glyph, morph_sin_factor);
+		dist = sd_sphere(pos_glyph, 1.0, srmf.pos_radius.w) + morph_sin(glyph_position_world, pos_glyph, bounding_dist, morph_sin_factor);
 		lambda += dist;
 		// we hit -> calculate normal using finite difference gradient
 		if(abs(dist) <= RM_EPSILON)
 		{
 			pos_eye = (get_modelview_matrix() * vec4(pos_glyph + glyph_position_world, 1.0)).xyz;
 			
-			vec3 normal_glyph = normal_sphere(pos_glyph) + normal_fdg_for_morph_sin(glyph_position_world, pos_glyph, morph_sin_factor);
+			vec3 normal_glyph = normal_sphere(pos_glyph) + normal_fdg_for_morph_sin(glyph_position_world, pos_glyph, bounding_dist, morph_sin_factor);
 			normal_eye = normalize(get_normal_matrix() * normal_glyph);
 
 			return fi.color.xyz;

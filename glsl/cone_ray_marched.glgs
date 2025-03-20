@@ -60,14 +60,15 @@ void main()
 	// scale part
 	T[0] *= l;
 
-	//cone_transform_fs = mat4(T[0], T[1], T[2], vec4(start.xyz, 1.0));
-	cone_transform_fs = T;
-	inv_cone_transform_fs = inverse(cone_transform_fs);
 
 
 	// transform to eye space
 	mat4 M = get_modelview_matrix() * T;
 	
+	//cone_transform_fs = mat4(T[0], T[1], T[2], vec4(start.xyz, 1.0));
+	cone_transform_fs = M;
+	inv_cone_transform_fs = inverse(cone_transform_fs);
+
 	// transform cone start and end position to eye space
 	//start_fs = vec4((get_modelview_matrix() * vec4(start.xyz, 1.0)).xyz, start.w);
 	//end_fs = vec4((get_modelview_matrix() * vec4(end.xyz, 1.0)).xyz, end.w);

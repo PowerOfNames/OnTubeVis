@@ -29,7 +29,7 @@ namespace cgv {
 			blend_width_in_pixel = 0.0f;
 
 			//Ray marching defines:
-			rm.epsilon = 0.001f;
+			rm.epsilon = 0.002f;
 			rm.max_iterations = 30;
 			rm.fdg_delta = 0.0005f;
 		}
@@ -170,7 +170,7 @@ namespace cgv {
 					p->align("\b");
 					p->end_tree_node(rs_ptr->rm);
 				}
-				p->add_member_control(b, "Morph Sin Factor", rs_ptr->morph_sin_factor, "value_slider", "min=0;max=20.0;step=0.1;ticks=true");
+				p->add_member_control(b, "Morph Sin Factor", rs_ptr->morph_sin_factor, "value_slider", "min=0;max=100.0;step=0.1;ticks=true");
 
 				return true;
 			}

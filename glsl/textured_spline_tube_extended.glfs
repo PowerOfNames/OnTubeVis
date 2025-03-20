@@ -939,8 +939,6 @@ float qTube_signed_distance(const vec3 pos, const vec3 qa, const vec3 qb, const 
 
 #else
 
-//THESIS2 TODO: Remove from here, put into separate shader and call that when performing the 3D glyphing (potentially)
-//keep here if 3D+2D glyphing should be allowed at some point
 	Hit EvalSplineISect(
 		const vec3 org, const vec3 dir, vec3 s, vec3 h, vec3 t,
 		const float rs, const float rh, const float rt, const float l_max

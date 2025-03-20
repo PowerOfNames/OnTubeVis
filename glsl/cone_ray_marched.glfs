@@ -3,7 +3,7 @@
 #define CAPS 1
 #define COMP_ARROW 0
 
-#define RM_EPSILON 0.00005
+#define RM_EPSILON 0.002
 #define RM_MAX_ITERATIONS 30
 #define RM_FDG_DELTA 0.001
 
@@ -121,11 +121,14 @@ float sd_sphere(in vec3 ray_pos_glyph, in float glyph_scale, in float radius)
 
 vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in float radius_start, in float radius_end, out vec3 normal_glyph, in out float lambda)
 {	
-	float height = length(end - start);
+	//it seems to be neccessary to convert start and end in glyph space (does not make sense to at this moment) result is still not correct 
+	float height = length((inv_cone_transform_fs * get_modelview_matrix() * vec4(end, 1.0)).xyz - (inv_cone_transform_fs * get_modelview_matrix() * vec4(start, 1.0)).xyz);
 
-	hit_pos = (inv_cone_transform_fs * vec4(hit_pos, 1.0)).xyz;
-	//hit_pos = (cone_transform_fs * vec4(hit_pos, 1.0)).xyz;
-	dir = normalize((inv_cone_transform_fs * vec4(dir, 0.0)).xyz);
+	vec3 hit_pos_eye = (get_modelview_matrix() * vec4(hit_pos, 1.0)).xyz;
+	vec3 dir_eye = normalize(get_normal_matrix() * dir);
+
+	vec3 hit_pos_glyph = (inv_cone_transform_fs * vec4(hit_pos_eye, 1.0)).xyz;
+	vec3 dir_glyph = normalize((inv_cone_transform_fs * vec4(dir_eye, 0.0)).xyz);
 
 	vec2 cone_slope = normalize(vec2(-radius_start*0.5, height * 0.5));
 	int i = 0;
@@ -133,18 +136,18 @@ vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in 
 	float dist = 0.0;
 	while(i < RM_MAX_ITERATIONS)
 	{
-		dist = sd_cone(hit_pos, cone_slope, height * 0.5);
-		//dist = sd_sphere(hit_pos, 1.0, radius_start);
+		dist = sd_cone(hit_pos_glyph, cone_slope, height * 0.5);
+		//dist = sd_sphere(hit_pos_glyph, 1.0, height * 0.5);
 		lambda += dist;
 		// we hit -> calculate normal using finite difference gradient
 		if(abs(dist) <= RM_EPSILON)
 		{	
-			hit_pos = (cone_transform_fs * vec4(hit_pos, 1.0)).xyz;
+			hit_pos = (get_inverse_modelview_matrix() * cone_transform_fs * vec4(hit_pos_glyph, 1.0)).xyz;
 			
 			normal_glyph = normal_cone();
 			return vec3(1.0, 0.0, 0.0);
 		}
-		hit_pos += dir * dist;
+		hit_pos_glyph += dir_glyph * dist;
 		i++;
 	}
 
@@ -171,13 +174,12 @@ void main()
 
 	float t = intersect_cone(org, dir, start_fs.xyz, end_fs.xyz, start_fs.w, end_fs.w, normal, l);
 	vec3 hit_pos = org + t * dir;
+	
 	bool hit = false;
 	vec4 color;
 	if(t >= 0.0) {
 		hit = true;
 		// get the hit position in object space
-		//color = (cone_transform_fs * vec4(hit_pos, 1.0));
-		//color = vec4(normalize((inv_cone_transform_fs * vec4(dir, 0.0)).xyz), 1.0);
 		#if COMP_ARROW == 0
 			color = vec4(ray_march(hit_pos, dir, start_fs.xyz, end_fs.xyz, start_fs.w, end_fs.w, normal, t), 1.0);
 		#endif

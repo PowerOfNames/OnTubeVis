@@ -4,8 +4,6 @@
 
 #include <cgv_gl/gl/lib_begin.h>
 
-//THESIS2: Overload of sphere_renderer.h -> quick and dirty, to change shader.glpr plus 
-
 namespace cgv { // @<
 	namespace render { // @<
 		class /*CGV_API*/ sphere_renderer_ray_marching;
