@@ -1,4 +1,4 @@
-#version 330
+#version 430
 
 #define RM_EPSILON 0.00005
 #define RM_MAX_ITERATIONS 30
@@ -33,6 +33,9 @@ in Sphere_RMF {
 uniform float morph_sin_factor = 20.0;
 uniform int culling_mode = 0;
 
+layout (binding = 0) uniform sampler2D color_maps_tex;
+uniform vec4 glyph_cc_param = vec4(0.0, 1.0, 0.0, 1.0);
+
 layout(location = 1) out vec4 frag_position;
 layout(location = 2) out vec3 frag_normal;
 
@@ -46,6 +49,22 @@ mat4 get_inverse_modelview_projection_matrix();
 mat3 get_normal_matrix();
 mat3 get_inverse_normal_matrix();
 //***** end interface of view.glsl ***********************************
+
+// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
+float clamp_remap(float v, vec4 r) {
+	v = clamp(v, r.x, r.y);
+	float t = 0.0;
+	if(abs(r.x - r.y) > 0.00001)
+		t = (v - r.x) / (r.y - r.x);
+	return mix(r.z, r.w, t);
+}
+
+vec3 map_to_color(float v, int color_map_idx) {
+	vec2 ts = textureSize(color_maps_tex, 0);
+	float half_step = 0.5 * (1.0 / ts.y);
+	float map_coord = float(color_map_idx) / ts.y + half_step;
+	return pow(texture(color_maps_tex, vec2(v, map_coord)).rgb, vec3(2.2));
+}
 
 //***** copied and modified from interface of sphere_lib.glfs ***********************************
 bool compute_ray_sphere_intersection(in float percentual_splat_size, out vec3 p_eye, out vec3 n_eye, out vec2 splat_tc, out int side, out float lambda)
@@ -147,7 +166,8 @@ vec3 ray_march(in out vec3 pos_eye, in out vec3 normal_eye, in out vec2 splat_tc
 			vec3 normal_glyph = normal_sphere(pos_glyph) + normal_fdg_for_morph_sin(glyph_position_world, pos_glyph, bounding_dist, morph_sin_factor);
 			normal_eye = normalize(get_normal_matrix() * normal_glyph);
 
-			return fi.color.xyz;
+			return map_to_color(clamp_remap(fi.color.x, glyph_cc_param), int(fi.color.y));
+			//return fi.color.xyz;
 		}
 
 		pos_glyph += dir_world * dist;

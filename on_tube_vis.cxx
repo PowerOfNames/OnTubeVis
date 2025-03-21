@@ -1423,6 +1423,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	//const auto& attrib_names = dataset.get_attribute_names();	
 	const auto& mapping = layer_config.glyph_mapping_parameters;
 	const auto& glyph_attrib_idx_to_buffer_idx = layer_config.mapped_attribs_idx_to_buffer_idx;
+	const uint32_t color_map_idx = layer_config.mapped_color_map_idx;
 	const GlyphType glyph_type = layer_config.shape_ptr->type();
 
 	const auto& ranges = gc.layer_ranges[layer_idx];
@@ -1460,7 +1461,19 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	const uint32_t last_nonmapped_attrib_idx = attribs.count_of_non_attrib_values; // this should be the debug_int value (as float)
 
 	//color not supported -> not sure how to get to the set color_map
-	const uint32_t max_glyph_size_idx = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "color", layer_config.shape_ptr, last_nonmapped_attrib_idx).first;
+	
+	const auto color_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "color", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const uint32_t color_v_idx = (int)color_idcs.first == -1 ? 0 : color_idcs.first;
+	const auto& mapping_color = layer_config.color_mapping_parameter;
+
+	if(mapping_color != NULL)
+		switch (glyph_type)
+		{
+			case GT_3D_SPHERE: render3D.srm_style.glyph_color_mapping = *mapping_color; break;
+			case GT_3D_CONE_VECTOR: render3D.crm_style.glyph_color_mapping = *mapping_color; break;
+			case GT_3D_ELLIPSOID_3x3_TENSOR: break;
+			default: break;
+		}
 
 	const auto radius_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t radius_idx = radius_idcs.first;
@@ -1548,6 +1561,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 					{
 						spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
 						spheres.add_radius(clamp_remap(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v)));
+						spheres.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
 						break;
 					}
 					case GT_3D_ELLIPSOID_3x3_TENSOR:
@@ -3534,6 +3548,7 @@ void on_tube_vis::draw_tube_back_glyphs3D(context& ctx)
 
 void on_tube_vis::draw_glyphs3D(context& ctx)
 {
+	color_map_mgr.ref_texture().enable(ctx, 0);
 	if (render3D.glyphs.spheres.size())
 		render3D.glyphs.spheres.render(ctx, render3D.srm_style);
 
@@ -3541,7 +3556,9 @@ void on_tube_vis::draw_glyphs3D(context& ctx)
 		render3D.glyphs.cones.render(ctx, render3D.crm_style);
 
 	if (render3D.glyphs.ellipsoids.size())
-		render3D.glyphs.ellipsoids.render(ctx);	
+		render3D.glyphs.ellipsoids.render(ctx);
+	color_map_mgr.ref_texture().disable(ctx);
+
 }
 
 void on_tube_vis::draw_tube_front_glyphs3D(context& ctx)

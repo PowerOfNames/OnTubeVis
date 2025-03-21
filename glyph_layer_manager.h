@@ -54,6 +54,10 @@ public:
 			GlyphType glyph_type;
 			//We use this to check: If key (attrib index) is set, we know that at value.first (buffer_index) we find the value of the attribute and at value.second, we find the mapping_idx (for clamp_remap)
 			std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> mapped_attribs_idx_to_buffer_idx;
+
+			//THESIS2: HACK:
+			uint32_t mapped_color_map_idx;
+			const vec4* color_mapping_parameter;
 		};
 
 		struct shader_configuration {

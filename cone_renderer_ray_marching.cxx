@@ -26,6 +26,12 @@ namespace cgv {
 
 			show_caps = true;
 			composite_arrow = false;
+
+			//Ray marching defines:
+			rm.epsilon = 0.003f;
+			rm.max_iterations = 30;
+			rm.fdg_delta = 0.001f;
+			glyph_color_mapping = vec4(0.0f, 0.1f, 0.0f, 0.1f);
 		}
 
 		cone_renderer_ray_marching::cone_renderer_ray_marching()
@@ -59,9 +65,13 @@ namespace cgv {
 		}
 		void cone_renderer_ray_marching::update_defines(shader_define_map& defines)
 		{
-			const cone_render_ray_marching_style& crs = get_style<cone_render_ray_marching_style>();
-			shader_code::set_define(defines, "CAPS", crs.show_caps, true);	
-			shader_code::set_define(defines, "COMP_ARROW", crs.composite_arrow, false);		
+			const cone_render_ray_marching_style& rs = get_style<cone_render_ray_marching_style>();
+			shader_code::set_define(defines, "CAPS", rs.show_caps, true);	
+			shader_code::set_define(defines, "COMP_ARROW", rs.composite_arrow, false);
+
+			shader_code::set_define(defines, "RM_EPSILON", rs.rm.epsilon, 0.001f);
+			shader_code::set_define(defines, "RM_MAX_ITERATIONS", rs.rm.max_iterations, (uint32_t)30);
+			shader_code::set_define(defines, "RM_FDG_DELTA", rs.rm.fdg_delta, 0.0005f);
 		}
 		bool cone_renderer_ray_marching::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
@@ -79,8 +89,10 @@ namespace cgv {
 			const cone_render_ray_marching_style& crs = get_style<cone_render_ray_marching_style>();
 			if (!has_radii)
 				ref_prog().set_attribute(ctx, "radius", crs.radius);
+			ref_prog().set_uniform(ctx, "glyph_cc_param", crs.glyph_color_mapping);
 
 			ref_prog().set_uniform(ctx, "radius_scale", crs.radius_scale);
+
 			
 			return true;
 		}
@@ -99,6 +111,9 @@ namespace cgv {
 			return
 				rh.reflect_base(*static_cast<surface_render_style*>(this)) &&
 				rh.reflect_member("radius", radius);
+				rh.reflect_member("rm.epsilon", rm.epsilon) &&
+				rh.reflect_member("rm.max_iterations", rm.max_iterations) &&
+				rh.reflect_member("rm.fdg_delta", rm.fdg_delta);
 		}
 
 		void cone_renderer_ray_marching::draw(context& ctx, size_t start, size_t count, bool use_strips, bool use_adjacency, uint32_t strip_restart_index)

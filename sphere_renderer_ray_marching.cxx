@@ -29,9 +29,10 @@ namespace cgv {
 			blend_width_in_pixel = 0.0f;
 
 			//Ray marching defines:
-			rm.epsilon = 0.002f;
+			rm.epsilon = 0.003f;
 			rm.max_iterations = 30;
-			rm.fdg_delta = 0.0005f;
+			rm.fdg_delta = 0.001f;
+			glyph_color_mapping = vec4(0.0f, 0.1f, 0.0f, 0.1f);
 		}
 
 		sphere_renderer_ray_marching::sphere_renderer_ray_marching()
@@ -103,10 +104,14 @@ namespace cgv {
 
 			ref_prog().set_uniform(ctx, "use_group_radius", srs.use_group_radius);
 			ref_prog().set_uniform(ctx, "radius_scale", srs.radius_scale);
+
+			ref_prog().set_uniform(ctx, "glyph_cc_param", srs.glyph_color_mapping);
+
 			float pixel_extent_per_depth = (float)(2.0 * tan(0.5 * 0.0174532925199 * y_view_angle) / ctx.get_height());
 			ref_prog().set_uniform(ctx, "pixel_extent_per_depth", pixel_extent_per_depth);
 			ref_prog().set_uniform(ctx, "blend_width_in_pixel", srs.blend_width_in_pixel);
 			ref_prog().set_uniform(ctx, "morph_sin_factor", srs.morph_sin_factor);
+
 			return true;
 		}
 

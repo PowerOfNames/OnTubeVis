@@ -72,7 +72,7 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 
 			for (size_t j = 0; j < attrib_indices.size(); ++j) {
 				int idx = attrib_indices[j];
-				int color_map_idx = color_map_indices[j];
+				int color_map_idx = color_map_indices[j];				
 				GlyphAttributeType type = attribs[j].type;
 				GlyphAttributeModifier modifiers = attribs[j].modifiers;
 				bool is_global = modifiers & GAM_GLOBAL;
@@ -120,7 +120,15 @@ const glyph_layer_manager::configuration& glyph_layer_manager::get_configuration
 						if (color_map_idx < 0)
 							parameter_str = "vec3(0.0)";
 						else
+						{
 							parameter_str = "map_to_color(" + parameter_str + ", " + std::to_string(color_map_idx) + ")";
+							//THESIS2: HACK
+							layer_config.mapped_color_map_idx = color_map_idx;
+							layer_config.color_mapping_parameter = &attrib_values[j];
+
+							layer_config.mapped_attribs_idx_to_buffer_idx[j].first = config.mapping_parameters.size() - last_mapping_parameters_size;
+							layer_config.mapped_attribs_idx_to_buffer_idx[j].second = layer_config.glyph_mapping_parameters.size() - 1;
+						}
 					}
 					else {
 						layer_config.glyph_mapping_parameters.push_back({ 1, config.mapping_parameters.size() - last_mapping_parameters_size, &attrib_values[j] });

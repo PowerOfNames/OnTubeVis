@@ -26,6 +26,15 @@ namespace cgv { // @<
 			bool rounded_caps;
 			bool composite_arrow;
 
+			vec4 glyph_color_mapping;
+
+			struct RayMarching
+			{
+				float epsilon;
+				uint32_t max_iterations;
+				float fdg_delta;
+			}rm;
+
 			/// construct with default values
 			cone_render_ray_marching_style();
 		};
@@ -61,6 +70,7 @@ namespace cgv { // @<
 			void set_radius_array(const context& ctx, const T* radii, size_t nr_elements, unsigned stride_in_bytes = 0) { has_radii = true; set_attribute_array(ctx, "radius", radii, nr_elements, stride_in_bytes); }
 			/// remove the radius attribute
 			void remove_radius_array(const context& ctx);
+
 			/// use this function if you store spheres in vec4 with the 4th component the radius
 			template <typename T = float>
 			void set_sphere_array(const context& ctx, const std::vector<cgv::math::fvec<T, 4> >& spheres) {

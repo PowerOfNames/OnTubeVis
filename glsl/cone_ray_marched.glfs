@@ -40,12 +40,30 @@ in flat vec4 color_end_fs;
 in flat mat4 cone_transform_fs;
 in flat mat4 inv_cone_transform_fs;
 
+layout (binding = 0) uniform sampler2D color_maps_tex;
+uniform vec4 glyph_cc_param;
 
 layout(location = 1) out vec4 frag_position;
 layout(location = 2) out vec3 frag_normal;
 
 float dot2(vec3 v) {
 	return dot(v, v);
+}
+
+// clamp value v to range [r.x,r.y] and remap to [r.z,r.w]
+float clamp_remap(float v, vec4 r) {
+	v = clamp(v, r.x, r.y);
+	float t = 0.0;
+	if(abs(r.x - r.y) > 0.00001)
+		t = (v - r.x) / (r.y - r.x);
+	return mix(r.z, r.w, t);
+}
+
+vec3 map_to_color(float v, int color_map_idx) {
+	vec2 ts = textureSize(color_maps_tex, 0);
+	float half_step = 0.5 * (1.0 / ts.y);
+	float map_coord = float(color_map_idx) / ts.y + half_step;
+	return pow(texture(color_maps_tex, vec2(v, map_coord)).rgb, vec3(2.2));
 }
 
 // https://www.shadertoy.com/view/llcfRf
