@@ -119,6 +119,7 @@ set(SOURCES
 	hermite_spline_tube.cxx
 	sphere_renderer_ray_marching.cxx
 	cone_renderer_ray_marching.cxx
+	ellipsoid_renderer_ray_marching.cxx
 )
 # - C/C++ headers
 set(HEADERS
@@ -178,6 +179,8 @@ set(HEADERS
 	sphere_renderer_ray_marching.h
 	cone_render_ray_marching_data.h
 	cone_renderer_ray_marching.h
+	ellipsoid_render_ray_marching_data.h
+	ellipsoid_renderer_ray_marching.h
 
 )
 # - GLSL shaders
@@ -218,6 +221,10 @@ set (SHADERS
 	glsl/cone_ray_marched.glvs
 	glsl/cone_ray_marched.glgs
 	glsl/cone_ray_marched.glfs
+
+
+	glsl/ellipsoid_ray_marched.glpr
+	glsl/ellipsoid_ray_marched.glfs
 
 	glsl/spline_tube_glyph3D.glfs
 	glsl/spline_tube_glyph3D.glgs

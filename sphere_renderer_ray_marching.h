@@ -31,8 +31,8 @@ namespace cgv { // @<
 			float morph_sin_factor;
 			//@}
 
-			vec4 glyph_color_mapping;
 
+			vec4 glyph_color_mapping;
 
 			struct RayMarching
 			{

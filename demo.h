@@ -10,8 +10,6 @@
 #include <traj_loader.h>
 
 
-//THESIS:
-#include <JacobiEigen.h>
 
 
 
@@ -22,6 +20,10 @@
 	#define STATIC_TEMPLATE_SPECIALIZATION
 #endif
 
+//THESIS:
+#include <JacobiEigen.h>
+#include <cgv/math/functions.h>
+#include <cgv/math/fvec.h>
 
 /// represents logical trajectory data
 struct demo : public traj_format_handler<float>
@@ -258,7 +260,7 @@ struct demo : public traj_format_handler<float>
 		// determine noise function parameters
 		noise_function noise;
 		// - using a different phase for the non-periodic sine-based function has the effect of "seeding" it - by
-		//   chosing it from a sizable portion of the float value range we get something quite random-looking
+		//   choosing it from a sizable portion of the float value range we get something quite random-looking
 		noise.phase = (uni_0to1(generator) - 0.5f) * 131072*pi;
 		// - feature size of the noise function should be about double the mean sampling distance (according to Nyquist
 		//   and Shannon...), we make it 4 times for good measure and to mitigate local undersampling.
@@ -293,6 +295,129 @@ struct demo : public traj_format_handler<float>
 		return std::move(result);
 	}
 
+	static Mat33 gen_random_tensor(const noise_function& noise, std::mt19937& generator)
+	{
+		std::normal_distribution<float> norm_dist(0.1f, 0.25f);
+		std::uniform_real_distribution<float> pos_dist(0.1f, 0.5f);
+
+		// Generate random eigenvalues
+		Vec3 eigenvalues(pos_dist(generator), pos_dist(generator), pos_dist(generator));
+
+		// Construct a random orthonormal basis
+		Vec3 dir = normalized(Vec3(norm_dist(generator), norm_dist(generator), norm_dist(generator)));
+		Vec3 Q1 = normalized(Vec3(norm_dist(generator), norm_dist(generator), norm_dist(generator)));
+		Q1 -= dot(Q1, dir) * dir;
+		Vec3 Q2 = cross(dir, Q1);
+
+		Mat33 Q = { dir, Q1, Q2 };
+
+		// Create diagonal matrix with eigenvalues
+		Mat33 Lambda = { {eigenvalues[0], 0, 0}, {0, eigenvalues[1], 0}, {0, 0, eigenvalues[2]}};
+
+		return Q * Lambda * transpose(Q);
+	}
+
+	static Mat33 gen_tensor_perturbation(float t, const Mat33& prev_tensor, const noise_function& noise, std::mt19937& generator)
+	{
+		std::normal_distribution<float> perturb_dist(0.0f, 0.1f);
+		Mat33 perturbation;
+
+		for (int i = 0; i < 3; i++)
+			for (int j = 0; j < 3; j++)
+				perturbation(i, j) = perturb_dist(generator);
+
+		return prev_tensor + perturbation;
+	}
+
+	static std::vector<trajectory::attrib_value<Mat33>> gen_diffusion_tensors_random(
+		float mean, float sigma, float t0, float tn, float dt_mean, float dt_var, std::mt19937& generator)
+	{
+		// Determine noise function parameters
+		noise_function noise;
+		noise.phase = (uni_0to1(generator) - 0.5f) * 131072 * pi;
+		noise.freq = .25f / dt_mean;
+		noise.bias = mean;
+		noise.scale = sigma + sigma;
+
+		// First sample
+		std::vector<trajectory::attrib_value<Mat33>> result;
+		float t = t0;
+		result.emplace_back(t, gen_random_tensor(noise, generator));
+
+		// Remaining samples
+		for (unsigned s = 0; t <= tn; s++)
+		{
+			const float dt_raw = sine_noise((float)s, noise.phase, dt_mean, dt_var, 0.5f);
+			const float dt = std::max(dt_raw, std::max(std::numeric_limits<float>::epsilon(),
+				std::numeric_limits<float>::epsilon() * t));
+			t += dt;
+			result.emplace_back(t, gen_tensor_perturbation(t, result.back().value, noise, generator));
+		}
+
+		return std::move(result);
+	}
+
+	/// Generates a random, symmetric, positive-definite 3x3 diffusion tensor
+	static Mat33 gen_diffusion_tensor(std::mt19937& generator, const Vec3& position)
+	{
+		std::normal_distribution<float> norm_dist(0.0f, 1.0f);
+		std::uniform_real_distribution<float> pos_dist(0.1f, 2.0f); // Ensure positive eigenvalues
+
+		// Step 1: Generate random eigenvalues
+		Vec3 eigenvalues(pos_dist(generator), pos_dist(generator), pos_dist(generator));
+
+		// Step 2: Generate a random orthonormal basis (random rotation matrix)
+		Mat33 Q;
+		for (int i = 0; i < 3; ++i) {
+			Q.set_row(i, { norm_dist(generator), norm_dist(generator), norm_dist(generator) });
+		}
+		Q = normalized(Q); // Orthonormalize columns (Gram-Schmidt or QR decomposition)
+
+		// Step 3: Construct the tensor as Q * diag(eigenvalues) * Q^T
+		Mat33 Lambda = { {eigenvalues[0], 0, 0},
+						 {0, eigenvalues[1], 0},
+						 {0, 0, eigenvalues[2]}};
+		Mat33 diffusion_tensor = Q * Lambda * transpose(Q);
+
+		return diffusion_tensor;
+	}
+
+	//generates tesnors pointing towards the world center with less difusion the further away
+	static Mat33 gen_diffusion_tensor_world_oriented(std::mt19937& generator, const Vec3& position)
+	{
+		std::normal_distribution<float> norm_dist(0.0f, 0.5f);
+		std::uniform_real_distribution<float> pos_dist(0.2f, 1.5f); // Ensure positive eigenvalues with limited range
+
+		// Step 1: Compute direction towards world center
+		Vec3 dir_to_center = normalized(-position); // Assuming world center is (0,0,0)
+
+		// Step 2: Generate eigenvalues with stronger diffusion towards center
+		float strength = std::max(0.5f, 2.0f - length(position) * 0.1f); // Decrease strength further out
+		Vec3 eigenvalues(pos_dist(generator) * strength, pos_dist(generator), pos_dist(generator));
+
+		Vec3 random_vec(norm_dist(generator), norm_dist(generator), norm_dist(generator));
+
+		// Ensure Q[1] is perpendicular to Q[0] using Gram-Schmidt
+		Vec3 Q1 = normalized(random_vec - dot(random_vec, dir_to_center) * dir_to_center);
+
+		// Compute the third perpendicular vector
+		Vec3 Q2 = cross(dir_to_center, Q1);
+
+		// Step 3: Construct an orthonormal basis where one axis is aligned with dir_to_center
+		Mat33 Q;
+		Q.set_col(0, dir_to_center); // Principal diffusion axis
+		Q.set_col(1, Q1); // Random perpendicular vector
+		Q.set_col(2, Q2); // Ensure orthogonality
+		
+		// Step 4: Construct the tensor as Q * diag(eigenvalues) * Q^T
+		Mat33 Lambda = { {eigenvalues[0], 0, 0},
+						 {0, eigenvalues[1], 0},
+						 {0, 0, eigenvalues[2]} };
+		Mat33 diffusion_tensor = Q * Lambda * transpose(Q);
+
+		return diffusion_tensor;
+	}
+
 	/// generate a trajectory and some attributes
 	static trajectory gen_trajectory (unsigned num_samples, unsigned seed=0)
 	{
@@ -324,7 +449,8 @@ struct demo : public traj_format_handler<float>
 		for (unsigned i = 1; i < num_samples; i++)
 		{
 			// - update position
-			traj.positions.emplace_back(traj.positions.back() + dir * length);
+			const auto pos = traj.positions.back() + dir * length;
+			traj.positions.emplace_back(pos);
 			// - generate new properties
 			const Vec3 dirdelta(norm_sigma1by3(generator), norm_sigma1by3(generator), norm_sigma1by3(generator)),
 				newdir(cgv::math::normalize(dir + dirdelta));
@@ -343,11 +469,11 @@ struct demo : public traj_format_handler<float>
 				(0.0, 1.0, 2.0)
 			);
 			*/
-			for (uint32_t j = 0; j < 10; j++)
+			/*for (uint32_t j = 0; j < 10; j++)
 			{
 				traj.attrib_tensor3x3.emplace_back(((float)i - 1.0f) + (float)j/10.0f, attrib_tensor3x3);
-			}
-			//traj.attrib_tensor3x3.emplace_back((float)i / (num_samples - 1), attrib_tensor3x3);
+			}*/
+			//traj.attrib_tensor3x3.emplace_back((float)i, gen_diffusion_tensor_world_oriented(generator, pos));
 
 			// iterate
 			dir = newdir;
@@ -365,6 +491,7 @@ struct demo : public traj_format_handler<float>
 		traj.attrib_vec2 = gen_attribute<Vec2>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
 		traj.attrib_vec3 = gen_attribute<Vec3>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
 		traj.attrib_vec4 = gen_attribute<Vec4>(1, 0.33333f, 0, tn, 1/4.f, 1/16.f, generator);
+		traj.attrib_tensor3x3 = gen_diffusion_tensors_random(1, 0.33333f, 0, tn, 1 / 4.f, 1 / 16.f, generator);
 
 		// Done!
 		return std::move(traj);
@@ -512,23 +639,7 @@ struct demo : public traj_format_handler<float>
 
 			//THESIS:
 			for (const auto& attrib : traj.attrib_tensor3x3)
-			{
-				/*
-				// using x = 1
-				// for eigenvalue 2.0, normalized eigenvector (x, 0, x)
-				#define oneOverSqrt2 0.7071067812
-				#define sqrt2Over2 oneOverSqrt2
-				#define eigen1 vec4(oneOverSqrt2, 0.0, -oneOverSqrt2, 2.0)
-
-				// for eigenvalue 4.0, normalized eigenvector (x, x/2, x)
-				#define oneOverOnepFive 0.6666666667
-				#define eigen2 vec4(oneOverOnepFive, 0.75, oneOverOnepFive, 4.0)
-
-				// for eigenvalue 1.0, normalized eigenvector (x, -x, x)
-				#define sqrt3 1.732050808
-				#define oneOverSqrt3 0.5773502692
-				#define eigen3 vec4(oneOverSqrt3, -oneOverSqrt3, oneOverSqrt3, 1.0)
-				*/
+			{				
 				cgv::math::fmat<float, 3, 3> matCopy = attrib.value;
 				cgv::math::fmat<float, 3, 3> eigenvectors;
 				cgv::math::fvec<float, 3> eigenvalues;

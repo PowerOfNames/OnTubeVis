@@ -25,6 +25,7 @@
 //THESIS2:
 #include "sphere_render_ray_marching_data.h"
 #include "cone_render_ray_marching_data.h"
+#include "ellipsoid_render_ray_marching_data.h"
 
 // CGV framework application utility
 #include <cgv_app/application_plugin.h>
@@ -537,7 +538,7 @@ protected:
 			//cgv::render::sphere_render_data<> spheres;
 			cgv::render::sphere_render_ray_marching_data<> spheres;
 			cgv::render::cone_render_ray_marching_data<> cones;
-			cgv::render::ellipsoid_render_data<> ellipsoids;
+			cgv::render::ellipsoid_render_ray_marching_data<> ellipsoids;
 		} glyphs;
 
 		size_t glyph_count = 0;
@@ -545,6 +546,7 @@ protected:
 
 		sphere_render_ray_marching_style srm_style;
 		cone_render_ray_marching_style crm_style;
+		ellipsoid_render_ray_marching_style erm_style;
 
 	} render3D;
 

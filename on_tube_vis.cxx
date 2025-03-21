@@ -1471,7 +1471,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 		{
 			case GT_3D_SPHERE: render3D.srm_style.glyph_color_mapping = *mapping_color; break;
 			case GT_3D_CONE_VECTOR: render3D.crm_style.glyph_color_mapping = *mapping_color; break;
-			case GT_3D_ELLIPSOID_3x3_TENSOR: break;
+			case GT_3D_ELLIPSOID_3x3_TENSOR: render3D.erm_style.glyph_color_mapping = *mapping_color; break;
 			default: break;
 		}
 
@@ -1519,6 +1519,30 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	const uint32_t orientation_k_idx = orientation_k_idcs.first;
 	//const auto& mapping_ori_k = mapping[orientation_k_idcs.second];
 	
+	//Hack: Only render glyphs if all configurations were done (in the future they should be replaced with reasonable default values)
+	switch (glyph_type)
+	{
+		case GT_3D_SPHERE:
+		{
+			if (radius_idx == 0) 
+				return;
+			break;
+		}
+		case GT_3D_CONE_VECTOR:
+		{
+			if (vec_mag_idx == 0 || vec_x_idx == 0 || vec_y_idx == 0 || vec_z_idx == 0)
+				return;
+			break;
+		}
+		case GT_3D_ELLIPSOID_3x3_TENSOR:
+		{
+			if (radius_idx == 0 || radius2_idx == 0 || radius3_idx == 0 || orientation_w_idx == 0 || orientation_i_idx == 0 || orientation_j_idx == 0 || orientation_k_idx == 0)
+				return;
+			break;
+		}
+		default: return;
+	}
+
 
 	//clamp_remap quick access
 	const auto clamp_remap = [this](float v, const on_tube_vis::vec4& r) {
@@ -1578,6 +1602,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 							attribs.data[attrib_base_idx + orientation_j_idx],
 							attribs.data[attrib_base_idx + orientation_k_idx]
 						});
+						ellipsoids.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
 						break;
 					}
 					case GT_3D_CONE_VECTOR:
@@ -1596,9 +1621,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 						const vec3 end_pos = pos + normalized_scaled_v;
 						cones.add(start_pos, end_pos);
 						cones.add(0.02f, 0.02f);
-
-						//if (trj_idx == 2 && segment_idx == 3 && glyph_idx == 1)
-						//	break;
+						cones.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
 
 						break;
 					}
@@ -1634,7 +1657,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG
 	constexpr unsigned num_trajectories = 3;
-	constexpr unsigned num_nodes = 16;
+	constexpr unsigned num_nodes = 10;
 #else
 	constexpr unsigned num_trajectories = 256; // 1
 	constexpr unsigned num_nodes = 256; // 32
@@ -2624,6 +2647,12 @@ void on_tube_vis::create_gui(void)
 					align("\b");
 					end_tree_node(render3D.crm_style);
 				}
+				if (begin_tree_node("Ellipsoid", render3D.erm_style, false)) {
+					align("\a");
+					add_gui("", render3D.erm_style);
+					align("\b");
+					end_tree_node(render3D.erm_style);
+				}
 			}		
 
 			align("\b");
@@ -3556,7 +3585,7 @@ void on_tube_vis::draw_glyphs3D(context& ctx)
 		render3D.glyphs.cones.render(ctx, render3D.crm_style);
 
 	if (render3D.glyphs.ellipsoids.size())
-		render3D.glyphs.ellipsoids.render(ctx);
+		render3D.glyphs.ellipsoids.render(ctx, render3D.erm_style);
 	color_map_mgr.ref_texture().disable(ctx);
 
 }

@@ -91,7 +91,7 @@ namespace cgv {
 		}
 		bool sphere_renderer_ray_marching::enable(context& ctx)
 		{
-			const sphere_render_ray_marching_style& srs = get_style<sphere_render_ray_marching_style>();
+			const sphere_render_ray_marching_style& rs = get_style<sphere_render_ray_marching_style>();
 
 			if (!surface_renderer::enable(ctx))
 				return false;
@@ -100,17 +100,17 @@ namespace cgv {
 				return false;
 
 			if (!has_radii)
-				ref_prog().set_attribute(ctx, "radius", srs.radius);
+				ref_prog().set_attribute(ctx, "radius", rs.radius);
 
-			ref_prog().set_uniform(ctx, "use_group_radius", srs.use_group_radius);
-			ref_prog().set_uniform(ctx, "radius_scale", srs.radius_scale);
+			ref_prog().set_uniform(ctx, "use_group_radius", rs.use_group_radius);
+			ref_prog().set_uniform(ctx, "radius_scale", rs.radius_scale);
 
-			ref_prog().set_uniform(ctx, "glyph_cc_param", srs.glyph_color_mapping);
+			ref_prog().set_uniform(ctx, "glyph_cc_param", rs.glyph_color_mapping);
 
 			float pixel_extent_per_depth = (float)(2.0 * tan(0.5 * 0.0174532925199 * y_view_angle) / ctx.get_height());
 			ref_prog().set_uniform(ctx, "pixel_extent_per_depth", pixel_extent_per_depth);
-			ref_prog().set_uniform(ctx, "blend_width_in_pixel", srs.blend_width_in_pixel);
-			ref_prog().set_uniform(ctx, "morph_sin_factor", srs.morph_sin_factor);
+			ref_prog().set_uniform(ctx, "blend_width_in_pixel", rs.blend_width_in_pixel);
+			ref_prog().set_uniform(ctx, "morph_sin_factor", rs.morph_sin_factor);
 
 			return true;
 		}
