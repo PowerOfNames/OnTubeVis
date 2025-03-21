@@ -70,6 +70,10 @@ enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&) {
 	return enum_reflection_traits<GridMode>("GM_NONE,GM_COLOR,GM_NORMAL,GM_COLOR_AND_NORMAL");
 }
 
+enum_reflection_traits<on_tube_vis::GlyphDimension> get_reflection_traits(const on_tube_vis::GlyphDimension&) {
+	return enum_reflection_traits<on_tube_vis::GlyphDimension>("GD_2D,GD_3D");
+}
+
 }
 }
 
@@ -375,7 +379,11 @@ bool on_tube_vis::self_reflect (cgv::reflect::reflection_handler &rh)
 		rh.reflect_member("instant_redraw_proxy", misc_cfg.instant_redraw_proxy) &&
 		rh.reflect_member("vsync_proxy", misc_cfg.vsync_proxy) &&
 		rh.reflect_member("fix_view_up_dir_proxy", misc_cfg.fix_view_up_dir_proxy) &&
-		rh.reflect_member("benchmark_mode", benchmark_mode);
+		rh.reflect_member("benchmark_mode", benchmark_mode) &&
+	//THESIS2:
+		rh.reflect_member("glyph_dimension", glyph_dimension) &&
+		rh.reflect_member("glyph_method", render.style3D.glyph_method);
+		
 }
 
 void on_tube_vis::stream_help (std::ostream &os) {
@@ -1260,18 +1268,19 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 
 		apply_setting("line_primitve", "render_style.line_primitive");
 		apply_setting("ambient_occlusion", "ambient_occlusion");
+		
+		update_tube_ribbon_toggle();
 
 		//THESIS:
 		apply_setting("glyph_dimension", "glyph_dimension");
-		//THESIS2:
-		apply_setting("glyph_method", "render.style3D.glyph_method");
-
-		update_tube_ribbon_toggle();
-		
 		//THESIS:
 		update_glyph_dimension_toggle();
 		//THESIS2:
+		apply_setting("glyph_method", "render.style3D.glyph_method");
+		//THESIS2:
 		update_glyph_method_toggle();
+
+		
 		
 		return true;
 	}

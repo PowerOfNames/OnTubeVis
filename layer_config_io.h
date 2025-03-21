@@ -59,12 +59,15 @@ private:
 			cgv::xml::PushAttribute(printer, "active", gam.get_active());
 			cgv::xml::PushAttribute(printer, "glyph", shape_ptr->name());
 
-			std::string sampling_type = "";
+			std::string dimension = "";
 
+			std::string sampling_type = "";
 			switch(gam.get_sampling_strategy()) {
 			case ASS_AT_SAMPLES: sampling_type = "original"; break;
 			case ASS_UNIFORM: sampling_type = "uniform"; break;
 			case ASS_EQUIDIST: sampling_type = "equidist"; break;
+				//THESIS2:
+			case ASS_3D_GLYPHS_AT_SAMPLES: sampling_type = "3dGlyph"; break;
 			default: break;
 			}
 
@@ -232,6 +235,10 @@ private:
 				gam.set_sampling_strategy(ASS_UNIFORM);
 			} else if(sampling == "equidist") {
 				gam.set_sampling_strategy(ASS_EQUIDIST);
+				//THESIS2:
+			}
+			else if (sampling == "3dGlyph") {
+				gam.set_sampling_strategy(ASS_3D_GLYPHS_AT_SAMPLES);
 			}
 		}
 

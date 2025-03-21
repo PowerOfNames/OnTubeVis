@@ -70,16 +70,6 @@ enum GridMode {
 	GM_COLOR_AND_NORMAL = 3
 };
 
-namespace cgv {
-namespace reflect {
-
-// define custom reflection traits for the GridMode
-enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&);
-
-}
-}
-
-
 
 using namespace cgv::render;
 
@@ -104,6 +94,12 @@ public:
 	using rgb = cgv::rgb;
 	using rgba = cgv::rgba;
 
+	//THESIS:
+	enum GlyphDimension
+	{
+		GD_2D = 0,
+		GD_3D = 1
+	};
 
 	/// data layout for per-node attributes within the attribute render SSBO
 	struct node_attribs {
@@ -253,12 +249,7 @@ protected:
 	};
 	glyph_ray_marching_parameters glyph_rm;
 
-	//THESIS:
-	enum GlyphDimension
-	{
-		GD_2D = 0,
-		GD_3D = 1
-	};
+	
 	GlyphDimension glyph_dimension;
 
 	/// check whether chosen glyph dimensionality is 2D
@@ -726,3 +717,14 @@ public:
 
 	void create_gui();
 };
+
+
+namespace cgv {
+	namespace reflect {
+
+		// define custom reflection traits for the GridMode
+		enum_reflection_traits<GridMode> get_reflection_traits(const GridMode&);
+		enum_reflection_traits<on_tube_vis::GlyphDimension> get_reflection_traits(const on_tube_vis::GlyphDimension&);
+
+	}
+}

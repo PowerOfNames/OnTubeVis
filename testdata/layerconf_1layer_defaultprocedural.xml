@@ -1,11 +1,16 @@
 <GlyphConfiguration>
-  <ColorMaps>
-  </ColorMaps>
-  <Layers>
-    <Layer name="Circle" glyph="circle" sampling="original" >
-      <Property name="outline" value="0.015600" />
-      <Property name="color" attrib_name="scalar" color_map_name="bilbao" in_range="-0.551000, 0.551000" />
-      <Property name="radius" attrib_name="scalar" in_range="-0.550992, 0.551041" out_range="0.031250, 0.900000" />
-    </Layer>
-  </Layers>
+    <ColorMaps/>
+    <Layers>
+        <Layer name="Circle" active="true" glyph="circle" sampling="original">
+            <Property name="outline" value="0.015600"/>
+            <Property name="color" attrib_name="scalar" color_map_name="bilbao" in_range="-0.551 0.551" out_range="0 1"/>
+            <Property name="radius" attrib_name="scalar" in_range="-0.550992 0.551041" out_range="0.03125 0.9"/>
+        </Layer>
+    </Layers>
+    <Settings>
+        <Setting name="ambient_occlusion" value="true"/>
+        <Setting name="glyph_dimension" value="GD_2D"/>
+        <Setting name="glyph_method" value="GM_TUBE_SURFACE_PIPELINE"/>
+        <Setting name="line_primitve" value="LP_TUBE_RUSSIG"/>
+    </Settings>
 </GlyphConfiguration>
