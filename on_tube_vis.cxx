@@ -1668,8 +1668,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	constexpr unsigned num_trajectories = 3;
 	constexpr unsigned num_nodes = 10;
 #else
-	constexpr unsigned num_trajectories = 256; // 1
-	constexpr unsigned num_nodes = 256; // 32
+	constexpr unsigned num_trajectories = 4096; // 1
+	constexpr unsigned num_nodes = 128; // 32
 #endif
 	for (unsigned i=0; i < num_trajectories; i++)
 		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));

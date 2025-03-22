@@ -295,40 +295,68 @@ struct demo : public traj_format_handler<float>
 		return std::move(result);
 	}
 
-	static Mat33 gen_random_tensor(const noise_function& noise, std::mt19937& generator)
+	static Mat33 gen_tensor_from_eigenvalues_and_seed_vector(const Vec3& eigenvalues, const Vec3& seed_vector)
+	{
+		// Pick an arbitrary vector that’s *not* parallel to dir
+		Vec3 arbitrary = (abs(seed_vector[0]) > 0.9f) ? Vec3(0.0f, 1.0f, 0.0f) : Vec3(1.0f, 0.0f, 0.0f);
+
+		Vec3 Q1 = normalized(cross(seed_vector, arbitrary));  // Ensure perpendicularity
+		Vec3 Q2 = normalized(cross(seed_vector, Q1));
+
+		Mat33 Q = { seed_vector, Q1, Q2 };
+
+		// Create diagonal matrix with eigenvalues
+		Mat33 Lambda = { {eigenvalues[0], 0, 0}, {0, eigenvalues[1], 0}, {0, 0, eigenvalues[2]} };
+
+		return Q * Lambda * transpose(Q);
+	}
+	static std::pair<Vec3, Vec3> gen_random_tensor(const noise_function& noise, std::mt19937& generator)
 	{
 		std::normal_distribution<float> norm_dist(0.1f, 0.25f);
-		std::uniform_real_distribution<float> pos_dist(0.1f, 0.5f);
+		std::uniform_real_distribution<float> pos_dist(0.01f, 1.5f);
 
 		// Generate random eigenvalues
 		Vec3 eigenvalues(pos_dist(generator), pos_dist(generator), pos_dist(generator));
 
 		// Construct a random orthonormal basis
 		Vec3 dir = normalized(Vec3(norm_dist(generator), norm_dist(generator), norm_dist(generator)));
-		Vec3 Q1 = normalized(Vec3(norm_dist(generator), norm_dist(generator), norm_dist(generator)));
-		Q1 -= dot(Q1, dir) * dir;
-		Vec3 Q2 = cross(dir, Q1);
-
-		Mat33 Q = { dir, Q1, Q2 };
-
-		// Create diagonal matrix with eigenvalues
-		Mat33 Lambda = { {eigenvalues[0], 0, 0}, {0, eigenvalues[1], 0}, {0, 0, eigenvalues[2]}};
-
-		return Q * Lambda * transpose(Q);
+		
+		return { eigenvalues, dir };
 	}
-
-	static Mat33 gen_tensor_perturbation(float t, const Mat33& prev_tensor, const noise_function& noise, std::mt19937& generator)
+	static std::pair<Vec3, Vec3> gen_tensor_perturbation_oscillation(float t, const Vec3& prev_eigenvalues, const Vec3& prev_seed_vector, const noise_function& noise, std::mt19937& generator)
 	{
-		std::normal_distribution<float> perturb_dist(0.0f, 0.1f);
-		Mat33 perturbation;
+		std::uniform_real_distribution<float> period_dist(2.0f, 5.0f);  // Random cycle length
+		std::normal_distribution<float> perturb_dist(0.0f, 0.05f);  // Small perturbations
 
-		for (int i = 0; i < 3; i++)
-			for (int j = 0; j < 3; j++)
-				perturbation(i, j) = perturb_dist(generator);
+		// Generate a random period per eigenvalue
+		static Vec3 random_periods = { period_dist(generator), period_dist(generator), period_dist(generator) };
 
-		return prev_tensor + perturbation;
+		Vec3 new_eigenvalues;
+		for (int i = 0; i < 3; i++) {
+			// Sinusoidal perturbation with a random period
+			float oscillation = sin((2 * M_PI / random_periods[i]) * t) * perturb_dist(generator);
+			new_eigenvalues[i] = std::max(prev_eigenvalues[i] + oscillation, 0.05f);
+		}
+		Vec3 random_rotation = Vec3(perturb_dist(generator), perturb_dist(generator), perturb_dist(generator));
+		const Vec3 new_seed_vector = normalized(prev_seed_vector + 0.05f * random_rotation);
+
+		return { new_eigenvalues, new_seed_vector};
 	}
+	static std::pair<Vec3, Vec3> gen_tensor_perturbation(float t, const Vec3& prev_eigenvalues, const Vec3& prev_seed_vector, const noise_function& noise, std::mt19937& generator)
+	{
+		std::normal_distribution<float> perturb_dist(0.0f, 0.05f);
+		std::uniform_real_distribution<float> pos_dist(0.01f, 0.5f);
 
+		const Vec3 new_eigenvalues = {
+			std::max(prev_eigenvalues[0] + perturb_dist(generator), 0.05f),
+			std::max(prev_eigenvalues[1] + perturb_dist(generator), 0.05f),
+			std::max(prev_eigenvalues[2] + perturb_dist(generator), 0.05f)
+		};
+		Vec3 random_rotation = Vec3(perturb_dist(generator), perturb_dist(generator), perturb_dist(generator));
+		const Vec3 new_seed_vector = normalized(prev_seed_vector + 0.05f * random_rotation);
+
+		return {new_eigenvalues, new_seed_vector};
+	}
 	static std::vector<trajectory::attrib_value<Mat33>> gen_diffusion_tensors_random(
 		float mean, float sigma, float t0, float tn, float dt_mean, float dt_var, std::mt19937& generator)
 	{
@@ -342,80 +370,22 @@ struct demo : public traj_format_handler<float>
 		// First sample
 		std::vector<trajectory::attrib_value<Mat33>> result;
 		float t = t0;
-		result.emplace_back(t, gen_random_tensor(noise, generator));
+		auto tensor_initials = gen_random_tensor(noise, generator);
+		auto temp_tensor_mat = gen_tensor_from_eigenvalues_and_seed_vector(tensor_initials.first, tensor_initials.second);
+		result.emplace_back(t, temp_tensor_mat); 
 
 		// Remaining samples
 		for (unsigned s = 0; t <= tn; s++)
 		{
 			const float dt_raw = sine_noise((float)s, noise.phase, dt_mean, dt_var, 0.5f);
-			const float dt = std::max(dt_raw, std::max(std::numeric_limits<float>::epsilon(),
-				std::numeric_limits<float>::epsilon() * t));
-			t += dt;
-			result.emplace_back(t, gen_tensor_perturbation(t, result.back().value, noise, generator));
+			const float dt = std::max(dt_raw, std::max(std::numeric_limits<float>::epsilon(), std::numeric_limits<float>::epsilon() * t));
+			t += dt;			
+			tensor_initials = gen_tensor_perturbation_oscillation(t, tensor_initials.first, tensor_initials.second, noise, generator);
+			temp_tensor_mat = gen_tensor_from_eigenvalues_and_seed_vector(tensor_initials.first, tensor_initials.second);
+			result.emplace_back(t, temp_tensor_mat);
 		}
 
 		return std::move(result);
-	}
-
-	/// Generates a random, symmetric, positive-definite 3x3 diffusion tensor
-	static Mat33 gen_diffusion_tensor(std::mt19937& generator, const Vec3& position)
-	{
-		std::normal_distribution<float> norm_dist(0.0f, 1.0f);
-		std::uniform_real_distribution<float> pos_dist(0.1f, 2.0f); // Ensure positive eigenvalues
-
-		// Step 1: Generate random eigenvalues
-		Vec3 eigenvalues(pos_dist(generator), pos_dist(generator), pos_dist(generator));
-
-		// Step 2: Generate a random orthonormal basis (random rotation matrix)
-		Mat33 Q;
-		for (int i = 0; i < 3; ++i) {
-			Q.set_row(i, { norm_dist(generator), norm_dist(generator), norm_dist(generator) });
-		}
-		Q = normalized(Q); // Orthonormalize columns (Gram-Schmidt or QR decomposition)
-
-		// Step 3: Construct the tensor as Q * diag(eigenvalues) * Q^T
-		Mat33 Lambda = { {eigenvalues[0], 0, 0},
-						 {0, eigenvalues[1], 0},
-						 {0, 0, eigenvalues[2]}};
-		Mat33 diffusion_tensor = Q * Lambda * transpose(Q);
-
-		return diffusion_tensor;
-	}
-
-	//generates tesnors pointing towards the world center with less difusion the further away
-	static Mat33 gen_diffusion_tensor_world_oriented(std::mt19937& generator, const Vec3& position)
-	{
-		std::normal_distribution<float> norm_dist(0.0f, 0.5f);
-		std::uniform_real_distribution<float> pos_dist(0.2f, 1.5f); // Ensure positive eigenvalues with limited range
-
-		// Step 1: Compute direction towards world center
-		Vec3 dir_to_center = normalized(-position); // Assuming world center is (0,0,0)
-
-		// Step 2: Generate eigenvalues with stronger diffusion towards center
-		float strength = std::max(0.5f, 2.0f - length(position) * 0.1f); // Decrease strength further out
-		Vec3 eigenvalues(pos_dist(generator) * strength, pos_dist(generator), pos_dist(generator));
-
-		Vec3 random_vec(norm_dist(generator), norm_dist(generator), norm_dist(generator));
-
-		// Ensure Q[1] is perpendicular to Q[0] using Gram-Schmidt
-		Vec3 Q1 = normalized(random_vec - dot(random_vec, dir_to_center) * dir_to_center);
-
-		// Compute the third perpendicular vector
-		Vec3 Q2 = cross(dir_to_center, Q1);
-
-		// Step 3: Construct an orthonormal basis where one axis is aligned with dir_to_center
-		Mat33 Q;
-		Q.set_col(0, dir_to_center); // Principal diffusion axis
-		Q.set_col(1, Q1); // Random perpendicular vector
-		Q.set_col(2, Q2); // Ensure orthogonality
-		
-		// Step 4: Construct the tensor as Q * diag(eigenvalues) * Q^T
-		Mat33 Lambda = { {eigenvalues[0], 0, 0},
-						 {0, eigenvalues[1], 0},
-						 {0, 0, eigenvalues[2]} };
-		Mat33 diffusion_tensor = Q * Lambda * transpose(Q);
-
-		return diffusion_tensor;
 	}
 
 	/// generate a trajectory and some attributes
