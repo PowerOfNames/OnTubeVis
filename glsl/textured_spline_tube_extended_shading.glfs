@@ -1449,7 +1449,8 @@ vec4 cheapSmoothStep(vec4 colorStart, vec4 colorEnd, float x, float bias) {
 struct ray_march_result
 {
 	bool hit;
-	vec3 pos_eye, normal_eye;
+	vec4 pos_eye;
+	vec3 normal_eye;
 
 	//Debugging
 	vec3 debug_color;
@@ -1461,11 +1462,9 @@ vec4 splat_generic_glyph_3D(in uint debug_info, in vec2 uv, in ray_march_result 
 {		
 	if(rmr.hit)
 	{
-		//THESIS TODO: 
-		//vec4 hit_pos_clip = get_projection_matrix() * vec4(rmr.pos_eye, 1.0);
-		//depth = ((hit_pos_clip.z / hit_pos_clip.w) + 1.0) / 2.0;
-		//return vec4(rmr.debug_color, 1.0);
-		return vec4(rmr.debug_color, 1.0);
+		//THESIS TODO:
+		depth = ((rmr.pos_eye.z / rmr.pos_eye.w) + 1.0) / 2.0;
+		return vec4(glyph_color, 1.0);
 	}	
 	return vec4(0.0, 0.0, 0.0, 0.0);
 }
@@ -1654,7 +1653,7 @@ void main()
 							dist = GLYPH_SDF_DEFINITION;
 							if(dist < glyph_rm.hit_epsilon)
 							{
-								rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
+								rmr.pos_eye = get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0);
 								rmr.hit = true;
 								break;
 							}
@@ -1783,7 +1782,7 @@ void main()
 							dist = GLYPH_SDF_DEFINITION;
 							if(dist < glyph_rm.hit_epsilon)
 							{
-								rmr.pos_eye = (get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0)).xyz;
+								rmr.pos_eye = get_modelview_matrix() * vec4(ray_pos_glyph + center_frame_center_tube, 1.0);
 								rmr.hit = true;
 								break;
 							}

@@ -27,8 +27,6 @@ def generate_positions(length, axis):
         return [[0.0, i/10.0, 0.0] for i in range(length)]
     elif axis == "z":
         return [[0.0, 0.0, i/10.0] for i in range(length)]
-    elif axis == "diag":
-        return [[i/10.0, i/10.0, i/10.0] for i in range(length)]
     else:
         raise ValueError("Invalid axis. Choose 'x', 'y', or 'z'.")
 
@@ -46,13 +44,11 @@ def generate_interpolated_tensor(base, index):
 def generate_tensors(length, axis):
     # Axis-specific tensor generation
     if axis == "x":
-        return [[0.5, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.5] for _ in range(length)]
-    elif axis == "y":
         return [[2.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5] for _ in range(length)]
+    elif axis == "y":
+        return [[0.5, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.5] for _ in range(length)]
     elif axis == "z":
         return [[0.5, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 2.0] for _ in range(length)]
-    elif axis == "diag":
-        return [generate_interpolated_tensor([0.5, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.5], i) for i in range (length)]
     else:
         raise ValueError("Invalid axis. Choose 'x', 'y', or 'z'.")
 
@@ -69,7 +65,7 @@ with open(output_file, "w", newline="") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(header)  # Write the header
 
-    for iteration, axis in enumerate(["x", "y", "z", "diag"], start=0):
+    for iteration, axis in enumerate(["x", "y", "z"], start=0):
         # Number of random time points
         time_count = random.randint(100, 200)  # Random count between 100 and 200
 

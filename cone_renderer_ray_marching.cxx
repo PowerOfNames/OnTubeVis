@@ -28,9 +28,11 @@ namespace cgv {
 			composite_arrow = false;
 
 			//Ray marching defines:
-			rm.epsilon = 0.003f;
+			rm.epsilon = 0.002f;
 			rm.max_iterations = 30;
-			rm.fdg_delta = 0.001f;
+			rm.fdg_delta = 0.05f;
+			rm.show_bounding = false;
+
 			glyph_color_mapping = vec4(0.0f, 0.1f, 0.0f, 0.1f);
 		}
 
@@ -72,6 +74,7 @@ namespace cgv {
 			shader_code::set_define(defines, "RM_EPSILON", rs.rm.epsilon, 0.001f);
 			shader_code::set_define(defines, "RM_MAX_ITERATIONS", rs.rm.max_iterations, (uint32_t)30);
 			shader_code::set_define(defines, "RM_FDG_DELTA", rs.rm.fdg_delta, 0.0005f);
+			shader_code::set_define(defines, "RM_SHOW_BOUNDING", rs.rm.show_bounding, false);
 		}
 		bool cone_renderer_ray_marching::build_shader_program(context& ctx, shader_program& prog, const shader_define_map& defines)
 		{
@@ -113,6 +116,7 @@ namespace cgv {
 				rh.reflect_member("radius", radius);
 				rh.reflect_member("rm.epsilon", rm.epsilon) &&
 				rh.reflect_member("rm.max_iterations", rm.max_iterations) &&
+				rh.reflect_member("rm.show_bounding", rm.show_bounding) &&
 				rh.reflect_member("rm.fdg_delta", rm.fdg_delta);
 		}
 
@@ -145,16 +149,23 @@ namespace cgv {
 				const std::string& gui_type, const std::string& options, bool*) {
 				if (value_type != cgv::type::info::type_name<cgv::render::cone_render_ray_marching_style>::get_name())
 					return false;
-				cgv::render::cone_render_ray_marching_style* crs_ptr = reinterpret_cast<cgv::render::cone_render_ray_marching_style*>(value_ptr);
+				cgv::render::cone_render_ray_marching_style* rs_ptr = reinterpret_cast<cgv::render::cone_render_ray_marching_style*>(value_ptr);
 				cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
-				p->add_member_control(b, "Default Radius", crs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
-				p->add_member_control(b, "Radius Scale", crs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
+				if (p->begin_tree_node("Cone Ray Marching Parameters", rs_ptr->rm, false)) {
+					p->align("\a");
+					p->add_member_control(b, "Epsilon", rs_ptr->rm.epsilon, "value_slider", "min=0;max=0.1;step=0.001;log=true");
+					p->add_member_control(b, "Max Iterations", rs_ptr->rm.max_iterations, "value_slider", "min=0;max=50;step=1;unsigned=true");
+					p->add_member_control(b, "FinDiffGrad Delta", rs_ptr->rm.fdg_delta, "value_slider", "min=0.01;max=1.0;step=0.01;ticks=true");
+					p->add_member_control(b, "Show Bounding", rs_ptr->rm.show_bounding, "check");
+					p->align("\b");
+					p->end_tree_node(rs_ptr->rm);
+				}
+				p->add_member_control(b, "Default Radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
+				p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
 
-				p->add_member_control(b, "Show Caps", crs_ptr->show_caps, "check");
-				p->add_member_control(b, "Composite Arrow", crs_ptr->composite_arrow, "check");
-				
-				p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(crs_ptr));
+				p->add_member_control(b, "Show Caps", rs_ptr->show_caps, "check");
+				p->add_member_control(b, "Composite Arrow", rs_ptr->composite_arrow, "check");
 				return true;
 			}
 		};

@@ -28,7 +28,8 @@ namespace cgv {
 			//Ray marching defines:
 			rm.epsilon = 0.003f;
 			rm.max_iterations = 30;
-			rm.fdg_delta = 0.001f;
+			rm.fdg_delta = 0.05f;
+			rm.show_bounding = false;
 			glyph_color_mapping = vec4(0.0f, 0.1f, 0.0f, 0.1f);
 			
 		}
@@ -68,6 +69,7 @@ namespace cgv {
 			shader_code::set_define(defines, "RM_EPSILON", rs.rm.epsilon, 0.001f);
 			shader_code::set_define(defines, "RM_MAX_ITERATIONS", rs.rm.max_iterations, (uint32_t)30);
 			shader_code::set_define(defines, "RM_FDG_DELTA", rs.rm.fdg_delta, 0.0005f);
+			shader_code::set_define(defines, "RM_SHOW_BOUNDING", rs.rm.show_bounding, false);
 		}
 
 		void ellipsoid_renderer_ray_marching::remove_orientation_array(const context& ctx) {
@@ -99,8 +101,7 @@ namespace cgv {
 			if (!has_orientations)
 				ref_prog().set_attribute(ctx, "orientation", cgv::math::quaternion<float>());
 
-			ref_prog().set_uniform(ctx, "size_scale", rs.size_scale);
-			
+			ref_prog().set_uniform(ctx, "size_scale", rs.size_scale);			
 			ref_prog().set_uniform(ctx, "glyph_cc_param", rs.glyph_color_mapping);
 
 			return true;
@@ -127,6 +128,7 @@ namespace cgv {
 				rh.reflect_member("size_scale", size_scale) &&
 				rh.reflect_member("rm.epsilon", rm.epsilon) &&
 				rh.reflect_member("rm.max_iterations", rm.max_iterations) &&
+				rh.reflect_member("rm.show_bounding", rm.show_bounding) &&
 				rh.reflect_member("rm.fdg_delta", rm.fdg_delta);
 		}
 
@@ -157,11 +159,15 @@ namespace cgv {
 				p->add_member_control(b, "Default Size", rs_ptr->size, "value_slider", "min=0.01;max=100;log=true;ticks=true");
 				p->add_member_control(b, "Size Scale", rs_ptr->size_scale, "value_slider", "min=0.01;max=100;log=true;ticks=true");
 				
-				p->add_member_control(b, "Epsilon", rs_ptr->rm.epsilon, "value_slider", "min=0;max=0.1;step=0.001;log=true");
-				p->add_member_control(b, "Max Iterations", rs_ptr->rm.max_iterations, "value_slider", "min=0;max=50;step=1;unsigned=true");
-				p->add_member_control(b, "FinDiffGrad Delta", rs_ptr->rm.fdg_delta, "value_slider", "min=0;max=0.1;step=0.001;ticks=true");
-
-				p->add_gui("surface_render_style", *static_cast<cgv::render::surface_render_style*>(rs_ptr));
+				if (p->begin_tree_node("Cone Ray Marching Parameters", rs_ptr->rm, false)) {
+					p->align("\a");
+					p->add_member_control(b, "Epsilon", rs_ptr->rm.epsilon, "value_slider", "min=0;max=0.1;step=0.001;log=true");
+					p->add_member_control(b, "Max Iterations", rs_ptr->rm.max_iterations, "value_slider", "min=0;max=50;step=1;unsigned=true");
+					p->add_member_control(b, "FinDiffGrad Delta", rs_ptr->rm.fdg_delta, "value_slider", "min=0.01;max=1.0;step=0.01;ticks=true");
+					p->add_member_control(b, "Show Bounding", rs_ptr->rm.show_bounding, "check");
+					p->align("\b");
+					p->end_tree_node(rs_ptr->rm);
+				}
 				return true;
 			}
 		};

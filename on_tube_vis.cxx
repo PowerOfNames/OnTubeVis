@@ -1631,6 +1631,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 						cones.add(start_pos, end_pos);
 						cones.add(0.02f, 0.02f);
 						cones.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
+						cones.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
 
 						break;
 					}
@@ -1665,10 +1666,10 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	// - demo geometry
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG
-	constexpr unsigned num_trajectories = 3;
-	constexpr unsigned num_nodes = 10;
+	constexpr unsigned num_trajectories = 10;
+	constexpr unsigned num_nodes = 32;
 #else
-	constexpr unsigned num_trajectories = 4096; // 1
+	constexpr unsigned num_trajectories = 1024; // 1
 	constexpr unsigned num_nodes = 128; // 32
 #endif
 	for (unsigned i=0; i < num_trajectories; i++)

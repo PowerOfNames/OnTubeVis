@@ -57,6 +57,12 @@ void main()
 	normal_fs = T[1].xyz;
 	binormal_fs = T[2].xyz;
 
+	//THESIS2: we dont need scaling -> the resulting bounding box for the generalized cylinder is scaled. we only need the rotation and translation
+	// part for ray marching purposes
+	cone_transform_fs = T;
+	inv_cone_transform_fs = inverse(cone_transform_fs);
+
+
 	// scale part
 	T[0] *= l;
 
@@ -66,8 +72,6 @@ void main()
 	mat4 M = get_modelview_matrix() * T;
 	
 	//cone_transform_fs = mat4(T[0], T[1], T[2], vec4(start.xyz, 1.0));
-	cone_transform_fs = M;
-	inv_cone_transform_fs = inverse(cone_transform_fs);
 
 	// transform cone start and end position to eye space
 	//start_fs = vec4((get_modelview_matrix() * vec4(start.xyz, 1.0)).xyz, start.w);

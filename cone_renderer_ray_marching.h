@@ -33,6 +33,8 @@ namespace cgv { // @<
 				float epsilon;
 				uint32_t max_iterations;
 				float fdg_delta;
+				bool show_bounding;
+
 			}rm;
 
 			/// construct with default values

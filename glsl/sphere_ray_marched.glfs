@@ -1,8 +1,9 @@
 #version 430
 
-#define RM_EPSILON 0.00005
+#define RM_EPSILON 0.003
 #define RM_MAX_ITERATIONS 30
-#define RM_FDG_DELTA 0.001
+#define RM_FDG_DELTA 0.05
+#define RM_SHOW_BOUNDING 0
 
 
 struct sphere_splat_info
@@ -167,15 +168,17 @@ vec3 ray_march(in out vec3 pos_eye, in out vec3 normal_eye, in out vec2 splat_tc
 			normal_eye = normalize(get_normal_matrix() * normal_glyph);
 
 			return map_to_color(clamp_remap(fi.color.x, glyph_cc_param), int(fi.color.y));
-			//return fi.color.xyz;
 		}
 
 		pos_glyph += dir_world * dist;
 		i++;
 	}
 
-	discard;
-	return vec3(1.0, 0.0, 0.0);
+	#if RM_SHOW_BOUNDING == 0
+		discard;
+	#else
+		return vec3(1.0, 0.0, 0.0);
+	#endif
 }
 //***** end instead of ray-cast intersection between ray-sphere, use ray marching using sphere_sd ***********************************
 
