@@ -1107,14 +1107,14 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		if (!ui_state.dim_toggle.check_toggled()) {
 			ui_state.dim_toggle.current_glyph_dimension = glyph_dimension;
 		}
-
-		update_glyph_dimension_toggle();
+		render.visualizations.front().manager.SetGlyphDimensionTo2D(is_2D() ? true : false);
 		do_full_gui_update = true;
 
 		render3D.glyphs.spheres.clear();
 		render3D.glyphs.cones.clear();
 		render3D.glyphs.ellipsoids.clear();
 
+		update_glyph_dimension_toggle();
 		context& ctx = *get_context();
 		update_node_buffers(ctx);
 
@@ -1130,6 +1130,7 @@ void on_tube_vis::handle_member_change(const cgv::utils::pointer_test& m) {
 		if (!ui_state.tb_toggle.check_toggled()) {
 			ui_state.tb_toggle.current_glyph_method = render.style3D.glyph_method;
 		}
+		render.visualizations.front().manager.SetGlyphMethodToTubeSurface(render.style3D.is_tube_surface_pipeline() ? true : false);
 
 		render3D.glyphs.spheres.clear();
 		render3D.glyphs.cones.clear();
@@ -1250,37 +1251,40 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 
 	std::map<std::string, std::string> settings;
 
-	if(layer_configuration_io::read_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr, settings)) {
-		// update the dependent members
-		color_map_mgr.update_texture(*get_context());
-		if(cm_viewer_ptr) {
-			cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
-			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
-		}
-
-
+	//THESIS2:
+	if (layer_configuration_io::read_settings(file_name, settings))
+	{
 		auto apply_setting = [this, &settings](const std::string& name, const std::string& target) {
 			auto it = settings.find(name);
-			if(it != settings.end())
+			if (it != settings.end())
 				set_void(target, "string", &it->second);
-		};
+			};
 
 		apply_setting("line_primitve", "render_style.line_primitive");
 		apply_setting("ambient_occlusion", "ambient_occlusion");
-		
+
 		update_tube_ribbon_toggle();
-		
-
-
 
 		//THESIS:
 		apply_setting("glyph_dimension", "glyph_dimension");
+		on_set(&glyph_dimension);
 		//THESIS:
 		update_glyph_dimension_toggle();
 		//THESIS2:
 		apply_setting("glyph_method", "glyph_method");
 		//THESIS2:
 		update_glyph_method_toggle();
+
+		visualization.manager.notify_configuration_change();
+	}
+
+	if(layer_configuration_io::read_layer_configuration(file_name, visualization.variables, visualization.manager, color_map_mgr)) {
+		// update the dependent members
+		color_map_mgr.update_texture(*get_context());
+		if(cm_viewer_ptr) {
+			cm_viewer_ptr->set_color_map_names(color_map_mgr.get_names());
+			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
+		}		
 
 		visualization.manager.notify_configuration_change();
 		
@@ -1535,20 +1539,20 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	{
 		case GT_3D_SPHERE:
 		{
-			//if (radius_idx == 0) 
-			//	return;
+			/*if (radius_idx == 0)
+				return;*/
 			break;
 		}
 		case GT_3D_CONE_VECTOR:
 		{
-			if (vec_mag_idx == 0 || vec_x_idx == 0 || vec_y_idx == 0 || vec_z_idx == 0)
-				return;
+			/*if (vec_mag_idx == 0 || vec_x_idx == 0 || vec_y_idx == 0 || vec_z_idx == 0)
+				return;*/
 			break;
 		}
 		case GT_3D_ELLIPSOID_3x3_TENSOR:
 		{
-			if (radius_idx == 0 || radius2_idx == 0 || radius3_idx == 0 || orientation_w_idx == 0 || orientation_i_idx == 0 || orientation_j_idx == 0 || orientation_k_idx == 0)
-				return;
+			/*if (radius_idx == 0 || radius2_idx == 0 || radius3_idx == 0 || orientation_w_idx == 0 || orientation_i_idx == 0 || orientation_j_idx == 0 || orientation_k_idx == 0)
+				return;*/
 			break;
 		}
 		default: return;
@@ -1567,21 +1571,30 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	// ---- hardcoded section end
 
 	const uint32_t glyph_count = attribs.glyph_count();
+	uint32_t added_glyphs = 0;
+	std::cout << "Glyph count = " << glyph_count << std::endl;
+	uint64_t already_visited_glyph_attrib_base_idx = static_cast<uint64_t>(-1);
 	const float last_s = attribs.last_glyph_s();
 	//Range_idx == segID
 	for (size_t trj_idx = 0; trj_idx < trajectories.size(); trj_idx++)
 	{
 		const auto& tube = trajectories[trj_idx];
 		const uint32_t trajectory_offset = tube.i0 - trj_idx;
-		for (size_t segment_idx = 0; segment_idx < tube.n - 1; segment_idx++)
+		for (size_t segment_idx = 0; segment_idx < tube.n-1; segment_idx++)
 		{
 			const uint32_t global_segment_idx = trajectory_offset + segment_idx;
 			const auto& segment = ranges[global_segment_idx];
+			//std::cout << "segment = " << segment_idx << "; i0 =  " << segment.i0 << "; n = " << segment.n << std::endl;
 
 			for (size_t glyph_idx = 0; glyph_idx < segment.n; glyph_idx++)
 			{
-				const size_t attrib_base_idx = (segment.i0 + glyph_idx) * size_per_glyph;
+				//std::cout << "segment = " << segment_idx << "; glyph =  " << glyph_idx << "; added total = " << added_glyphs << std::endl;
 
+				const size_t attrib_base_idx = (segment.i0 + glyph_idx) * size_per_glyph;
+				//std::cout << "attrib base = " << attrib_base_idx << std::endl;
+
+				if (attrib_base_idx == already_visited_glyph_attrib_base_idx)
+					continue;
 				const float	t = t_segs[segment.i0 + glyph_idx];
 
 				//TODO: Attribute MinMax Mapping does not apply for these attributes ((clamp)remap happens inside shaders) -> x0.4
@@ -1641,9 +1654,12 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 					default: 
 						return;
 				}
+				already_visited_glyph_attrib_base_idx = attrib_base_idx;
+				added_glyphs++;
 			}
 		}
 	}
+	std::cout << "Added count = " << added_glyphs << std::endl;
 
 	std::cout << "Glyph3D tube space position done (" << s.get_elapsed_time() << "s)" << std::endl;
 }
@@ -1663,16 +1679,17 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 
 	// generate demo dataset
 	// - demo AO settings
+	ao_style.enable = false;
 	ao_style_bak = ao_style;
 	ao_style.strength_scale = 15.0f;
 	update_member(&ao_style);
 	// - demo geometry
 	constexpr unsigned seed = 11;
 #ifdef _DEBUG
-	constexpr unsigned num_trajectories = 10;
-	constexpr unsigned num_nodes = 32;
+	constexpr unsigned num_trajectories = 2;
+	constexpr unsigned num_nodes = 4;
 #else
-	constexpr unsigned num_trajectories = 100; // 1
+	constexpr unsigned num_trajectories = 10; // 1
 	constexpr unsigned num_nodes = 10; // 32
 #endif
 	for (unsigned i=0; i < num_trajectories; i++)

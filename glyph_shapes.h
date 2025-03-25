@@ -576,7 +576,7 @@ public:
 
 	virtual float get_size(const std::vector<float>& param_values) const {
 		static int32_t size_idx = get_attrib_index("radius_x") - 1; //-1 because color
-		return param_values[size_idx] * 2.0f;
+		return param_values[1] * 2.0f;
 	}
 };
 

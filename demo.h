@@ -298,19 +298,7 @@ struct demo : public traj_format_handler<float>
 	static Mat33 gen_tensor_from_eigenvalues_and_seed_vector(const Vec3& eigenvalues, const Vec3& seed_vector)
 	{
 		// Pick an arbitrary vector that’s *not* parallel to dir
-		Vec3 arbitrary;
-		if (abs(seed_vector[0]) > 0.9f) {
-			// If the x-component is too large, choose y and z components directly
-			arbitrary = Vec3(seed_vector[1], seed_vector[2], 0.0f);
-		}
-		else if (abs(seed_vector[1]) > 0.9f) {
-			// If the y-component is too large, choose x and z components directly
-			arbitrary = Vec3(seed_vector[0], seed_vector[2], 0.0f);
-		}
-		else {
-			// Otherwise, choose x and y components directly
-			arbitrary = Vec3(seed_vector[0], seed_vector[1], 0.0f);
-		}
+		Vec3 arbitrary = abs(seed_vector[0]) > 0.9f ? Vec3(0.0f, 1.0f, 0.0f) : Vec3(1.0f, 0.0f, 0.0f);
 
 		Vec3 Q1 = normalized(cross(seed_vector, arbitrary));  // Ensure perpendicularity
 		Vec3 Q2 = normalized(cross(seed_vector, Q1));
@@ -387,8 +375,7 @@ struct demo : public traj_format_handler<float>
 		std::vector<trajectory::attrib_value<Mat33>> result;
 		float t = t0;
 		auto tensor_initials = gen_random_tensor(noise, generator);
-		auto temp_tensor_mat = gen_tensor_from_eigenvalues_and_seed_vector(tensor_initials.first, tensor_initials.second);
-		result.emplace_back(t, temp_tensor_mat); 
+		result.emplace_back(t, gen_tensor_from_eigenvalues_and_seed_vector(tensor_initials.first, tensor_initials.second));
 
 		// Remaining samples
 		for (unsigned s = 0; t <= tn; s++)
@@ -396,9 +383,8 @@ struct demo : public traj_format_handler<float>
 			const float dt_raw = sine_noise((float)s, noise.phase, dt_mean, dt_var, 0.5f);
 			const float dt = std::max(dt_raw, std::max(std::numeric_limits<float>::epsilon(), std::numeric_limits<float>::epsilon() * t));
 			t += dt;			
-			tensor_initials = gen_tensor_perturbation_oscillation(t, tensor_initials.first, tensor_initials.second, noise, generator);
-			temp_tensor_mat = gen_tensor_from_eigenvalues_and_seed_vector(tensor_initials.first, tensor_initials.second);
-			result.emplace_back(t, temp_tensor_mat);
+			tensor_initials = gen_tensor_perturbation(t, tensor_initials.first, tensor_initials.second, noise, generator);
+			result.emplace_back(t, gen_tensor_from_eigenvalues_and_seed_vector(tensor_initials.first, tensor_initials.second));
 		}
 
 		return std::move(result);

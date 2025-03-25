@@ -374,20 +374,14 @@ public:
 		return cgv::utils::file::write(file_name, xml, true);
 	}
 
-	static bool read_layer_configuration(
-		const std::string& file_name,
-		std::shared_ptr<visualization_variables_info> visualization_variables,
-		glyph_layer_manager& glyph_layer_mgr,
-		color_map_manager& color_map_mgr,
-		std::map<std::string, std::string>& settings) {
-
-		glyph_layer_mgr.clear();
-
-		if(!cgv::utils::file::exists(file_name) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name)) != "XML")
+	//THESIS2: Hack
+	static bool read_settings(const std::string& file_name, std::map<std::string, std::string>& settings)
+	{
+		if (!cgv::utils::file::exists(file_name) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name)) != "XML")
 			return false;
 
 		tinyxml2::XMLDocument doc;
-		if(doc.LoadFile(file_name.c_str()) != tinyxml2::XML_SUCCESS)
+		if (doc.LoadFile(file_name.c_str()) != tinyxml2::XML_SUCCESS)
 			return false;
 
 
@@ -405,7 +399,28 @@ public:
 			}
 		}
 
-		findElementByName.SetQueryName("ColorMaps");
+		return true;
+	}
+
+	static bool read_layer_configuration(
+		const std::string& file_name,
+		std::shared_ptr<visualization_variables_info> visualization_variables,
+		glyph_layer_manager& glyph_layer_mgr,
+		color_map_manager& color_map_mgr) {
+
+		bool is_2D = glyph_layer_mgr.IsGlyphDimension2D();
+		glyph_layer_mgr.clear();
+		glyph_layer_mgr.SetGlyphDimensionTo2D(is_2D);
+
+
+		if(!cgv::utils::file::exists(file_name) || cgv::utils::to_upper(cgv::utils::file::get_extension(file_name)) != "XML")
+			return false;
+
+		tinyxml2::XMLDocument doc;
+		if(doc.LoadFile(file_name.c_str()) != tinyxml2::XML_SUCCESS)
+			return false;
+
+		cgv::xml::FindElementByNameVisitor findElementByName("ColorMaps");
 		doc.Accept(&findElementByName);
 
 		if(auto color_maps_elem = findElementByName.Result())

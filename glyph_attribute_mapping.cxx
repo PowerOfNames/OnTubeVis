@@ -60,7 +60,7 @@ ActionType glyph_attribute_mapping::action_type() {
 //THESIS2:
 void glyph_attribute_mapping::set_sampling_strategy(AttributeSamplingStrategy strategy)
 {
-	if (last_non_3D_sampling_strategy != strategy && strategy != ASS_3D_GLYPHS_AT_SAMPLES)
+	if (last_non_3D_sampling_strategy != strategy && strategy != ASS_3D_GLYPHS_AT_SAMPLES && sampling_strategy != ASS_3D_GLYPHS_AT_SAMPLES)
 		last_non_3D_sampling_strategy = sampling_strategy;
 
 	sampling_strategy = strategy;

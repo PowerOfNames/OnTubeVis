@@ -111,6 +111,8 @@ protected:
 		std::vector<bool> has_sample(attrib_count);
 		std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
 
+		uint64_t glyph_number = 0;
+
 		// - compile data
 		unsigned traj_offset = 0;
 		for (unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
@@ -222,6 +224,8 @@ protected:
 						attrib_values[i] = val;
 					}
 
+
+
 					// setup parameters of potential glyph
 					for (size_t i = 0; i < layer_config.glyph_mapping_parameters.size(); ++i) {
 						const auto& triple = layer_config.glyph_mapping_parameters[i];
@@ -238,14 +242,10 @@ protected:
 					}
 
 					float new_glyph_size = lci.current_shape->get_size(glyph_params);
-					if (new_glyph_size < 0.0f)
-						break;
 					new_glyph_size /= length_scale;
 
 					// infer potential glyph extents
-					const float min_dist = attribs.size() > 0 ?
-						std::max(new_glyph_size, prev_glyph_size) :
-						new_glyph_size;
+					const float min_dist = attribs.size() > 0 ? std::max(new_glyph_size, prev_glyph_size) :	new_glyph_size;
 
 					bool include_glyph = attribs.glyph_count() == attribs_traj_offset || s >= last_commited_s + min_dist;
 					include_glyph |= min_dist < 0.0f;
@@ -297,6 +297,8 @@ protected:
 						int debug_info = include_glyph ? 0 : 1;
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
 						std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
+
+						glyph_number++;
 					}
 
 					//store the size when this glyph is actually placed
@@ -341,6 +343,9 @@ protected:
 			for (size_t i = 0; i < attrib_count; ++i)
 				attribs.add(0.0f);
 		}
+
+		std::cout << "Glyph count = " << glyph_number << std::endl;
+
 	}
 
 	// generate a glyph at every attribute sample location (interpolates attributes if more than one is mapped in this layer)
@@ -361,6 +366,7 @@ protected:
 		std::vector<bool> has_sample(attrib_count);
 		std::vector<float> glyph_params(lci.current_shape->num_size_attribs());
 
+		uint64_t glyph_number = 0;
 		// - compile data
 		unsigned traj_offset = 0;
 		for(unsigned trj = 0; trj < (unsigned)tube_trajs.size(); trj++) {
@@ -543,6 +549,7 @@ protected:
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
 
 						std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
+						glyph_number++;
 					}
 
 					//store the size when this glyph is actually placed
@@ -585,6 +592,8 @@ protected:
 			for(size_t i = 0; i < attrib_count; ++i)
 				attribs.add(0.0f);
 		}
+
+		std::cout << "Glyph count = " << glyph_number << std::endl;
 	}
 
 	// generate a glyph at uniformly spaced time steps by interpolating attributes

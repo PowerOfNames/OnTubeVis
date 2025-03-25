@@ -21,7 +21,7 @@ namespace cgv {
 
 		ellipsoid_render_ray_marching_style::ellipsoid_render_ray_marching_style()
 		{
-			size_scale = 1;
+			size_scale = 0.45f;
 			size = 1;
 
 

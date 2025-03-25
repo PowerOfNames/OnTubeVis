@@ -43,6 +43,11 @@ namespace cgv {
 			}
 
 			void add_size(const cgv::vec3& size) {
+				/*if (size.length() > 1.0f)
+				{
+					sizes.push_back(size/size.length());
+					return;
+				}*/
 				sizes.push_back(size);
 			}
 

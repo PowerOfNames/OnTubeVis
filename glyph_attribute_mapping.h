@@ -44,7 +44,7 @@ protected:
 	std::unordered_map<uint32_t, uint32_t> mapped_glyph_attrib_idx_to_possible_attrib_idx; //figured out later, that atrib_source_indices seems to be what I needed
 
 	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
-	AttributeSamplingStrategy last_non_3D_sampling_strategy = sampling_strategy;
+	AttributeSamplingStrategy last_non_3D_sampling_strategy = ASS_AT_SAMPLES;
 	float sampling_step = 1.0f;
 	//THESIS:
 	float uv_displacement_factor = 1.0f;

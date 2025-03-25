@@ -1,14 +1,14 @@
 <GlyphConfiguration>
     <ColorMaps/>
     <Layers>
-        <Layer name="Circle" active="true" glyph="circle" sampling="original">
+        <Layer name="Circle" active="true" glyph="circle" sampling="original" sampling_step="1.000000">
             <Property name="outline" value="0.015600"/>
-            <Property name="color" attrib_name="scalar" color_map_name="bilbao" in_range="-0.551 0.551" out_range="0 1"/>
-            <Property name="radius" attrib_name="scalar" in_range="-0.550992 0.551041" out_range="0.03125 0.9"/>
+            <Property name="color" attrib_name="scalar" color_map_name="bilbao" in_range="-0.535 0.551" out_range="0 1"/>
+            <Property name="radius" attrib_name="scalar" in_range="-0.550992 0.551041" out_range="0.5 0.9"/>
         </Layer>
     </Layers>
     <Settings>
-        <Setting name="ambient_occlusion" value="true"/>
+        <Setting name="ambient_occlusion" value="false"/>
         <Setting name="glyph_dimension" value="GD_2D"/>
         <Setting name="glyph_method" value="GM_TUBE_SURFACE_PIPELINE"/>
         <Setting name="line_primitve" value="LP_TUBE_RUSSIG"/>

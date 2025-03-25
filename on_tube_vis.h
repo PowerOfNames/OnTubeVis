@@ -280,7 +280,7 @@ protected:
 		bool instant_redraw_proxy = false;
 
 		/// proxy for controlling context::enable_vsynch through fltk_gl_view
-		bool vsync_proxy = false;
+		bool vsync_proxy = true;
 
 		/// proxy for controlling stereo_view_interactor::fix_view_up_dir
 		bool fix_view_up_dir_proxy = false;
@@ -390,7 +390,6 @@ protected:
 		else if(is_3D())
 			glyph_dimension = GlyphDimension::GD_2D;
 
-		render.visualizations.front().manager.SetGlyphDimensionTo2D(is_2D() ? true : false);
 		ui_state.dim_toggle.current_glyph_dimension = glyph_dimension;
 
 		ui_state.dim_toggle.was_toggled = true;
@@ -416,7 +415,6 @@ protected:
 		else if (render.style3D.is_billboard_pipeline())
 			render.style3D.glyph_method = glyph3D_spline_tube_render_style::GM_TUBE_SURFACE_PIPELINE;
 
-		render.visualizations.front().manager.SetGlyphMethodToTubeSurface(render.style3D.is_tube_surface_pipeline() ? true : false);
 		ui_state.tb_toggle.current_glyph_method = render.style3D.glyph_method;
 
 		ui_state.tb_toggle.was_toggled = true;
