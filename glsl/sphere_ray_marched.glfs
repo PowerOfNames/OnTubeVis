@@ -120,7 +120,7 @@ vec3 normal_sphere(in vec3 hit_pos_glyph)
 float morph_sin(in vec3 glyph_pos, in vec3 pos, in float bounding_dist, in float factor)
 {	
 	vec3 v_seed = glyph_pos + pos;
-	return factor == 0.0 ? 0.0 :  0.1 * bounding_dist * (1.0 + sin(factor*v_seed.x)*sin(factor*v_seed.y)*sin(factor*v_seed.z)) * 0.5;
+	return 0.1 * bounding_dist * (1.0 + sin(factor*v_seed.x)*sin(factor*v_seed.y)*sin(factor*v_seed.z)) * 0.5;
 }
 
 //Hardcoded for now
@@ -144,6 +144,8 @@ vec3 ray_march(in out vec3 pos_eye, in out vec3 normal_eye, in out vec2 splat_tc
 	if (!compute_ray_sphere_intersection(fi.percentual_splat_size, pos_eye, normal_eye, splat_tc, side, lambda))
 		discard;
 	
+	if(morph_sin_factor == 0.0)
+		return map_to_color(clamp_remap(fi.color.x, glyph_cc_param), int(fi.color.y));
 	
 	vec3 glyph_position_world = srmf.pos_radius.xyz;
 	vec3 pos_glyph = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz - glyph_position_world;

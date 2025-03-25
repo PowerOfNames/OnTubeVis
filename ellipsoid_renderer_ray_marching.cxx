@@ -159,7 +159,7 @@ namespace cgv {
 				p->add_member_control(b, "Default Size", rs_ptr->size, "value_slider", "min=0.01;max=100;log=true;ticks=true");
 				p->add_member_control(b, "Size Scale", rs_ptr->size_scale, "value_slider", "min=0.01;max=100;log=true;ticks=true");
 				
-				if (p->begin_tree_node("Cone Ray Marching Parameters", rs_ptr->rm, false)) {
+				if (p->begin_tree_node("Ellipsoid Ray Marching Parameters", rs_ptr->rm, false)) {
 					p->align("\a");
 					p->add_member_control(b, "Epsilon", rs_ptr->rm.epsilon, "value_slider", "min=0;max=0.1;step=0.001;log=true");
 					p->add_member_control(b, "Max Iterations", rs_ptr->rm.max_iterations, "value_slider", "min=0;max=50;step=1;unsigned=true");

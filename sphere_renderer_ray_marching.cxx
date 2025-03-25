@@ -21,7 +21,7 @@ namespace cgv {
 
 		sphere_render_ray_marching_style::sphere_render_ray_marching_style()
 		{
-			radius_scale = 1;
+			radius_scale = 0.2;
 			radius = 1;
 			use_group_radius = false;
 			morph_sin_factor = 0.0f;
@@ -171,11 +171,11 @@ namespace cgv {
 				cgv::render::sphere_render_ray_marching_style* rs_ptr = reinterpret_cast<cgv::render::sphere_render_ray_marching_style*>(value_ptr);
 				cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
+				p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;max=100;log=true;ticks=true");
 				if (p->begin_tree_node("Sphere Ray Marching Parameters", rs_ptr->rm, false)) {
 					p->align("\a");
 					p->add_member_control(b, "Epsilon", rs_ptr->rm.epsilon, "value_slider", "min=0;max=0.1;step=0.001;log=true");
 					p->add_member_control(b, "Max Iterations", rs_ptr->rm.max_iterations, "value_slider", "min=0;max=50;step=1;unsigned=true");
-					p->add_member_control(b, "FinDiffGrad Delta", rs_ptr->rm.fdg_delta, "value_slider", "min=0.01;max=1.0;step=0.01;ticks=true");
 					p->add_member_control(b, "FinDiffGrad Delta", rs_ptr->rm.fdg_delta, "value_slider", "min=0.01;max=1.0;step=0.01;ticks=true");
 					p->add_member_control(b, "Show Bounding", rs_ptr->rm.show_bounding, "check");
 					p->align("\b");

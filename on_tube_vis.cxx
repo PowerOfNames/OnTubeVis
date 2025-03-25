@@ -1593,6 +1593,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 				const size_t attrib_base_idx = (segment.i0 + glyph_idx) * size_per_glyph;
 				//std::cout << "attrib base = " << attrib_base_idx << std::endl;
 
+				//Still not perfect. some glyphs still overlap, but glyph count is equal to 2D version
 				if (attrib_base_idx == already_visited_glyph_attrib_base_idx)
 					continue;
 				const float	t = t_segs[segment.i0 + glyph_idx];
