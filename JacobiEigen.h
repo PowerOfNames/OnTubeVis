@@ -162,7 +162,7 @@ namespace JacobiEigen {
 
 	static void PrintQuaternion(cgv::math::quaternion<float> quat)
 	{
-		std::printf("Eigen-Quaternion: r:%f, i:%f, j:%f, k:%f \n", quat[0], quat[1], quat[2], quat[3]);
+		std::printf("Eigen-Quaternion: w:%f, i:%f, j:%f, k:%f \n", quat[0], quat[1], quat[2], quat[3]);
 	}
 
 }

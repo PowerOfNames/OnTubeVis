@@ -298,7 +298,19 @@ struct demo : public traj_format_handler<float>
 	static Mat33 gen_tensor_from_eigenvalues_and_seed_vector(const Vec3& eigenvalues, const Vec3& seed_vector)
 	{
 		// Pick an arbitrary vector that’s *not* parallel to dir
-		Vec3 arbitrary = (abs(seed_vector[0]) > 0.9f) ? Vec3(0.0f, 1.0f, 0.0f) : Vec3(1.0f, 0.0f, 0.0f);
+		Vec3 arbitrary;
+		if (abs(seed_vector[0]) > 0.9f) {
+			// If the x-component is too large, choose y and z components directly
+			arbitrary = Vec3(seed_vector[1], seed_vector[2], 0.0f);
+		}
+		else if (abs(seed_vector[1]) > 0.9f) {
+			// If the y-component is too large, choose x and z components directly
+			arbitrary = Vec3(seed_vector[0], seed_vector[2], 0.0f);
+		}
+		else {
+			// Otherwise, choose x and y components directly
+			arbitrary = Vec3(seed_vector[0], seed_vector[1], 0.0f);
+		}
 
 		Vec3 Q1 = normalized(cross(seed_vector, arbitrary));  // Ensure perpendicularity
 		Vec3 Q2 = normalized(cross(seed_vector, Q1));
@@ -312,14 +324,14 @@ struct demo : public traj_format_handler<float>
 	}
 	static std::pair<Vec3, Vec3> gen_random_tensor(const noise_function& noise, std::mt19937& generator)
 	{
-		std::normal_distribution<float> norm_dist(0.1f, 0.25f);
-		std::uniform_real_distribution<float> pos_dist(0.01f, 1.5f);
+		std::uniform_real_distribution<float> pos_dist(0.0f, 1.0f);
+		std::normal_distribution<float> value_dist(0.1f, 0.05f);
 
 		// Generate random eigenvalues
-		Vec3 eigenvalues(pos_dist(generator), pos_dist(generator), pos_dist(generator));
+		Vec3 eigenvalues(value_dist(generator), value_dist(generator), value_dist(generator));
 
 		// Construct a random orthonormal basis
-		Vec3 dir = normalized(Vec3(norm_dist(generator), norm_dist(generator), norm_dist(generator)));
+		Vec3 dir = normalized(Vec3(pos_dist(generator), pos_dist(generator), pos_dist(generator)));
 		
 		return { eigenvalues, dir };
 	}
@@ -327,6 +339,10 @@ struct demo : public traj_format_handler<float>
 	{
 		std::uniform_real_distribution<float> period_dist(2.0f, 5.0f);  // Random cycle length
 		std::normal_distribution<float> perturb_dist(0.0f, 0.05f);  // Small perturbations
+		std::uniform_real_distribution<float> pos_dist(0.0f, 0.5f);
+
+		/*if (prev_eigenvalues[0] == 1.0f || prev_eigenvalues[1] == 1.0f || prev_eigenvalues[2] == 1.0f)
+			std::cout << "" << std::endl;*/
 
 		// Generate a random period per eigenvalue
 		static Vec3 random_periods = { period_dist(generator), period_dist(generator), period_dist(generator) };
@@ -337,15 +353,15 @@ struct demo : public traj_format_handler<float>
 			float oscillation = sin((2 * M_PI / random_periods[i]) * t) * perturb_dist(generator);
 			new_eigenvalues[i] = std::max(prev_eigenvalues[i] + oscillation, 0.05f);
 		}
-		Vec3 random_rotation = Vec3(perturb_dist(generator), perturb_dist(generator), perturb_dist(generator));
+		Vec3 random_rotation = Vec3(pos_dist(generator), pos_dist(generator), pos_dist(generator));
 		const Vec3 new_seed_vector = normalized(prev_seed_vector + 0.05f * random_rotation);
 
 		return { new_eigenvalues, new_seed_vector};
 	}
 	static std::pair<Vec3, Vec3> gen_tensor_perturbation(float t, const Vec3& prev_eigenvalues, const Vec3& prev_seed_vector, const noise_function& noise, std::mt19937& generator)
 	{
-		std::normal_distribution<float> perturb_dist(0.0f, 0.05f);
-		std::uniform_real_distribution<float> pos_dist(0.01f, 0.5f);
+		std::normal_distribution<float> perturb_dist(0.0f, 0.01f);
+		std::uniform_real_distribution<float> pos_dist(0.00f, 0.5f);
 
 		const Vec3 new_eigenvalues = {
 			std::max(prev_eigenvalues[0] + perturb_dist(generator), 0.05f),
@@ -431,21 +447,6 @@ struct demo : public traj_format_handler<float>
 			traj.radii.emplace_back(radius);
 			traj.colors.emplace_back(0.75f, 0.8f, 0.9f);
 
-			//THESIS:
-			/*
-			mat3 tensor = mat3(
-				(2.0, 1.0, 0.0), //first column
-				(1.0, 3.0, 1.0),
-				(0.0, 1.0, 2.0)
-			);
-			*/
-			/*for (uint32_t j = 0; j < 10; j++)
-			{
-				traj.attrib_tensor3x3.emplace_back(((float)i - 1.0f) + (float)j/10.0f, attrib_tensor3x3);
-			}*/
-			//traj.attrib_tensor3x3.emplace_back((float)i, gen_diffusion_tensor_world_oriented(generator, pos));
-
-			// iterate
 			dir = newdir;
 		}	
 
@@ -614,17 +615,12 @@ struct demo : public traj_format_handler<float>
 				cgv::math::fmat<float, 3, 3> eigenvectors;
 				cgv::math::fvec<float, 3> eigenvalues;
 				JacobiEigen::JacobiEigen(matCopy, eigenvectors, eigenvalues);
-				//JacobiEigen::PrintMatrix(matCopy);
 				cgv::math::fvec<float, 3> angles;
 				JacobiEigen::NormalizeEigenvectors(eigenvectors);
-				eigenvalues.normalize();
+				//eigenvalues.normalize();
 				JacobiEigen::CalculateAnglesFromEigenVectors(eigenvectors, angles);
 				const auto& eigen_quat = JacobiEigen::CalculateQuaternionFromEigenVectors(eigenvectors);
 				//JacobiEigen::PrintQuaternion(eigen_quat);
-				/*for (uint32_t i = 0; i < 3; i++)
-				{
-					std::printf("Eigenvalue %i: %f; Eigenvector: (%f, %f, %f)\n", i, eigenvalues[i], eigenvectors(i, 0), eigenvectors(i, 1), eigenvectors(i, 2));
-				}*/
 
 				attrib_Radius.data.append(eigenvalues[0], attrib.t);
 				attrib_Radius2.data.append(eigenvalues[1], attrib.t);

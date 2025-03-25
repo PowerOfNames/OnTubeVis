@@ -41,7 +41,7 @@ protected:
 
 	std::shared_ptr<const visualization_variables_info> visualization_variables;
 	//THESIS2:
-	std::unordered_map<uint32_t, uint32_t> mapped_glyph_attrib_idx_to_possible_attrib_idx;
+	std::unordered_map<uint32_t, uint32_t> mapped_glyph_attrib_idx_to_possible_attrib_idx; //figured out later, that atrib_source_indices seems to be what I needed
 
 	AttributeSamplingStrategy sampling_strategy = ASS_AT_SAMPLES;
 	AttributeSamplingStrategy last_non_3D_sampling_strategy = sampling_strategy;
@@ -164,6 +164,8 @@ public:
 				const vec2& range = visualization_variables->ref_attribute_ranges()[attrib_idx];
 				attrib_mapping_values[i].x() = range.x();
 				attrib_mapping_values[i].y() = range.y();
+				//THESIS2:
+				mapped_glyph_attrib_idx_to_possible_attrib_idx[i] = attrib_idx;
 			}
 		}
 	}
@@ -173,7 +175,7 @@ public:
 	void create_glyph3D_gui(cgv::base::base* bp, cgv::gui::provider& p);
 
 	void set_attrib_source_index(size_t attrib_idx, int source_idx) {
-		if(attrib_idx < attrib_source_indices.size())
+		if (attrib_idx < attrib_source_indices.size())		
 			attrib_source_indices[attrib_idx] = int_to_dummy_enum(source_idx);
 	}
 

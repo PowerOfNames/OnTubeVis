@@ -575,9 +575,7 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		
-		//HACK: this should be dependent on the radius, but there is no guarantie, radius is set
-		int32_t size_idx = get_attrib_index("size_scaling");
+		static int32_t size_idx = get_attrib_index("radius_x") - 1; //-1 because color
 		return param_values[size_idx] * 2.0f;
 	}
 };
@@ -608,9 +606,9 @@ public:
 		return attributes;
 	}
 
-	virtual float get_size(const std::vector<float>& param_values) const {		
-		//HACK: this should be dependent on the magnitude, but there is no way to determine the index of the magnitude
-		int32_t size_idx = get_attrib_index("size_scaling");
+	virtual float get_size(const std::vector<float>& param_values) const {
+		//magnitude in two directions should do the trick (max extent would be one glyph parallel to tube tangent, the next coparallel)
+		static int32_t size_idx = get_attrib_index("magnitude") -1;
 		return param_values[size_idx] * 2.0f;
 	}
 };
@@ -640,7 +638,7 @@ public:
 			{ "ori_i", GAT_SIGNED_UNIT },
 			{ "ori_j", GAT_SIGNED_UNIT },
 			{ "ori_k", GAT_SIGNED_UNIT },
-			{ "pitch", GAT_ANGLE }, //deprecated in Billboard approach, still used in the neighbour-problem approach
+			{ "pitch", GAT_ANGLE }, //deprecated in Billboard approach, still used in the neighbor-problem approach
 			{ "yaw", GAT_ANGLE },
 			{ "roll", GAT_ANGLE }
 		};
@@ -648,24 +646,16 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		//HACK: this should be dependent on the radii, but there is no way to determine which of the param_values the radii are
-		int32_t size_idx = get_attrib_index("size_scaling");
-		return param_values[size_idx] * 2.0f;
-
-		//int32_t size_idx_x = get_attrib_index("radius_x");
-		//int32_t size_idx_y = get_attrib_index("radius_y");
-		//int32_t size_idx_z = get_attrib_index("radius_z");
-		//if (size_idx_x == -1 ||
-		//	size_idx_y == -1 ||
-		//	size_idx_z == -1)
-		//	return -1.0f;
-		//
-		//uint32_t largestIdx = size_idx_x; // with 1, 2, 3 being the three ellipsoid radii
-		//if (param_values[largestIdx] < param_values[size_idx_y])
-		//	largestIdx = size_idx_y;
-		//if (param_values[largestIdx] < param_values[size_idx_z])
-		//	largestIdx = size_idx_z;
-		//return 2.0f * param_values[largestIdx];
+		static int32_t size_idx_x = get_attrib_index("radius_x") - 1;
+		static int32_t size_idx_y = get_attrib_index("radius_y") - 1;
+		static int32_t size_idx_z = get_attrib_index("radius_z") - 1;
+		
+		uint32_t largestIdx = size_idx_x; // with 1, 2, 3 being the three ellipsoid radii
+		if (param_values[largestIdx] < param_values[size_idx_y])
+			largestIdx = size_idx_y;
+		if (param_values[largestIdx] < param_values[size_idx_z])
+			largestIdx = size_idx_z;
+		return 2.0f * param_values[largestIdx];
 	}
 };
 

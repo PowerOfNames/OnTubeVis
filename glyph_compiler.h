@@ -238,6 +238,8 @@ protected:
 					}
 
 					float new_glyph_size = lci.current_shape->get_size(glyph_params);
+					if (new_glyph_size < 0.0f)
+						break;
 					new_glyph_size /= length_scale;
 
 					// infer potential glyph extents
@@ -294,11 +296,6 @@ protected:
 						attribs.add(s);
 						int debug_info = include_glyph ? 0 : 1;
 						attribs.add(*reinterpret_cast<float*>(&debug_info));
-
-						//THESIS2: Calculate the tube_space position of the glyph
-						//const vec3 glyph_pos_tube = { 1.0, 0.5, 1.0 };
-						//attribs.add(glyph_pos_tube);
-
 						std::copy(attrib_values.begin(), attrib_values.end(), std::back_inserter(attribs.data));
 					}
 

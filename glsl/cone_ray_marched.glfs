@@ -154,7 +154,7 @@ vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in 
 	float mid_height = 0.5 * height;
 
 	//should now be in unit cube space
-	vec3 hit_pos_glyph = (inv_cone_transform_fs * vec4(hit_pos, 1.0)).xyz - vec3(mid_height, 0.0, 0.0);	
+	vec3 hit_pos_glyph = (inv_cone_transform_fs * vec4(hit_pos, 1.0)).xyz;	
 	vec3 dir_glyph = normalize((inv_cone_transform_fs * vec4(dir, 0.0)).xyz);
 
 	//it all three directions are scaled, so the radius needs to be scaled down as well.
@@ -164,7 +164,7 @@ vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in 
 	float dist = 0.0;
 	while(i < RM_MAX_ITERATIONS)
 	{
-		dist = op_union(sd_cone(hit_pos_glyph, cone_slope, mid_height), sd_cylinder(hit_pos_glyph, mid_height, 0.5*radius_start));
+		dist = op_union(sd_cone(hit_pos_glyph - vec3(mid_height, 0.0, 0.0), cone_slope, mid_height), sd_cylinder(hit_pos_glyph + vec3(mid_height, 0.0, 0.0), mid_height, 0.5*radius_start));
 		lambda += dist;
 		// we hit -> calculate normal using finite difference gradient
 		if(abs(dist) <= RM_EPSILON)

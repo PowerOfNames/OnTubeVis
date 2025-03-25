@@ -1258,7 +1258,6 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 			cm_viewer_ptr->set_color_map_texture(&color_map_mgr.ref_texture());
 		}
 
-		visualization.manager.notify_configuration_change();
 
 		auto apply_setting = [this, &settings](const std::string& name, const std::string& target) {
 			auto it = settings.find(name);
@@ -1270,17 +1269,20 @@ bool on_tube_vis::read_layer_configuration(const std::string& file_name) {
 		apply_setting("ambient_occlusion", "ambient_occlusion");
 		
 		update_tube_ribbon_toggle();
+		
+
+
 
 		//THESIS:
 		apply_setting("glyph_dimension", "glyph_dimension");
 		//THESIS:
 		update_glyph_dimension_toggle();
 		//THESIS2:
-		apply_setting("glyph_method", "render.style3D.glyph_method");
+		apply_setting("glyph_method", "glyph_method");
 		//THESIS2:
 		update_glyph_method_toggle();
 
-		
+		visualization.manager.notify_configuration_change();
 		
 		return true;
 	}
@@ -1533,8 +1535,8 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	{
 		case GT_3D_SPHERE:
 		{
-			if (radius_idx == 0) 
-				return;
+			//if (radius_idx == 0) 
+			//	return;
 			break;
 		}
 		case GT_3D_CONE_VECTOR:
@@ -1554,7 +1556,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 
 
 	//clamp_remap quick access
-	const auto clamp_remap = [this](float v, const on_tube_vis::vec4& r) {
+	static const auto clamp_remap = [this](float v, const on_tube_vis::vec4& r) {
 		v = cgv::math::clamp(v, r.x(), r.y());
 		float t = 0.0f;
 		if (abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
@@ -1592,7 +1594,8 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 				{
 					case GT_3D_SPHERE:
 					{
-						spheres.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
+						const auto pos = hermites[ds_index_buffer_base + global_segment_idx].interpolate(t);
+						spheres.add_position(pos);
 						spheres.add_radius(clamp_remap(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v)));
 						spheres.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
 						break;
@@ -1669,8 +1672,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	constexpr unsigned num_trajectories = 10;
 	constexpr unsigned num_nodes = 32;
 #else
-	constexpr unsigned num_trajectories = 1024; // 1
-	constexpr unsigned num_nodes = 128; // 32
+	constexpr unsigned num_trajectories = 100; // 1
+	constexpr unsigned num_nodes = 10; // 32
 #endif
 	for (unsigned i=0; i < num_trajectories; i++)
 		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));
@@ -1748,7 +1751,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	debug.geometry.segments.init(ctx);
 
 	// enable ambient occlusion
-	ao_style.enable = true;
+	ao_style.enable = false;
 
 	// init data-dependent render state
 	update_attribute_bindings();
@@ -3559,7 +3562,6 @@ void on_tube_vis::draw_tube_back_glyphs3D(context& ctx)
 		prog.set_uniform(ctx, "viewport_width", (float)ctx.get_width());
 		const auto fb_size = fbc.get_size();
 		prog.set_uniform(ctx, "framebuf_width", (float)fb_size.x());
-
 		
 		fbc.enable_attachment(ctx, "albedo", 0);
 		fbc.enable_attachment(ctx, "position", 1);

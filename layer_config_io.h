@@ -390,7 +390,22 @@ public:
 		if(doc.LoadFile(file_name.c_str()) != tinyxml2::XML_SUCCESS)
 			return false;
 
-		cgv::xml::FindElementByNameVisitor findElementByName("ColorMaps");
+
+		cgv::xml::FindElementByNameVisitor findElementByName("Settings");
+		doc.Accept(&findElementByName);
+
+		settings.clear();
+
+		if (auto settings_elem = findElementByName.Result()) {
+			auto setting_elem = settings_elem->FirstChildElement();
+
+			while (setting_elem) {
+				extract_setting(*setting_elem, settings);
+				setting_elem = setting_elem->NextSiblingElement();
+			}
+		}
+
+		findElementByName.SetQueryName("ColorMaps");
 		doc.Accept(&findElementByName);
 
 		if(auto color_maps_elem = findElementByName.Result())
@@ -410,21 +425,7 @@ public:
 				extract_layer(*layer_elem, glyph_layer_mgr, visualization_variables->ref_attribute_names(), color_map_names);
 				layer_elem = layer_elem->NextSiblingElement();
 			}
-		}
-
-		findElementByName.SetQueryName("Settings");
-		doc.Accept(&findElementByName);
-
-		settings.clear();
-
-		if(auto settings_elem = findElementByName.Result()) {
-			auto setting_elem = settings_elem->FirstChildElement();
-
-			while(setting_elem) {
-				extract_setting(*setting_elem, settings);
-				setting_elem = setting_elem->NextSiblingElement();
-			}
-		}
+		}		
 
 		return true;
 	}

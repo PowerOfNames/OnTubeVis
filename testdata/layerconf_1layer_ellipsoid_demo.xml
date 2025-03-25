@@ -1,16 +1,16 @@
 <GlyphConfiguration>
     <ColorMaps/>
     <Layers>
-        <Layer name="Circle" active="true" glyph="ellipsoid3x3tensor" sampling="3dGlyph" sampling_step="1.000000">
+        <Layer name="Ellispoid" active="true" glyph="ellipsoid3x3tensor" sampling="3dGlyph" sampling_step="1.000000">
             <Property name="size_scaling" value="1.000000" out_range="0 1"/>
             <Property name="color" color="0 0 0" in_range="0 1" out_range="0 1"/>
-            <Property name="radius_x" attrib_name="radius_x" in_range="0.457084 0.973809" out_range="0 1"/>
-            <Property name="radius_y" attrib_name="radius_y" in_range="-0.234811 0.651636" out_range="0 1"/>
-            <Property name="radius_z" attrib_name="radius_z" in_range="-0.824799 0.494388" out_range="0 1"/>
-            <Property name="ori_w" attrib_name="ori_w" in_range="-0.660425 0.764877"/>
-            <Property name="ori_i" attrib_name="ori_i" in_range="-0.600101 0.651688"/>
-            <Property name="ori_j" attrib_name="ori_j" in_range="-0.599556 0.724335"/>
-            <Property name="ori_k" attrib_name="ori_k" in_range="-0.599556 0.724335"/>
+            <Property name="radius_x" attrib_name="radius_x" in_range="0.05 1.449" out_range="0 1"/>
+            <Property name="radius_y" attrib_name="radius_y" in_range="0.05 0.911" out_range="0 1"/>
+            <Property name="radius_z" attrib_name="radius_z" in_range="0.038 0.515894" out_range="0 1"/>
+            <Property name="ori_w" attrib_name="ori_w" in_range="-0.594 0.707"/>
+            <Property name="ori_i" attrib_name="ori_i" in_range="-0.657514 0.651688"/>
+            <Property name="ori_j" attrib_name="ori_j" in_range="-0.691 0.96189"/>
+            <Property name="ori_k" attrib_name="ori_k" in_range="-0.691 0.96189"/>
             <Property name="pitch" in_range="0 1" out_range="0 360"/>
             <Property name="yaw" in_range="0 1" out_range="0 360"/>
             <Property name="roll" in_range="0 1" out_range="0 360"/>

@@ -32,7 +32,7 @@ namespace cgv {
 			use_curvature_correction = true;
 			length_scale = 1.0f;
 			antialias_radius = 0.5f;
-			cap_clip_distance = 20.0f;
+			cap_clip_distance = 100.0f;
 			max_t = std::numeric_limits<float>::infinity();
 
 			rcribbon.linearity_thr = .015625f;
