@@ -8,7 +8,7 @@
         </Layer>
     </Layers>
     <Settings>
-        <Setting name="ambient_occlusion" value="false"/>
+        <Setting name="ambient_occlusion" value="true"/>
         <Setting name="glyph_dimension" value="GD_3D"/>
         <Setting name="glyph_method" value="GM_BILLBOARD_PIPELINE"/>
         <Setting name="line_primitve" value="LP_TUBE_RUSSIG"/>

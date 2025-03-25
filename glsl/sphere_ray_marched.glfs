@@ -31,8 +31,12 @@ in Sphere_RMF {
 	vec4 pos_radius;
 }srmf;
 
+
+uniform float radius_scale = 1.0;
 uniform float morph_sin_factor = 20.0;
 uniform int culling_mode = 0;
+
+
 
 layout (binding = 0) uniform sampler2D color_maps_tex;
 uniform vec4 glyph_cc_param = vec4(0.0, 1.0, 0.0, 1.0);
@@ -128,10 +132,10 @@ vec3 normal_fdg_for_morph_sin(in vec3 glyph_pos, in vec3 pos, in float bounding_
 {	
 	vec3 hit_pos_plus = pos + RM_FDG_DELTA;
 	vec3 hit_pos_minus = pos - RM_FDG_DELTA;
-	
-	float dx = sd_sphere(vec3(hit_pos_plus.x, pos.yz), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(hit_pos_plus.x, pos.yz), bounding_dist, factor) - sd_sphere(vec3(hit_pos_minus.x, pos.yz), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(hit_pos_minus.x, pos.yz), bounding_dist, factor);
-	float dy = sd_sphere(vec3(pos.x, hit_pos_plus.y, pos.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_plus.y, pos.z), bounding_dist, factor) - sd_sphere(vec3(pos.x, hit_pos_minus.y, pos.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_minus.y, pos.z), bounding_dist, factor);
-	float dz = sd_sphere(vec3(pos.xy, hit_pos_plus.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_plus.z), bounding_dist, factor) - sd_sphere(vec3(pos.xy, hit_pos_minus.z), 1.0, srmf.pos_radius.w) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_minus.z), bounding_dist, factor);
+	float true_r = srmf.pos_radius.w;
+	float dx = sd_sphere(vec3(hit_pos_plus.x, pos.yz), 1.0, true_r) + morph_sin(glyph_pos, vec3(hit_pos_plus.x, pos.yz), bounding_dist, factor) - sd_sphere(vec3(hit_pos_minus.x, pos.yz), 1.0, true_r) + morph_sin(glyph_pos, vec3(hit_pos_minus.x, pos.yz), bounding_dist, factor);
+	float dy = sd_sphere(vec3(pos.x, hit_pos_plus.y, pos.z), 1.0, true_r) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_plus.y, pos.z), bounding_dist, factor) - sd_sphere(vec3(pos.x, hit_pos_minus.y, pos.z), 1.0, true_r) + morph_sin(glyph_pos, vec3(pos.x, hit_pos_minus.y, pos.z), bounding_dist, factor);
+	float dz = sd_sphere(vec3(pos.xy, hit_pos_plus.z), 1.0, true_r) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_plus.z), bounding_dist, factor) - sd_sphere(vec3(pos.xy, hit_pos_minus.z), 1.0, true_r) + morph_sin(glyph_pos, vec3(pos.xy, hit_pos_minus.z), bounding_dist, factor);
 
 	return normalize(vec3(dx, dy, dz));
 }
@@ -150,7 +154,7 @@ vec3 ray_march(in out vec3 pos_eye, in out vec3 normal_eye, in out vec2 splat_tc
 	vec3 glyph_position_world = srmf.pos_radius.xyz;
 	vec3 pos_glyph = (get_inverse_modelview_matrix() * vec4(pos_eye, 1.0)).xyz - glyph_position_world;
 	// bounding_dist is the distance from the glyph center to the bounding shape at the hit position -> used to enforce sub-surface morphing
-	float bounding_dist = length(pos_glyph);
+	float bounding_dist = length(pos_glyph) / radius_scale;
 	vec3 dir_world = normalize(get_inverse_normal_matrix() * pos_eye);
 
 

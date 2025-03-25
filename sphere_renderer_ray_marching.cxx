@@ -31,7 +31,7 @@ namespace cgv {
 			//Ray marching defines:
 			rm.epsilon = 0.003f;
 			rm.max_iterations = 30;
-			rm.fdg_delta = 0.05f;
+			rm.fdg_delta = 0.5f;
 			rm.show_bounding = false;
 
 			glyph_color_mapping = vec4(0.0f, 0.1f, 0.0f, 0.1f);

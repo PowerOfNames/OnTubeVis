@@ -55,7 +55,7 @@ void main()
 	// compute sphere color
 	vo.color = group_color(color, group_index);
 	// output sphere parameter space for geometry shader
-	srm.pos_radius = vec4(position.xyz, radius);
+	srm.pos_radius = vec4(position.xyz, radius * radius_scale);
 	gl_Position = position;
 	gl_Position.xyz = gl_Position.xyz / gl_Position.w;
 	gl_Position.w = radius_scale * radius;
