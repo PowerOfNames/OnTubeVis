@@ -44,6 +44,7 @@ in flat mat4 inv_cone_transform_fs;
 
 layout (binding = 0) uniform sampler2D color_maps_tex;
 uniform vec4 glyph_cc_param;
+uniform float radius_scale;
 
 layout(location = 1) out vec4 frag_position;
 layout(location = 2) out vec3 frag_normal;
@@ -137,7 +138,7 @@ float sd_cone(vec3 pos, vec2 c, float height )
 
 vec3 normal_cone(vec3 pos, vec2 c, float height)
 {
-	if(pos.x<=-height)
+	if(pos.x>=0.0)
 		return vec3(-1.0, 0.0, 0.0);
 	return normalize(vec3(-pos.x+c.y, pos.yz));
 }
@@ -154,7 +155,7 @@ vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in 
 	float mid_height = 0.5 * height;
 
 	//should now be in unit cube space
-	vec3 hit_pos_glyph = (inv_cone_transform_fs * vec4(hit_pos, 1.0)).xyz;	
+	vec3 hit_pos_glyph = (inv_cone_transform_fs * vec4(hit_pos, 1.0)).xyz;
 	vec3 dir_glyph = normalize((inv_cone_transform_fs * vec4(dir, 0.0)).xyz);
 
 	//it all three directions are scaled, so the radius needs to be scaled down as well.
@@ -202,15 +203,21 @@ void main()
 	vec3 normal;
 	float l;
 
+	//THESIS2: workaround to be able to just render a cone OR an arrow head
+	#if COMP_ARROW == 1
+	float t = intersect_cone(org, dir, start_fs.xyz, end_fs.xyz, color_start_fs.w * radius_scale, color_end_fs.w * radius_scale, normal, l);
+	#else
 	float t = intersect_cone(org, dir, start_fs.xyz, end_fs.xyz, start_fs.w, end_fs.w, normal, l);
+	#endif
+
 	vec3 hit_pos = org + t * dir;
 	if(t >= 0.0)
 	{
 		vec4 color;	
-		#if COMP_ARROW == 0
+		#if COMP_ARROW == 1
 			color = vec4(ray_march(hit_pos, dir, start_fs.xyz, end_fs.xyz, start_fs.w, end_fs.w, normal, t), 1.0);
 		#else
-			color = mix(color_start_fs, color_end_fs, l);
+			color = vec4(map_to_color(clamp_remap(color_start_fs.x, glyph_cc_param), int(color_start_fs.y)), 1.0);
 		#endif
 
 		vec3 hit_pos_eye = (get_modelview_matrix() * vec4(hit_pos, 1.0)).xyz;

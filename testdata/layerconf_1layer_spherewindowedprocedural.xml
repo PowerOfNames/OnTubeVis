@@ -1,0 +1,16 @@
+<GlyphConfiguration>
+    <ColorMaps/>
+    <Layers>
+        <Layer name="Circle" active="true" glyph="sphere" sampling="3dGlyph" sampling_step="1.000000">
+            <Property name="size_scaling" value="0.200000" out_range="0 0.2"/>
+            <Property name="color" attrib_name="scalar" color_map_name="bilbao" in_range="-0.535 0.536109" out_range="0 1"/>
+            <Property name="radius" attrib_name="scalar" in_range="-0.551171 0.551084" out_range="0.5 0.9"/>
+        </Layer>
+    </Layers>
+    <Settings>
+        <Setting name="ambient_occlusion" value="false"/>
+        <Setting name="glyph_dimension" value="GD_3D"/>
+        <Setting name="glyph_method" value="GM_TUBE_SURFACE_PIPELINE"/>
+        <Setting name="line_primitve" value="LP_TUBE_RUSSIG"/>
+    </Settings>
+</GlyphConfiguration>

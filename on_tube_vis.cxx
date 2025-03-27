@@ -1490,29 +1490,29 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 			default: break;
 		}
 
-	const auto radius_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const auto radius_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t radius_idx = radius_idcs.first;
 	const auto& mapping_radius = mapping[radius_idcs.second];
 
-	const auto radius2_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const auto radius2_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_2", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t radius2_idx = radius2_idcs.first;
 	const auto& mapping_radius2 = mapping[radius2_idcs.second];
 
-	const auto radius3_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_z", layer_config.shape_ptr, last_nonmapped_attrib_idx);
+	const auto radius3_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "radius_3", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t radius3_idx = radius3_idcs.first;
 	const auto& mapping_radius3 = mapping[radius3_idcs.second];
 
 	const auto vec_x_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_x", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t vec_x_idx = vec_x_idcs.first;
-	//const auto& mapping_vec_x = mapping[vec_x_idcs.second];
+	const auto& mapping_vec_x = mapping[vec_x_idcs.second];
 
 	const auto vec_y_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_y", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t vec_y_idx = vec_y_idcs.first;
-	//const auto& mapping_vec_y = mapping[vec_y_idcs.second];
+	const auto& mapping_vec_y = mapping[vec_y_idcs.second];
 
 	const auto vec_z_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "vec_z", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t vec_z_idx = vec_z_idcs.first;
-	//const auto& mapping_vec_z = mapping[vec_z_idcs.second];
+	const auto& mapping_vec_z = mapping[vec_z_idcs.second];
 
 	const auto vec_mag_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "magnitude", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t vec_mag_idx = vec_mag_idcs.first;
@@ -1533,39 +1533,32 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 	const auto orientation_k_idcs = find_buffer_idx(glyph_attrib_idx_to_buffer_idx, "ori_k", layer_config.shape_ptr, last_nonmapped_attrib_idx);
 	const uint32_t orientation_k_idx = orientation_k_idcs.first;
 	//const auto& mapping_ori_k = mapping[orientation_k_idcs.second];
-	
-	//Hack: Only render glyphs if all configurations were done (in the future they should be replaced with reasonable default values)
+
+
 	switch (glyph_type)
 	{
-		case GT_3D_SPHERE:
-		{
-			/*if (radius_idx == 0)
-				return;*/
-			break;
-		}
-		case GT_3D_CONE_VECTOR:
-		{
-			/*if (vec_mag_idx == 0 || vec_x_idx == 0 || vec_y_idx == 0 || vec_z_idx == 0)
-				return;*/
-			break;
-		}
-		case GT_3D_ELLIPSOID_3x3_TENSOR:
-		{
-			/*if (radius_idx == 0 || radius2_idx == 0 || radius3_idx == 0 || orientation_w_idx == 0 || orientation_i_idx == 0 || orientation_j_idx == 0 || orientation_k_idx == 0)
-				return;*/
-			break;
-		}
-		default: return;
+		case GT_3D_SPHERE: break;
+		case GT_3D_CONE_VECTOR: break;
+		case GT_3D_ELLIPSOID_3x3_TENSOR: break;
+		default: break;
 	}
 
 
 	//clamp_remap quick access
-	static const auto clamp_remap = [this](float v, const on_tube_vis::vec4& r) {
+	/*static const auto clamp_remap = [this](float v, const on_tube_vis::vec4& r) {
 		v = cgv::math::clamp(v, r.x(), r.y());
 		float t = 0.0f;
 		if (abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
 			t = (v - r.x()) / (r.y() - r.x());
 		return cgv::math::lerp(r.z(), r.w(), t);
+		};*/
+
+	static const auto clamp_remap_no_zero = [this](float v, const on_tube_vis::vec4& r) {
+		v = cgv::math::clamp(v, r.x(), r.y());
+		float t = 0.0f;
+		if (abs(r.x() - r.y()) > std::numeric_limits<float>::epsilon())
+			t = (v - r.x()) / (r.y() - r.x());
+		return cgv::math::lerp(r.z() <= 0.0 ? 0.01f : r.z(), r.w() <= 0.0f ? 0.01f : r.w(), t);
 		};
 
 	// ---- hardcoded section end
@@ -1610,7 +1603,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 					{
 						const auto pos = hermites[ds_index_buffer_base + global_segment_idx].interpolate(t);
 						spheres.add_position(pos);
-						spheres.add_radius(clamp_remap(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v)));
+						spheres.add_radius(clamp_remap_no_zero(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v)));
 						spheres.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
 						break;
 					}
@@ -1618,9 +1611,9 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 					{
 						ellipsoids.add_position(hermites[ds_index_buffer_base + global_segment_idx].interpolate(t));
 						ellipsoids.add_size({
-							clamp_remap(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v)),
-							clamp_remap(attribs.data[attrib_base_idx + radius2_idx], *(mapping_radius2.v)),
-							clamp_remap(attribs.data[attrib_base_idx + radius3_idx], *(mapping_radius3.v))
+							clamp_remap_no_zero(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v)),
+							clamp_remap_no_zero(attribs.data[attrib_base_idx + radius2_idx], *(mapping_radius2.v)),
+							clamp_remap_no_zero(attribs.data[attrib_base_idx + radius3_idx], *(mapping_radius3.v))
 						});
 						ellipsoids.add_orientation({
 							attribs.data[attrib_base_idx + orientation_w_idx],
@@ -1642,13 +1635,14 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 						);
 						vec3 normalized_scaled_v = v;
 						normalized_scaled_v.safe_normalize();
-						normalized_scaled_v *= clamp_remap(attribs.data[attrib_base_idx + vec_mag_idx], *(mapping_vec_mag.v));
+						normalized_scaled_v *= clamp_remap_no_zero(attribs.data[attrib_base_idx + vec_mag_idx], *(mapping_vec_mag.v));
 						const vec3 start_pos = pos;
 						const vec3 end_pos = pos + normalized_scaled_v;
 						cones.add(start_pos, end_pos);
-						cones.add(0.02f, 0.02f);
-						cones.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
-						cones.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
+						const float radius = clamp_remap_no_zero(attribs.data[attrib_base_idx + radius_idx], *(mapping_radius.v));
+						cones.add(radius, 0.0f);
+						cones.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, radius, 0.0f });
+						cones.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, radius, 0.0f });
 
 						break;
 					}
@@ -1690,8 +1684,8 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	constexpr unsigned num_trajectories = 2;
 	constexpr unsigned num_nodes = 4;
 #else
-	constexpr unsigned num_trajectories = 10; // 1
-	constexpr unsigned num_nodes = 10; // 32
+	constexpr unsigned num_trajectories = 100; // 1
+	constexpr unsigned num_nodes = 100; // 32
 #endif
 	for (unsigned i=0; i < num_trajectories; i++)
 		dataset.demo_trajs.emplace_back(demo::gen_trajectory(num_nodes, seed+i));

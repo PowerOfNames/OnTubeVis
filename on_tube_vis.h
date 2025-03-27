@@ -582,7 +582,7 @@ protected:
 
 		double far_extent_factor = 0.8;
 		double near_extent_factor = 0.3;
-		bool near_view = false;
+		bool near_view = true;
 	} debug;
 
 	/// misc state needed for handling all kinds of user interaction (like "smart" convenience toggles)

@@ -569,13 +569,13 @@ public:
 		static const attribute_list attributes = {
 			{ "size_scaling", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START},
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius_x", GAT_SIZE },
+			{ "radius", GAT_SIZE },
 		};
 		return attributes;
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		static int32_t size_idx = get_attrib_index("radius_x") - 1; //-1 because color
+		static int32_t size_idx = get_attrib_index("radius") - 1; //-1 because color
 		return param_values[1] * 2.0f;
 	}
 };
@@ -601,7 +601,8 @@ public:
 			{ "magnitude", GAT_SIZE },
 			{ "vec_x", GAT_SIGNED_UNIT },
 			{ "vec_y", GAT_SIGNED_UNIT },
-			{ "vec_z", GAT_SIGNED_UNIT }
+			{ "vec_z", GAT_SIGNED_UNIT },
+			{ "radius", GAT_SIZE },
 		};
 		return attributes;
 	}
@@ -631,9 +632,9 @@ public:
 		static const attribute_list attributes = {
 			{ "size_scaling", GAT_SIZE, GAM_GLOBAL, GH_GLOBAL_BLOCK_START},
 			{ "color", GAT_COLOR, GH_BLOCK_START },
-			{ "radius_x", GAT_SIZE },
-			{ "radius_y", GAT_SIZE },
-			{ "radius_z", GAT_SIZE },
+			{ "radius", GAT_SIZE },
+			{ "radius_2", GAT_SIZE },
+			{ "radius_3", GAT_SIZE },
 			{ "ori_w", GAT_SIGNED_UNIT },
 			{ "ori_i", GAT_SIGNED_UNIT },
 			{ "ori_j", GAT_SIGNED_UNIT },
@@ -646,9 +647,9 @@ public:
 	}
 
 	virtual float get_size(const std::vector<float>& param_values) const {
-		static int32_t size_idx_x = get_attrib_index("radius_x") - 1;
-		static int32_t size_idx_y = get_attrib_index("radius_y") - 1;
-		static int32_t size_idx_z = get_attrib_index("radius_z") - 1;
+		static int32_t size_idx_x = get_attrib_index("radius") - 1;
+		static int32_t size_idx_y = get_attrib_index("radius_2") - 1;
+		static int32_t size_idx_z = get_attrib_index("radius_3") - 1;
 		
 		uint32_t largestIdx = size_idx_x; // with 1, 2, 3 being the three ellipsoid radii
 		if (param_values[largestIdx] < param_values[size_idx_y])
@@ -704,7 +705,7 @@ struct glyph_type_registry {
 			"line_plot",
 			"temporal_heat_map",
 			"sphere",
-			"cone_vector",
+			"cone",
 			"ellipsoid_3x3_tensor"
 		};
 
@@ -726,7 +727,7 @@ struct glyph_type_registry {
 			"Line Plot",
 			"Temporal Heat Map",
 			"Sphere",
-			"Cone Vector",
+			"Cone",
 			"Ellipsoid Tensor3x3"
 		};
 
@@ -803,7 +804,7 @@ struct glyph_type_registry {
 	static std::vector<std::string> names3D() {
 		static const std::vector<std::string> n = {
 			"sphere",
-			"cone vector",
+			"cone",
 			"ellipsoid3x3tensor"
 		};
 
@@ -812,7 +813,7 @@ struct glyph_type_registry {
 	static std::vector<std::string> display_names3D() {
 		static const std::vector<std::string> n3D = {
 			"Sphere",
-			"Cone Vector",
+			"Cone",
 			"Ellipsoid Tensor3x3"
 		};
 

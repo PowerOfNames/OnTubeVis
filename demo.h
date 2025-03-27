@@ -298,8 +298,7 @@ struct demo : public traj_format_handler<float>
 	static Mat33 gen_tensor_from_eigenvalues_and_seed_vector(const Vec3& eigenvalues, const Vec3& seed_vector)
 	{
 		// Pick an arbitrary vector that’s *not* parallel to dir
-		Vec3 arbitrary = abs(seed_vector[0]) > 0.9f ? Vec3(0.0f, 1.0f, 0.0f) : Vec3(1.0f, 0.0f, 0.0f);
-
+		Vec3 arbitrary = abs(seed_vector[0]) > abs(seed_vector[1]) ? Vec3(-seed_vector[1], seed_vector[0], 0.0f) : Vec3(0.0f, -seed_vector[2], seed_vector[1]);
 		Vec3 Q1 = normalized(cross(seed_vector, arbitrary));  // Ensure perpendicularity
 		Vec3 Q2 = normalized(cross(seed_vector, Q1));
 

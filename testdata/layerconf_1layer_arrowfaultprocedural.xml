@@ -1,0 +1,20 @@
+<GlyphConfiguration>
+    <ColorMaps/>
+    <Layers>
+        <Layer name="Circle" active="true" glyph="cone" sampling="3dGlyph" sampling_step="1.000000">
+            <Property name="size_scaling" value="1.000000" out_range="0 1"/>
+            <Property name="color" attrib_name="scalar" color_map_name="bilbao" in_range="-0.550823 0.550976" out_range="0 1"/>
+            <Property name="magnitude" attrib_name="scalar" in_range="-0.550823 0.550976" out_range="0.5 0.9"/>
+            <Property name="vec_x" attrib_name="scalar1" in_range="-0.550748 0.550467"/>
+            <Property name="vec_y" attrib_name="scalar2" in_range="-0.550926 0.550137"/>
+            <Property name="vec_z" attrib_name="scalar3" in_range="-0.546935 0.545434"/>
+            <Property name="radius" in_range="0 1" out_range="0 1"/>
+        </Layer>
+    </Layers>
+    <Settings>
+        <Setting name="ambient_occlusion" value="true"/>
+        <Setting name="glyph_dimension" value="GD_3D"/>
+        <Setting name="glyph_method" value="GM_BILLBOARD_PIPELINE"/>
+        <Setting name="line_primitve" value="LP_TUBE_RUSSIG"/>
+    </Settings>
+</GlyphConfiguration>

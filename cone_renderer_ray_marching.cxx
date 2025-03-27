@@ -22,7 +22,7 @@ namespace cgv {
 		cone_render_ray_marching_style::cone_render_ray_marching_style()
 		{
 			radius = 1.0f;
-			radius_scale = 1.0f;
+			radius_scale = 0.2f;
 
 			show_caps = true;
 			composite_arrow = false;
