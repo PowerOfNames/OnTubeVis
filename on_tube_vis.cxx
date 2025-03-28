@@ -1621,6 +1621,7 @@ void on_tube_vis::calculate_glyph3D_tube_space_positions(const traj_dataset<floa
 							attribs.data[attrib_base_idx + orientation_j_idx],
 							attribs.data[attrib_base_idx + orientation_k_idx]
 						});
+						ellipsoids.orientations.back().normalize();
 						ellipsoids.add_color({ attribs.data[attrib_base_idx + color_v_idx], (float)color_map_idx, 0.0f, 0.0f });
 						break;
 					}
@@ -3610,6 +3611,7 @@ void on_tube_vis::draw_glyphs3D(context& ctx)
 
 	if (render3D.glyphs.ellipsoids.size())
 		render3D.glyphs.ellipsoids.render(ctx, render3D.erm_style);
+
 	color_map_mgr.ref_texture().disable(ctx);
 
 }
