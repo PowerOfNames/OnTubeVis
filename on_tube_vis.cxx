@@ -1814,7 +1814,7 @@ bool on_tube_vis::init (cgv::render::context &ctx)
 	taa.set_fxaa_mix_factor(0.5f);
 
 	// use white background for paper screenshots
-	//ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
+	ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
 	////
 	// RTLola drone flight demo dataset map

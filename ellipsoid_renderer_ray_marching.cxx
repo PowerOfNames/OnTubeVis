@@ -157,7 +157,7 @@ namespace cgv {
 				cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
 				p->add_member_control(b, "Default Size", rs_ptr->size, "value_slider", "min=0.01;max=100;log=true;ticks=true");
-				p->add_member_control(b, "Size Scale", rs_ptr->size_scale, "value_slider", "min=0.01;max=100;log=true;ticks=true");
+				p->add_member_control(b, "Size Scale", rs_ptr->size_scale, "value_slider", "min=0.01;max=2.0;log=true;ticks=true");
 				
 				if (p->begin_tree_node("Ellipsoid Ray Marching Parameters", rs_ptr->rm, false)) {
 					p->align("\a");

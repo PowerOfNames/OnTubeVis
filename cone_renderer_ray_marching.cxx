@@ -162,7 +162,7 @@ namespace cgv {
 					p->end_tree_node(rs_ptr->rm);
 				}
 				p->add_member_control(b, "Default Radius", rs_ptr->radius, "value_slider", "min=0.001;step=0.0001;max=10.0;log=true;ticks=true");
-				p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=100.0;log=true;ticks=true");
+				p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;step=0.0001;max=2.0;log=true;ticks=true");
 
 				p->add_member_control(b, "Show Caps", rs_ptr->show_caps, "check");
 				p->add_member_control(b, "Composite Arrow", rs_ptr->composite_arrow, "check");

@@ -125,31 +125,41 @@ float intersect_cone(in vec3 org, in vec3 dir, in vec3 pa, in vec3 pb, in float 
 }
 
 
-float op_union( float d1, float d2 )
-{
+float op_union( float d1, float d2 , out bool d1_closer)
+{	
+	d1_closer = d1 <= d2;
     return min(d1,d2);
 }
 
-float sd_cone(vec3 pos, vec2 c, float height )
+float sd_cone(vec3 pos, vec2 c, float height, out vec3 normal )
 {
-  float q = length(pos.yz);
-  return max(dot(c.xy, vec2(q, pos.x)),-height-pos.x);
+	float q = length(pos.yz);
+	float d = dot(c.xy, vec2(q, pos.x));
+	if(pos.x >= -height)
+	{
+		vec2 inv_c = vec2(c.y,-c.x);
+		normal = normalize(vec3((d*inv_c).x, pos.yz));
+	}
+	else
+		normal = vec3(-1.0, 0.0, 0.0);
+
+	return max(d,-height-pos.x);
 }
 
-vec3 normal_cone(vec3 pos, vec2 c, float height)
+float sd_cylinder(vec3 pos, float height, float radius, out vec3 normal )
 {
-	if(pos.x>=0.0)
-		return vec3(-1.0, 0.0, 0.0);
-	return normalize(vec3(-pos.x+c.y, pos.yz));
+	if(pos.x >= height)
+		normal = vec3(1.0, 0.0, 0.0);
+	else if(pos.x <= -height)
+		normal = vec3(-1.0, 0.0, 0.0);
+	else
+		normal = normalize(vec3(0.0, pos.yz));
+
+	vec2 d = abs(vec2(length(pos.yz),pos.x)) - vec2(radius,height);
+	return min(max(d.x,d.y),0.0) + length(max(d,0.0));
 }
 
-float sd_cylinder(vec3 pos, float height, float radius )
-{
-  vec2 d = abs(vec2(length(pos.yz),pos.x)) - vec2(radius,height);
-  return min(max(d.x,d.y),0.0) + length(max(d,0.0));
-}
-
-vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in float radius_start, in float radius_end, out vec3 normal_glyph, in out float lambda)
+vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in float radius_start, in float radius_end, out vec3 normal, in out float lambda)
 {	
 	float height = length(end - start);
 	float mid_height = 0.5 * height;
@@ -157,21 +167,25 @@ vec3 ray_march(in out vec3 hit_pos, in vec3 dir, in vec3 start, in vec3 end, in 
 	//should now be in unit cube space
 	vec3 hit_pos_glyph = (inv_cone_transform_fs * vec4(hit_pos, 1.0)).xyz;
 	vec3 dir_glyph = normalize((inv_cone_transform_fs * vec4(dir, 0.0)).xyz);
-
+	vec3 normal_cone_glyph;
+	vec3 normal_cylinder_glyph;
 	//it all three directions are scaled, so the radius needs to be scaled down as well.
 	vec2 cone_slope = normalize(vec2(mid_height, radius_start));
 	int i = 0;
 	//Dist is 0 at the beginning, because we start at the general sphere surface coming from the ray cast result.
 	float dist = 0.0;
+	bool cone_hit;
 	while(i < RM_MAX_ITERATIONS)
 	{
-		dist = op_union(sd_cone(hit_pos_glyph - vec3(mid_height, 0.0, 0.0), cone_slope, mid_height), sd_cylinder(hit_pos_glyph + vec3(mid_height, 0.0, 0.0), mid_height, 0.5*radius_start));
+		
+		dist = op_union(sd_cone(hit_pos_glyph - vec3(mid_height, 0.0, 0.0), cone_slope, mid_height, normal_cone_glyph), sd_cylinder(hit_pos_glyph + vec3(mid_height, 0.0, 0.0), mid_height, 0.5*radius_start, normal_cylinder_glyph), cone_hit);
 		lambda += dist;
 		// we hit -> calculate normal using finite difference gradient
 		if(abs(dist) <= RM_EPSILON)
 		{	
 			hit_pos = (cone_transform_fs * vec4(hit_pos_glyph + vec3(mid_height, 0.0, 0.0), 1.0)).xyz;
-			normal_glyph = normalize((inv_cone_transform_fs * vec4(normal_cone(hit_pos_glyph, cone_slope, mid_height), 0.0)).xyz);			
+			vec3 normal_glyph = cone_hit ? normal_cone_glyph : normal_cylinder_glyph;
+			normal = normalize((cone_transform_fs * vec4(normal_glyph, 0.0)).xyz);			
 			//return normal_cone(hit_pos_glyph, cone_slope, mid_height);
 			return map_to_color(clamp_remap(color_start_fs.x, glyph_cc_param), int(color_start_fs.y));
 		}

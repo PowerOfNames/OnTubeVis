@@ -171,7 +171,7 @@ namespace cgv {
 				cgv::render::sphere_render_ray_marching_style* rs_ptr = reinterpret_cast<cgv::render::sphere_render_ray_marching_style*>(value_ptr);
 				cgv::base::base* b = dynamic_cast<cgv::base::base*>(p);
 
-				p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;max=100;log=true;ticks=true");
+				p->add_member_control(b, "Radius Scale", rs_ptr->radius_scale, "value_slider", "min=0.01;max=2.0;log=true;ticks=true");
 				if (p->begin_tree_node("Sphere Ray Marching Parameters", rs_ptr->rm, false)) {
 					p->align("\a");
 					p->add_member_control(b, "Epsilon", rs_ptr->rm.epsilon, "value_slider", "min=0;max=0.1;step=0.001;log=true");
